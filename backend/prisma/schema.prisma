@@ -58,6 +58,7 @@ model Character {
   tower        Tower?
   spells       CharacterSpell[]
   items        CharacterItem[]
+  actions      CharacterAction[]
 }
 
 // ── WIEŻA ────────────────────────────────────────────
@@ -137,4 +138,22 @@ model CharacterItem {
   foundAt     DateTime  @default(now())
 
   @@unique([characterId, itemId])
+}
+// ── AKCJE GRACZA ─────────────────────────────────────
+model CharacterAction {
+  id            Int      @id @default(autoincrement())
+  characterId   Int
+  character     Character @relation(fields: [characterId], references: [id])
+  actionType    String   // "study", "exploration"
+  actionLevel   Int      // 1-5
+  status        String   @default("in_progress") // "in_progress", "completed", "claimed"
+  startedAt     DateTime @default(now())
+  finishesAt    DateTime
+  
+  // Wynik (wypełniany po zakończeniu)
+  skillPointsEarned Int?
+  spellDiscovered   String?  // nazwa czaru lub null
+  report            String?  // JSON z pełnym raportem
+
+  @@index([characterId, status])
 }
