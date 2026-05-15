@@ -1,0 +1,16 @@
+services:
+  db:
+    image: postgres:16
+    container_name: wizard_tower_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: wizard
+      POSTGRES_PASSWORD: magicpassword
+      POSTGRES_DB: wizard_tower
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:

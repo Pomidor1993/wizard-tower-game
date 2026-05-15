@@ -1,0 +1,140 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+
+}
+
+// ── GRACZE ──────────────────────────────────────────
+model User {
+  id           Int      @id @default(autoincrement())
+  username     String   @unique
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  isPremium    Boolean  @default(false)
+  premiumUntil DateTime?
+
+  character    Character?
+}
+
+// ── POSTAĆ GRACZA ────────────────────────────────────
+model Character {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @unique
+  user      User     @relation(fields: [userId], references: [id])
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Statystyki
+  knowledge    Int @default(0)  // Wiedza
+  intelligence Int @default(0)  // Inteligencja
+  power        Int @default(0)  // Moc
+  fireElement  Int @default(0)  // Żywioł ognia
+  earthElement Int @default(0)  // Żywioł ziemi
+  airElement   Int @default(0)  // Żywioł powietrza
+  waterElement Int @default(0)  // Żywioł wody
+  chaos        Int @default(0)  // Chaos
+  castSpeed    Int @default(0)  // Cast Speed
+  endurance    Int @default(0)  // Wytrzymałość
+
+  // Zasoby
+  powerShards  Int @default(0)  // Okruchy mocy
+  gold         Int @default(0)  // Złoto
+  skillPoints  Int @default(0)  // Punkty umiejętności do wydania
+  prestige     Int @default(0)  // Prestiż (punkty rankingowe)
+
+  // Pule akcji
+  studyActions      Int      @default(5)   // Szalone studia (max 30)
+  explorationActions Int     @default(3)   // Eksploracja (max 15)
+  lastStudyRegen    DateTime @default(now())
+  lastExploreRegen  DateTime @default(now())
+
+  tower        Tower?
+  spells       CharacterSpell[]
+  items        CharacterItem[]
+}
+
+// ── WIEŻA ────────────────────────────────────────────
+model Tower {
+  id          Int      @id @default(autoincrement())
+  characterId Int      @unique
+  character   Character @relation(fields: [characterId], references: [id])
+  level       Int      @default(1)
+  updatedAt   DateTime @updatedAt
+
+  buildings   TowerBuilding[]
+}
+
+model TowerBuilding {
+  id        Int     @id @default(autoincrement())
+  towerId   Int
+  tower     Tower   @relation(fields: [towerId], references: [id])
+  buildingType String  // "power_collector", "magic_hands", "library" itd.
+  level     Int     @default(1)
+  isUpgrading Boolean @default(false)
+  upgradeFinishesAt DateTime?
+
+  @@unique([towerId, buildingType])
+}
+
+// ── CZARY ────────────────────────────────────────────
+model Spell {
+  id          Int    @id @default(autoincrement())
+  name        String
+  element     String  // "fire", "water", "earth", "air", "chaos"
+  rarity      String  // "common", "uncommon", "rare", "unique"
+  damage      Int
+  reqFire     Int @default(0)
+  reqWater    Int @default(0)
+  reqEarth    Int @default(0)
+  reqAir      Int @default(0)
+  reqChaos    Int @default(0)
+
+  characters  CharacterSpell[]
+}
+
+model CharacterSpell {
+  id          Int       @id @default(autoincrement())
+  characterId Int
+  character   Character @relation(fields: [characterId], references: [id])
+  spellId     Int
+  spell       Spell     @relation(fields: [spellId], references: [id])
+  isEquipped  Boolean   @default(false)
+  discoveredAt DateTime @default(now())
+
+  @@unique([characterId, spellId])
+}
+
+// ── ARTEFAKTY ────────────────────────────────────────
+model Item {
+  id          Int    @id @default(autoincrement())
+  name        String
+  rarity      String  // "common", "uncommon", "rare", "unique"
+  reqKnowledge Int @default(0)
+  bonusFire   Int @default(0)
+  bonusWater  Int @default(0)
+  bonusEarth  Int @default(0)
+  bonusAir    Int @default(0)
+  bonusChaos  Int @default(0)
+  bonusEndurance Int @default(0)
+
+  characters  CharacterItem[]
+}
+
+model CharacterItem {
+  id          Int       @id @default(autoincrement())
+  characterId Int
+  character   Character @relation(fields: [characterId], references: [id])
+  itemId      Int
+  item        Item      @relation(fields: [itemId], references: [id])
+  isEquipped  Boolean   @default(false)
+  foundAt     DateTime  @default(now())
+
+  @@unique([characterId, itemId])
+}

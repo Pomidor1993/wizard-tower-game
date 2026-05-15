@@ -1,6 +1,8 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import authRoutes from "./routes/auth.routes.js";
+import characterRoutes from "./routes/character.routes.js"; 
 
 dotenv.config();
 
@@ -10,18 +12,13 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-// Health check
-app.get("/", (req, res) => {
-  res.json({
-    status: "ok",
-    message: "Wizard Tower backend works!",
-    timestamp: new Date().toISOString(),
-  });
-});
+// Routes
+app.use("/api/auth", authRoutes);
+app.use("/api/character", characterRoutes); 
 
-// Placeholder - tutaj będą dodawane kolejne route'y
+// Health check
 app.get("/api/health", (req, res) => {
-  res.json({ status: "ok" });
+  res.json({ status: "ok", message: "Wizard Tower backend works!" });
 });
 
 app.listen(PORT, () => {
