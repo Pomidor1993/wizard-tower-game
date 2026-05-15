@@ -30,6 +30,8 @@ model Character {
   name      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  equipment    CharacterEquipment?
+  spellSlots   CharacterSpellSlots[]
 
   // Statystyki
   knowledge    Int @default(0)  // Wiedza
@@ -97,6 +99,7 @@ model Spell {
   reqAir      Int @default(0)
   reqChaos    Int @default(0)
 
+  spellSlots   CharacterSpellSlots[]
   characters  CharacterSpell[]
 }
 
@@ -114,18 +117,27 @@ model CharacterSpell {
 
 // ── ARTEFAKTY ────────────────────────────────────────
 model Item {
-  id          Int    @id @default(autoincrement())
-  name        String
-  rarity      String  // "common", "uncommon", "rare", "unique"
-  reqKnowledge Int @default(0)
-  bonusFire   Int @default(0)
-  bonusWater  Int @default(0)
-  bonusEarth  Int @default(0)
-  bonusAir    Int @default(0)
-  bonusChaos  Int @default(0)
+  id             Int    @id @default(autoincrement())
+  name           String
+  rarity         String  // "common", "uncommon", "rare", "unique"
+  slot           String  // "robe", "boots", "hat", "amulet", "weapon_one", "weapon_two"
+  weaponType     String? // "one_handed", "two_handed" — tylko dla broni
+  reqKnowledge   Int @default(0)
+  reqFire        Int @default(0)
+  reqWater       Int @default(0)
+  reqEarth       Int @default(0)
+  reqAir         Int @default(0)
+  reqChaos       Int @default(0)
+  bonusFire      Int @default(0)
+  bonusWater     Int @default(0)
+  bonusEarth     Int @default(0)
+  bonusAir       Int @default(0)
+  bonusChaos     Int @default(0)
   bonusEndurance Int @default(0)
+  bonusCastSpeed Int @default(0)
+  bonusPower     Int @default(0)
 
-  characters  CharacterItem[]
+  characters     CharacterItem[]
 }
 
 model CharacterItem {
@@ -134,11 +146,39 @@ model CharacterItem {
   character   Character @relation(fields: [characterId], references: [id])
   itemId      Int
   item        Item      @relation(fields: [itemId], references: [id])
-  isEquipped  Boolean   @default(false)
   foundAt     DateTime  @default(now())
 
   @@unique([characterId, itemId])
 }
+
+// ── AKTYWNY EKWIPUNEK POSTACI ────────────────────────
+model CharacterEquipment {
+  id          Int       @id @default(autoincrement())
+  characterId Int       @unique
+  character   Character @relation(fields: [characterId], references: [id])
+
+  // Sloty ekwipunku (null = pusty slot)
+  robeId      Int?      // szata
+  bootsId     Int?      // buty
+  hatId       Int?      // czapka
+  amuletId    Int?      // amulet
+  mainHandId  Int?      // prawa ręka
+  offHandId   Int?      // lewa ręka (null jeśli dwuręczna w mainHand)
+}
+
+// ── AKTYWNE CZARY POSTACI ────────────────────────────
+model CharacterSpellSlots {
+  id          Int       @id @default(autoincrement())
+  characterId Int
+  character   Character @relation(fields: [characterId], references: [id])
+  spellId     Int
+  spell       Spell     @relation(fields: [spellId], references: [id])
+  slotIndex   Int       // 0-9 (max 10 czarów)
+
+  @@unique([characterId, slotIndex])
+  @@unique([characterId, spellId])
+}
+
 // ── AKCJE GRACZA ─────────────────────────────────────
 model CharacterAction {
   id            Int      @id @default(autoincrement())

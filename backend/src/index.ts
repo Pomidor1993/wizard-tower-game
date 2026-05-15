@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import authRoutes from "./routes/auth.routes.js";
 import characterRoutes from "./routes/character.routes.js"; 
 import actionRoutes from "./routes/action.routes.js";
+import equipmentRoutes from "./routes/equipment.routes.js";
 
 
 dotenv.config();
@@ -18,6 +19,7 @@ app.use(express.json());
 app.use("/api/auth", authRoutes);
 app.use("/api/character", characterRoutes); 
 app.use("/api/actions", actionRoutes);
+app.use("/api/equipment", equipmentRoutes);
 
 // Health check
 app.get("/api/health", (req, res) => {
