@@ -61,6 +61,9 @@ model Character {
   spells       CharacterSpell[]
   items        CharacterItem[]
   actions      CharacterAction[]
+  battlesAsAttacker Battle[] @relation("BattleAttacker")
+  battlesAsDefender Battle[] @relation("BattleDefender")
+  battlesAsWinner   Battle[] @relation("BattleWinner")
 }
 
 // ── WIEŻA ────────────────────────────────────────────
@@ -196,4 +199,21 @@ model CharacterAction {
   report            String?  // JSON z pełnym raportem
 
   @@index([characterId, status])
+}
+// ── WALKI PVP ─────────────────────────────────────────
+model Battle {
+  id           Int       @id @default(autoincrement())
+  attackerId   Int
+  attacker     Character @relation("BattleAttacker", fields: [attackerId], references: [id])
+  defenderId   Int
+  defender     Character @relation("BattleDefender", fields: [defenderId], references: [id])
+  winnerId     Int
+  winner       Character @relation("BattleWinner", fields: [winnerId], references: [id])
+  log          String    // JSON z logiem tur
+  summary      String
+  prestigeGain Int       @default(0)
+  foughtAt     DateTime  @default(now())
+
+  @@index([attackerId])
+  @@index([defenderId])
 }

@@ -5,6 +5,7 @@ import authRoutes from "./routes/auth.routes.js";
 import characterRoutes from "./routes/character.routes.js"; 
 import actionRoutes from "./routes/action.routes.js";
 import equipmentRoutes from "./routes/equipment.routes.js";
+import combatRoutes from "./routes/combat.routes.js";
 
 
 dotenv.config();
@@ -20,6 +21,8 @@ app.use("/api/auth", authRoutes);
 app.use("/api/character", characterRoutes); 
 app.use("/api/actions", actionRoutes);
 app.use("/api/equipment", equipmentRoutes);
+app.use("/api/combat", combatRoutes);
+
 
 // Health check
 app.get("/api/health", (req, res) => {
