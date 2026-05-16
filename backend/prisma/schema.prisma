@@ -89,7 +89,7 @@ model TowerBuilding {
 // ── CZARY ────────────────────────────────────────────
 model Spell {
   id          Int    @id @default(autoincrement())
-  name        String
+  name        String @unique
   element     String  // "fire", "water", "earth", "air", "chaos"
   rarity      String  // "common", "uncommon", "rare", "unique"
   damage      Int
