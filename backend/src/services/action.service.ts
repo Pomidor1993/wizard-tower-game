@@ -120,6 +120,7 @@ export async function startStudyAction(userId: number, level: number) {
 export async function claimStudyAction(userId: number, actionId: number) {
   const character = await prisma.character.findUnique({
     where: { userId },
+    include: { spells: true },
   });
 
   if (!character) throw new Error("Postać nie znaleziona");
@@ -136,34 +137,60 @@ export async function claimStudyAction(userId: number, actionId: number) {
 
   const config = STUDY_CONFIG[action.actionLevel - 1];
   const skillPointsEarned = randomInt(config.minPoints, config.maxPoints);
-  const discoveredSpell = randomChance(config.spellChance)
-    ? "Kula ognia" // na razie hardkodowane, potem losowanie z bazy czarów
-    : null;
+
+  // Losuj czar z bazy — wyklucz te które gracz już zna
+  let discoveredSpellName: string | null = null;
+
+  if (randomChance(config.spellChance)) {
+    const knownSpellIds = character.spells.map(cs => cs.spellId);
+
+    const availableSpells = await prisma.spell.findMany({
+      where: {
+        id: knownSpellIds.length > 0
+          ? { notIn: knownSpellIds }
+          : undefined,
+      },
+    });
+
+    if (availableSpells.length > 0) {
+      const chosen = availableSpells[randomInt(0, availableSpells.length - 1)];
+
+      // Dodaj czar do kolekcji gracza
+      await prisma.characterSpell.create({
+        data: {
+          characterId: character.id,
+          spellId: chosen.id,
+        },
+      });
+
+      discoveredSpellName = chosen.name;
+    } else {
+      // Gracz zna już wszystkie czary
+      discoveredSpellName = null;
+    }
+  }
 
   const report = {
     skillPointsEarned,
-    discoveredSpell,
-    message: discoveredSpell
-      ? `Zdobyłeś ${skillPointsEarned} pkt umiejętności i odkryłeś czar: ${discoveredSpell}!`
+    discoveredSpell: discoveredSpellName,
+    message: discoveredSpellName
+      ? `Zdobyłeś ${skillPointsEarned} pkt umiejętności i odkryłeś czar: ${discoveredSpellName}!`
       : `Zdobyłeś ${skillPointsEarned} pkt umiejętności.`,
   };
 
-  // Zapisz wynik
   await prisma.$transaction([
     prisma.characterAction.update({
       where: { id: action.id },
       data: {
         status: "claimed",
         skillPointsEarned,
-        spellDiscovered: discoveredSpell,
+        spellDiscovered: discoveredSpellName,
         report: JSON.stringify(report),
       },
     }),
     prisma.character.update({
       where: { id: character.id },
-      data: {
-        skillPoints: { increment: skillPointsEarned },
-      },
+      data: { skillPoints: { increment: skillPointsEarned } },
     }),
   ]);
 
@@ -184,6 +211,16 @@ export async function getActiveActions(userId: number) {
     STUDY_ACTION_MAX,
     STUDY_REGEN_SECONDS
   );
+
+  // Auto-aktualizuj status zakończonych akcji
+  await prisma.characterAction.updateMany({
+    where: {
+      characterId: character.id,
+      status: "in_progress",
+      finishesAt: { lte: new Date() },
+    },
+    data: { status: "completed" },
+  });
 
   const activeActions = await prisma.characterAction.findMany({
     where: {

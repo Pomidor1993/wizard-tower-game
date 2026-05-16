@@ -18,12 +18,11 @@ type UpgradeableStat = typeof UPGRADEABLE_STATS[number];
 
 // Koszt następnego poziomu = koszt poprzedniego * 1.30, poziom 1 = 1 pkt
 export function calculateUpgradeCost(currentLevel: number): number {
-  if (currentLevel === 0) return 1;
   let cost = 1;
   for (let i = 0; i < currentLevel; i++) {
-    cost = Math.round(cost * 1.3);
+    cost = cost * 1.3;
   }
-  return cost;
+  return Math.round(cost);
 }
 
 // ── WYDAJ PUNKTY NA STATYSTYKĘ ───────────────────────
