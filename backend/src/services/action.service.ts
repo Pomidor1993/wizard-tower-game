@@ -50,10 +50,13 @@ export async function startStudyAction(userId: number, level: number) {
   const config = STUDY_CONFIG[level - 1];
   if (!config) throw new Error("Nieprawidłowy poziom akcji");
 
-  const character = await prisma.character.findUnique({
-    where: { userId },
-    include: { tower: true },
-  });
+const character = await prisma.character.findUnique({
+  where: { userId },
+  include: {
+    spells: true,
+    tower: { include: { buildings: true } },
+  },
+});
 
   if (!character) throw new Error("Postać nie znaleziona");
   if (!character.tower) throw new Error("Brak wieży");
@@ -120,7 +123,10 @@ export async function startStudyAction(userId: number, level: number) {
 export async function claimStudyAction(userId: number, actionId: number) {
   const character = await prisma.character.findUnique({
     where: { userId },
-    include: { spells: true },
+    include: {
+      spells: true,
+      tower: { include: { buildings: true } },
+    },
   });
 
   if (!character) throw new Error("Postać nie znaleziona");
@@ -138,43 +144,58 @@ export async function claimStudyAction(userId: number, actionId: number) {
   const config = STUDY_CONFIG[action.actionLevel - 1];
   const skillPointsEarned = randomInt(config.minPoints, config.maxPoints);
 
-  // Losuj czar z bazy — wyklucz te które gracz już zna
   let discoveredSpellName: string | null = null;
+  let spellDestination: string = "none";
+  let overflowSpellName: string | null = null;
 
   if (randomChance(config.spellChance)) {
     const knownSpellIds = character.spells.map(cs => cs.spellId);
 
     const availableSpells = await prisma.spell.findMany({
       where: {
-        id: knownSpellIds.length > 0
-          ? { notIn: knownSpellIds }
-          : undefined,
+        id: knownSpellIds.length > 0 ? { notIn: knownSpellIds } : undefined,
       },
     });
 
     if (availableSpells.length > 0) {
       const chosen = availableSpells[randomInt(0, availableSpells.length - 1)];
+      const knownCount = character.spells.length;
 
-      // Dodaj czar do kolekcji gracza
-      await prisma.characterSpell.create({
-        data: {
-          characterId: character.id,
-          spellId: chosen.id,
-        },
-      });
-
-      discoveredSpellName = chosen.name;
-    } else {
-      // Gracz zna już wszystkie czary
-      discoveredSpellName = null;
+      if (knownCount < character.maxSpells) {
+        await prisma.characterSpell.create({
+          data: { characterId: character.id, spellId: chosen.id },
+        });
+        discoveredSpellName = chosen.name;
+        spellDestination = "library";
+      } else {
+        const chaosVault = character.tower?.buildings?.find(
+          (b: any) => b.buildingType === "chaos_vault"
+        );
+        if (chaosVault && chaosVault.level > 0) {
+          await prisma.chaosVaultItem.create({
+            data: { characterId: character.id, spellId: chosen.id },
+          });
+          discoveredSpellName = chosen.name;
+          spellDestination = "chaos_vault";
+        } else {
+          spellDestination = "lost";
+          overflowSpellName = chosen.name;
+        }
+      }
     }
   }
 
   const report = {
     skillPointsEarned,
     discoveredSpell: discoveredSpellName,
-    message: discoveredSpellName
+    spellDestination,
+    overflowSpellName,
+    message: spellDestination === "library"
       ? `Zdobyłeś ${skillPointsEarned} pkt umiejętności i odkryłeś czar: ${discoveredSpellName}!`
+      : spellDestination === "chaos_vault"
+      ? `Zdobyłeś ${skillPointsEarned} pkt umiejętności. Czar ${discoveredSpellName} trafił do Komnaty nieładu — brak miejsca w bibliotece!`
+      : spellDestination === "lost"
+      ? `Zdobyłeś ${skillPointsEarned} pkt umiejętności. Ups! Nie możesz znaleźć miejsca w bibliotece dla czaru ${overflowSpellName}. Rozbuduj bibliotekę lub wybuduj Komnatę nieładu!`
       : `Zdobyłeś ${skillPointsEarned} pkt umiejętności.`,
   };
 
@@ -196,7 +217,6 @@ export async function claimStudyAction(userId: number, actionId: number) {
 
   return report;
 }
-
 // ── STATUS AKTYWNYCH AKCJI ───────────────────────────
 export async function getActiveActions(userId: number) {
   const character = await prisma.character.findUnique({

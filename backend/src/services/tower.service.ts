@@ -82,6 +82,28 @@ const BUILDING_CONFIG: Record<string, BuildingConfig> = {
     scaleMultiplier: 1.3,
     costScaleMultiplier: 2.0,
   },
+  chaos_vault: {
+  requiredTowerLevel: 1,
+  maxLevel: 10,
+  baseCostShards: 10,
+  baseCostGold: 10,
+  baseReqKnowledge: 5,
+  baseReqIntelligence: 5,
+  baseReqPower: 5,
+  baseDurationSeconds: 150, // 2.5 minuty
+  scaleMultiplier: 1.3,
+},
+disintegrator: {
+  requiredTowerLevel: 10,
+  maxLevel: 1,
+  baseCostShards: 30,
+  baseCostGold: 10,
+  baseReqKnowledge: 5,
+  baseReqIntelligence: 5,
+  baseReqPower: 15,
+  baseDurationSeconds: 300,
+  scaleMultiplier: 1,
+},
 };
 
 function scaleValue(base: number, level: number, multiplier = 1.3): number {
@@ -212,6 +234,7 @@ export async function getTowerInfo(userId: number) {
   const pcLevel = pcInfo.level;
   const mhLevel = buildingInfo("magic_hands").level;
   const candlesLevel = buildingInfo("candles").level;
+  const cvLevel = buildingInfo("chaos_vault").level;
 
   return {
     tower: {
@@ -237,6 +260,8 @@ export async function getTowerInfo(userId: number) {
       magic_hands:     { ...buildingInfo("magic_hands"), currentGoldProduction: mhLevel > 0 ? scaleValue(1, mhLevel, 1.3) : 0 },
       spy_orb:         buildingInfo("spy_orb"),
       candles:         { ...buildingInfo("candles"), currentBonus: candlesLevel },
+      chaos_vault: { ...buildingInfo("chaos_vault"), visibleSlots: cvLevel * 5 },
+      disintegrator: buildingInfo("disintegrator"),
     },
     resources: {
       powerShards: char.powerShards,
@@ -375,3 +400,7 @@ export const startSpyOrbUpgrade           = (userId: number) => startBuildingUpg
 export const claimSpyOrbUpgrade           = (userId: number) => claimBuildingUpgrade(userId, "spy_orb");
 export const startCandlesUpgrade          = (userId: number) => startBuildingUpgrade(userId, "candles");
 export const claimCandlesUpgrade          = (userId: number) => claimBuildingUpgrade(userId, "candles");
+export const startChaosVaultUpgrade = (userId: number) => startBuildingUpgrade(userId, "chaos_vault");
+export const claimChaosVaultUpgrade = (userId: number) => claimBuildingUpgrade(userId, "chaos_vault");
+export const startDisintegratorUpgrade = (userId: number) => startBuildingUpgrade(userId, "disintegrator");
+export const claimDisintegratorUpgrade = (userId: number) => claimBuildingUpgrade(userId, "disintegrator");

@@ -350,6 +350,11 @@ function EquipmentView({ onRefresh, onDataLoaded }: {
   const [equipping, setEquipping] = useState<number | null>(null);
   const [unequipping, setUnequipping] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<{ type: string; id: number; name: string; rarity: string }[]>([]);
+  const [disintegratorAvailable, setDisintegratorAvailable] = useState(false);
+  const [previewData, setPreviewData] = useState<any>(null);
+  const [confirming, setConfirming] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -357,6 +362,9 @@ function EquipmentView({ onRefresh, onDataLoaded }: {
         api.get("/equipment"),
         getMyCharacter(),
       ]);
+      const towerRes = await api.get("/tower");
+      const di = towerRes.data.buildings.disintegrator;
+      setDisintegratorAvailable(di?.level > 0);
       setData(eqRes.data);
       setCharacter(charRes);
       onDataLoaded(eqRes.data);
@@ -446,12 +454,128 @@ function EquipmentView({ onRefresh, onDataLoaded }: {
   const inventoryItems  = data.inventory.filter((item: any)  => !equippedItemIds.has(item.id));
   const inventorySpells = data.knownSpells.filter((spell: any) => !equippedSpellIds.has(spell.id));
 
+function toggleSelect(type: string, id: number, name: string, rarity: string) {
+  setSelected(prev => {
+    const exists = prev.find(s => s.type === type && s.id === id);
+    if (exists) return prev.filter(s => !(s.type === type && s.id === id));
+    return [...prev, { type, id, name, rarity }];
+  });
+}
+
+function isSelected(type: string, id: number) {
+  return selected.some(s => s.type === type && s.id === id);
+}
+
+async function handlePreview() {
+  if (selected.length === 0) return;
+  try {
+    const res = await api.post("/tower/disintegrator/preview", {
+      targets: selected.map(s => ({ type: s.type, id: s.id })),
+    });
+    setPreviewData(res.data);
+  } catch (err: any) {
+    alert(err.response?.data?.error ?? "Błąd");
+  }
+}
+
+async function handleConfirm() {
+  setConfirming(true);
+  try {
+    const res = await api.post("/tower/disintegrator/confirm", {
+      targets: selected.map(s => ({ type: s.type, id: s.id })),
+    });
+    alert(res.data.message);
+    setSelected([]);
+    setPreviewData(null);
+    setSelectMode(false);
+    await fetchData();
+    onRefresh();
+  } catch (err: any) {
+    alert(err.response?.data?.error ?? "Błąd");
+  } finally {
+    setConfirming(false);
+  }
+}
+
   return (
     <>
       {selectedItem && (
         <ItemModal item={selectedItem} onClose={() => setSelectedItem(null)} />
       )}
+{/* Modal dezintegratora */}
+{previewData && (
+  <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+    <div className="bg-white rounded-xl border border-gray-200 p-6 w-96 shadow-lg max-h-[80vh] flex flex-col">
+      <h3 className="font-semibold text-gray-900 mb-3">Potwierdź dezintegrację</h3>
+      <p className="text-xs text-gray-500 mb-3">Czy na pewno chcesz zniszczyć następujące przedmioty?</p>
 
+      <div className="overflow-y-auto flex-1 space-y-1 mb-4">
+        {previewData.items.map((item: any, i: number) => (
+          <div key={i} className="flex items-center justify-between py-1.5 border-b border-gray-50">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-900">{item.name}</span>
+              <span className={`text-xs px-1.5 py-0.5 rounded ${RARITY_COLORS[item.rarity]}`}>
+                {RARITY_LABELS[item.rarity]}
+              </span>
+            </div>
+            <span className="text-xs text-gray-500">+{item.value} okruchów</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="p-3 bg-gray-50 rounded-lg mb-4">
+        <p className="text-sm font-semibold text-gray-900">
+          Łącznie: +{previewData.totalShards} okruchów mocy
+        </p>
+      </div>
+
+      <div className="flex gap-2">
+        <button
+          onClick={() => setPreviewData(null)}
+          className="flex-1 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50"
+        >
+          Anuluj
+        </button>
+        <button
+          onClick={handleConfirm}
+          disabled={confirming}
+          className="flex-1 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+        >
+          {confirming ? "..." : "Zniszcz"}
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+{/* Pasek trybu selekcji */}
+{disintegratorAvailable && (
+  <div className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg">
+    <div className="flex items-center gap-2">
+      <button
+        onClick={() => { setSelectMode(m => !m); setSelected([]); }}
+        className={`text-xs px-3 py-1.5 rounded-md border transition-colors ${
+          selectMode
+            ? "bg-gray-900 text-white border-gray-900"
+            : "border-gray-300 text-gray-600 hover:bg-gray-50"
+        }`}
+      >
+        {selectMode ? "Anuluj wybór" : "Wybierz do dezintegracji"}
+      </button>
+      {selectMode && selected.length > 0 && (
+        <span className="text-xs text-gray-500">Wybrano: {selected.length}</span>
+      )}
+    </div>
+    {selectMode && selected.length > 0 && (
+      <button
+        onClick={handlePreview}
+        className="text-xs px-3 py-1.5 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+      >
+        Wrzuć do dezintegratora ({selected.length})
+      </button>
+    )}
+  </div>
+)}
       <div className="space-y-4">
         <Placeholder title="Grafika / wizualizacja postaci z ekwipunkiem" />
 
@@ -466,10 +590,17 @@ function EquipmentView({ onRefresh, onDataLoaded }: {
                 const unmet    = getUnmetRequirements(item);
                 const canEquip = unmet.length === 0;
                 return (
-                  <div
-                    key={item.id}
-                    className="flex items-center justify-between p-3 border border-gray-100 rounded-lg"
-                  >
+<div
+  key={item.id}
+  onClick={() => selectMode && toggleSelect("item", item.id, item.name, item.rarity)}
+  className={`flex items-center justify-between p-3 border rounded-lg transition-colors ${
+    selectMode
+      ? isSelected("item", item.id)
+        ? "border-red-300 bg-red-50 cursor-pointer"
+        : "border-gray-100 hover:border-gray-300 cursor-pointer"
+      : "border-gray-100"
+  }`}
+>
                     <div
                       className="cursor-pointer hover:opacity-70 transition-opacity"
                       onClick={() => setSelectedItem(item)}
@@ -518,10 +649,17 @@ function EquipmentView({ onRefresh, onDataLoaded }: {
                   .find(i => !data.spellSlots.find((s: any) => s.slotIndex === i));
 
                 return (
-                  <div
-                    key={spell.id}
-                    className="flex items-center justify-between p-3 border border-gray-100 rounded-lg"
-                  >
+<div
+  key={spell.id}
+  onClick={() => selectMode && toggleSelect("spell", spell.id, spell.name, spell.rarity)}
+  className={`flex items-center justify-between p-3 border rounded-lg transition-colors ${
+    selectMode
+      ? isSelected("spell", spell.id)
+        ? "border-red-300 bg-red-50 cursor-pointer"
+        : "border-gray-100 hover:border-gray-300 cursor-pointer"
+      : "border-gray-100"
+  }`}
+>
                     <div
                       className="cursor-pointer hover:opacity-70 transition-opacity"
                       onClick={() => setSelectedItem(spell)}

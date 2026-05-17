@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { upgradeChaosVault, claimChaosVault, getVault, moveSpell, moveItem } from "../controllers/tower.controller.js";
 import { requireAuth } from "../middleware/auth.middleware.js";
 import {
   getTower, upgradeTower, claimTower,
@@ -8,6 +9,8 @@ import {
   upgradeMagicHands, claimMagicHands,
   upgradeSpyOrb, claimSpyOrb,
   upgradeCandles, claimCandles,
+  upgradeDisintegrator, claimDisintegrator,
+  previewDisintegratorEndpoint, confirmDisintegratorEndpoint,
 } from "../controllers/tower.controller.js";
 
 const router = Router();
@@ -27,5 +30,14 @@ router.post("/spy-orb/start",            requireAuth, upgradeSpyOrb);
 router.post("/spy-orb/claim",            requireAuth, claimSpyOrb);
 router.post("/candles/start",            requireAuth, upgradeCandles);
 router.post("/candles/claim",            requireAuth, claimCandles);
+router.post("/chaos-vault/start",        requireAuth, upgradeChaosVault);
+router.post("/chaos-vault/claim",        requireAuth, claimChaosVault);
+router.get("/chaos-vault",               requireAuth, getVault);
+router.post("/chaos-vault/move-spell",   requireAuth, moveSpell);
+router.post("/chaos-vault/move-item",    requireAuth, moveItem);
+router.post("/disintegrator/start",   requireAuth, upgradeDisintegrator);
+router.post("/disintegrator/claim",   requireAuth, claimDisintegrator);
+router.post("/disintegrator/preview", requireAuth, previewDisintegratorEndpoint);
+router.post("/disintegrator/confirm", requireAuth, confirmDisintegratorEndpoint);
 
 export default router;

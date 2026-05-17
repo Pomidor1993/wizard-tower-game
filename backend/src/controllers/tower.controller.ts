@@ -8,7 +8,12 @@ import {
   startMagicHandsUpgrade, claimMagicHandsUpgrade,
   startSpyOrbUpgrade, claimSpyOrbUpgrade,
   startCandlesUpgrade, claimCandlesUpgrade,
+  startChaosVaultUpgrade, claimChaosVaultUpgrade,
+  startDisintegratorUpgrade, claimDisintegratorUpgrade,
 } from "../services/tower.service.js";
+import { getChaosVault, moveSpellFromVault, moveItemFromVault } from "../services/chaos_vault.service.js";
+import { previewDisintegrate, confirmDisintegrate } from "../services/disintegrator.service.js";
+
 
 async function handle(res: Response, fn: () => Promise<any>) {
   try { res.json(await fn()); }
@@ -30,3 +35,23 @@ export const upgradeSpyOrb               = (req: Request, res: Response) => hand
 export const claimSpyOrb                 = (req: Request, res: Response) => handle(res, () => claimSpyOrbUpgrade(req.userId!));
 export const upgradeCandles              = (req: Request, res: Response) => handle(res, () => startCandlesUpgrade(req.userId!));
 export const claimCandles                = (req: Request, res: Response) => handle(res, () => claimCandlesUpgrade(req.userId!));
+
+
+export const upgradeChaosVault = (req: Request, res: Response) => handle(res, () => startChaosVaultUpgrade(req.userId!));
+export const claimChaosVault   = (req: Request, res: Response) => handle(res, () => claimChaosVaultUpgrade(req.userId!));
+export const getVault          = (req: Request, res: Response) => handle(res, () => getChaosVault(req.userId!));
+export const moveSpell         = (req: Request, res: Response) => handle(res, () =>
+  moveSpellFromVault(req.userId!, parseInt(req.body.vaultItemId), req.body.replaceSpellId ? parseInt(req.body.replaceSpellId) : undefined)
+);
+export const moveItem          = (req: Request, res: Response) => handle(res, () =>
+  moveItemFromVault(req.userId!, parseInt(req.body.vaultItemId), req.body.replaceItemId ? parseInt(req.body.replaceItemId) : undefined)
+);
+
+export const upgradeDisintegrator = (req: Request, res: Response) =>
+  handle(res, () => startDisintegratorUpgrade(req.userId!));
+export const claimDisintegrator = (req: Request, res: Response) =>
+  handle(res, () => claimDisintegratorUpgrade(req.userId!));
+export const previewDisintegratorEndpoint = (req: Request, res: Response) =>
+  handle(res, () => previewDisintegrate(req.userId!, req.body.targets));
+export const confirmDisintegratorEndpoint = (req: Request, res: Response) =>
+  handle(res, () => confirmDisintegrate(req.userId!, req.body.targets));

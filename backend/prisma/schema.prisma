@@ -32,6 +32,7 @@ model Character {
   updatedAt DateTime @updatedAt
   equipment    CharacterEquipment?
   spellSlots   CharacterSpellSlots[]
+  chaosVault  ChaosVaultItem[]
 
   // Statystyki
   knowledge    Int @default(0)  // Wiedza
@@ -109,6 +110,7 @@ model Spell {
 
   spellSlots   CharacterSpellSlots[]
   characters  CharacterSpell[]
+  chaosVault  ChaosVaultItem[]
 }
 
 model CharacterSpell {
@@ -146,6 +148,7 @@ model Item {
   bonusPower     Int @default(0)
 
   characters     CharacterItem[]
+  chaosVault  ChaosVaultItem[]
 }
 
 model CharacterItem {
@@ -221,4 +224,17 @@ model Battle {
 
   @@index([attackerId])
   @@index([defenderId])
+}
+// ── KOMNATA NIEŁADU ───────────────────────────────────
+model ChaosVaultItem {
+  id          Int       @id @default(autoincrement())
+  characterId Int
+  character   Character @relation(fields: [characterId], references: [id])
+  itemId      Int?      // null jeśli to czar
+  spellId     Int?      // null jeśli to przedmiot
+  item        Item?     @relation(fields: [itemId], references: [id])
+  spell       Spell?    @relation(fields: [spellId], references: [id])
+  addedAt     DateTime  @default(now())
+
+  @@index([characterId])
 }
