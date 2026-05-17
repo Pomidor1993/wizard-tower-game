@@ -6,6 +6,7 @@ import characterRoutes from "./routes/character.routes.js";
 import actionRoutes from "./routes/action.routes.js";
 import equipmentRoutes from "./routes/equipment.routes.js";
 import combatRoutes from "./routes/combat.routes.js";
+import towerRoutes from "./routes/tower.routes.js";
 
 
 dotenv.config();
@@ -22,6 +23,8 @@ app.use("/api/character", characterRoutes);
 app.use("/api/actions", actionRoutes);
 app.use("/api/equipment", equipmentRoutes);
 app.use("/api/combat", combatRoutes);
+app.use("/api/tower", towerRoutes);
+
 
 
 // Health check

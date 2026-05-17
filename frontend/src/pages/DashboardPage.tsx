@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { getMyCharacter, getUpgradeCosts, upgradeStat } from "../api/character";
 import api from "../api/client";
 import StudyPanel from "../components/StudyPanel";
+import TowerView from "../components/TowerView";
+
 
 type Page = "overview" | "equipment" | "tower" | "study" | "exploration" | "combat" | "guild" | "settings";
 
@@ -563,32 +565,6 @@ function EquipmentView({ onRefresh, onDataLoaded }: {
   );
 }
 
-// ── WIDOKI ZAKŁADEK ──────────────────────────────────
-
-function TowerView({ character }: { character: any }) {
-  return (
-    <div className="space-y-4">
-      <Card>
-        <SectionTitle>Wieża — poziom {character?.tower?.level ?? 1}</SectionTitle>
-        <div className="space-y-2">
-          {character?.tower?.buildings?.map((b: any) => (
-            <div
-              key={b.id}
-              className="flex justify-between items-center p-3 border border-gray-100 rounded-lg"
-            >
-              <span className="text-sm text-gray-700 capitalize">
-                {b.buildingType.replace(/_/g, " ")}
-              </span>
-              <span className="text-xs text-gray-500">Poziom {b.level}</span>
-            </div>
-          ))}
-        </div>
-      </Card>
-      <Placeholder title="Widok i rozbudowa wieży" />
-    </div>
-  );
-}
-
 // ── GŁÓWNY KOMPONENT ─────────────────────────────────
 
 export default function DashboardPage() {
@@ -670,13 +646,10 @@ case "equipment":
     />
   );
 
-      case "tower":
-        return (
-          <PageLayout
-            left={<TowerView character={character} />}
-            right={<Placeholder title="Wizualizacja wieży" />}
-          />
-        );
+case "tower":
+  return (
+    <TowerView onResourcesUpdated={fetchAll} />
+  );
 
       case "study":
         return (

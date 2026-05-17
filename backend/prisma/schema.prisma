@@ -50,6 +50,9 @@ model Character {
   gold         Int @default(0)  // Złoto
   skillPoints  Int @default(0)  // Punkty umiejętności do wydania
   prestige     Int @default(0)  // Prestiż (punkty rankingowe)
+  lastResourceCollect DateTime @default(now()) // Bazowe 
+  maxItems            Int @default(10) // limit przedmiotów
+  maxSpells           Int @default(10) // limit czarów
 
   // Pule akcji
   studyActions      Int      @default(5)   // Szalone studia (max 30)
@@ -72,6 +75,8 @@ model Tower {
   characterId Int      @unique
   character   Character @relation(fields: [characterId], references: [id])
   level       Int      @default(1)
+  isUpgrading Boolean  @default(false)
+  upgradeFinishesAt DateTime?               
   updatedAt   DateTime @updatedAt
 
   buildings   TowerBuilding[]

@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Character" ADD COLUMN     "maxItems" INTEGER NOT NULL DEFAULT 10,
+ADD COLUMN     "maxSpells" INTEGER NOT NULL DEFAULT 10;

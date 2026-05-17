@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Character" ADD COLUMN     "lastResourceCollect" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
