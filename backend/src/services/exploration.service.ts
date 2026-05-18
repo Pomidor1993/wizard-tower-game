@@ -61,14 +61,18 @@ export async function startExploration(userId: number, level: number) {
     throw new Error("Brak dostępnych akcji eksploracji. Poczekaj na odnowienie.");
   }
 
-  // Sprawdź czy nie ma aktywnej eksploracji
-  const activeAction = await prisma.characterAction.findFirst({
-    where: {
-      characterId: character.id,
-      actionType: "exploration",
-      status: "in_progress",
-    },
-  });
+  // Sprawdź czy nie ma aktywnej dowolnej akcji
+const activeAction = await prisma.characterAction.findFirst({
+  where: {
+    characterId: character.id,
+    status: "in_progress",
+  },
+});
+
+if (activeAction) {
+  const typeLabel = activeAction.actionType === "study" ? "studiów" : "eksploracji";
+  throw new Error(`Masz już aktywną akcję ${typeLabel}. Poczekaj na jej zakończenie.`);
+}
 
   if (activeAction) throw new Error("Masz już aktywną eksplorację");
 

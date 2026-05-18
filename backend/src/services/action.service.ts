@@ -2,7 +2,7 @@ import prisma from "../lib/prisma.js";
 
 // ── KONFIGURACJA AKCJI ───────────────────────────────
 const STUDY_CONFIG = [
-  { level: 1, durationSeconds: 5,  minPoints: 1,  maxPoints: 4,  spellChance: 0.20, requiredTowerLevel: 1  },
+  { level: 1, durationSeconds: 5,  minPoints: 1,  maxPoints: 4,  spellChance: 0.95, requiredTowerLevel: 1  },
   { level: 2, durationSeconds: 120, minPoints: 5,  maxPoints: 10, spellChance: 0.30, requiredTowerLevel: 3  },
   { level: 3, durationSeconds: 180, minPoints: 11, maxPoints: 22, spellChance: 0.40, requiredTowerLevel: 6  },
   { level: 4, durationSeconds: 240, minPoints: 23, maxPoints: 50, spellChance: 0.40, requiredTowerLevel: 10 },
@@ -80,14 +80,18 @@ const character = await prisma.character.findUnique({
     throw new Error("Brak dostępnych akcji. Poczekaj na odnowienie.");
   }
 
-  // Sprawdź czy nie ma już aktywnej akcji tego samego typu
-  const activeAction = await prisma.characterAction.findFirst({
-    where: { characterId: character.id, actionType: "study", status: "in_progress" },
-  });
+// Sprawdź czy nie ma już aktywnej akcji JAKIEGOKOLWIEK typu
+const activeAction = await prisma.characterAction.findFirst({
+  where: {
+    characterId: character.id,
+    status: "in_progress",
+  },
+});
 
-  if (activeAction) {
-    throw new Error("Masz już aktywną akcję studiów");
-  }
+if (activeAction) {
+  const typeLabel = activeAction.actionType === "study" ? "studiów" : "eksploracji";
+  throw new Error(`Masz już aktywną akcję ${typeLabel}. Poczekaj na jej zakończenie.`);
+}
 
   const finishesAt = new Date(Date.now() + config.durationSeconds * 1000);
 
@@ -225,12 +229,38 @@ export async function getActiveActions(userId: number) {
 
   if (!character) throw new Error("Postać nie znaleziona");
 
-  const { newActions } = calculateRegenActions(
+  const { newActions: newStudyActions, newLastRegen: newStudyRegen } = calculateRegenActions(
     character.studyActions,
     character.lastStudyRegen,
     STUDY_ACTION_MAX,
     STUDY_REGEN_SECONDS
   );
+
+  const EXPLORATION_MAX = 15;
+  const EXPLORATION_REGEN_SECONDS = 60 * 60;
+
+  const { newActions: newExplorationActions, newLastRegen: newExploreRegen } = calculateRegenActions(
+    character.explorationActions,
+    character.lastExploreRegen,
+    EXPLORATION_MAX,
+    EXPLORATION_REGEN_SECONDS
+  );
+
+  // Zapisz zaktualizowane akcje do bazy jeśli się zmieniły
+  if (
+    newStudyActions !== character.studyActions ||
+    newExplorationActions !== character.explorationActions
+  ) {
+    await prisma.character.update({
+      where: { id: character.id },
+      data: {
+        studyActions: newStudyActions,
+        lastStudyRegen: newStudyRegen,
+        explorationActions: newExplorationActions,
+        lastExploreRegen: newExploreRegen,
+      },
+    });
+  }
 
   // Auto-aktualizuj status zakończonych akcji
   await prisma.characterAction.updateMany({
@@ -251,8 +281,10 @@ export async function getActiveActions(userId: number) {
   });
 
   return {
-    studyActionsAvailable: newActions,
+    studyActionsAvailable: newStudyActions,
     studyActionsMax: STUDY_ACTION_MAX,
+    explorationActionsAvailable: newExplorationActions,
+    explorationActionsMax: EXPLORATION_MAX,
     activeActions,
   };
 }

@@ -4,12 +4,15 @@ import { getMyCharacter, getUpgradeCosts, upgradeStat } from "../api/character";
 import api from "../api/client";
 import StudyPanel from "../components/StudyPanel";
 import TowerView from "../components/TowerView";
+import ExplorationPanel from "../components/ExplorationPanel";
+import CombatPanel from "../components/CombatPanel";
 
 
-type Page = "overview" | "equipment" | "tower" | "study" | "exploration" | "combat" | "guild" | "settings";
+type Page = "overview" | "training" | "equipment" | "tower" | "study" | "exploration" | "combat" | "guild" | "settings";
 
 const NAV_ITEMS: { id: Page; label: string }[] = [
   { id: "overview",    label: "Przegląd konta" },
+  { id: "training",    label: "Trening" },
   { id: "equipment",   label: "Ekwipunek" },
   { id: "tower",       label: "Wieża" },
   { id: "study",       label: "Studia" },
@@ -120,11 +123,21 @@ function StatRow({ cost, onRefresh }: { cost: any; onRefresh: () => void }) {
   );
 }
 
-function LeftPanel({ character, upgradeCosts, onRefresh }: {
+function LeftPanel({ character, effectiveStats, upgradeCosts }: {
   character: any;
+  effectiveStats: any;
   upgradeCosts: any;
-  onRefresh: () => void;
 }) {
+  const stats = effectiveStats?.effective ?? {};
+  const base  = effectiveStats?.base ?? {};
+
+  const STAT_LABELS: Record<string, string> = {
+    knowledge: "Wiedza", intelligence: "Inteligencja", power: "Moc",
+    fireElement: "Żywioł ognia", earthElement: "Żywioł ziemi",
+    airElement: "Żywioł powietrza", waterElement: "Żywioł wody",
+    chaos: "Chaos", castSpeed: "Cast Speed", endurance: "Wytrzymałość",
+  };
+
   return (
     <div className="space-y-4">
       <Card>
@@ -155,11 +168,27 @@ function LeftPanel({ character, upgradeCosts, onRefresh }: {
 
       <Card>
         <SectionTitle>Statystyki</SectionTitle>
-        <div>
-          {upgradeCosts.costs.map((cost: any) => (
-            <StatRow key={cost.stat} cost={cost} onRefresh={onRefresh} />
-          ))}
+        <div className="space-y-1">
+          {Object.entries(STAT_LABELS).map(([key, label]) => {
+            const effective = stats[key] ?? 0;
+            const baseVal   = base[key] ?? 0;
+            const bonus     = effective - baseVal;
+            return (
+              <div key={key} className="flex items-center justify-between py-1.5 border-b border-gray-50 last:border-0">
+                <span className="text-sm text-gray-600 w-32">{label}</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm font-semibold text-gray-900">{effective}</span>
+                  {bonus > 0 && (
+                    <span className="text-xs text-green-600 font-medium">(+{bonus})</span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
+        <p className="text-xs text-gray-400 mt-3 pt-2 border-t border-gray-50">
+          Wartości w nawiasach to bonusy z ekwipunku
+        </p>
       </Card>
     </div>
   );
@@ -355,6 +384,7 @@ function EquipmentView({ onRefresh, onDataLoaded }: {
   const [disintegratorAvailable, setDisintegratorAvailable] = useState(false);
   const [previewData, setPreviewData] = useState<any>(null);
   const [confirming, setConfirming] = useState(false);
+  const [effectiveStats, setEffectiveStats] = useState<any>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -702,6 +732,30 @@ async function handleConfirm() {
     </>
   );
 }
+//Trening statystyk — wydawanie punktów umiejętności
+function TrainingView({ upgradeCosts, onRefresh }: { upgradeCosts: any; onRefresh: () => void }) {
+  return (
+    <div className="space-y-4">
+      <Card>
+        <SectionTitle>Trening statystyk</SectionTitle>
+        <p className="text-xs text-gray-500 mb-3">
+          Wydaj punkty umiejętności na rozwinięcie statystyk bazowych.
+          Bonusy z ekwipunku są widoczne w Przeglądzie konta.
+        </p>
+        <div className="mb-4 p-3 bg-gray-900 rounded-lg text-white flex justify-between items-center">
+          <p className="text-xs text-gray-400">Dostępne punkty umiejętności</p>
+          <p className="text-xl font-bold">{upgradeCosts.skillPoints}</p>
+        </div>
+        <div>
+          {upgradeCosts.costs.map((cost: any) => (
+            <StatRow key={cost.stat} cost={cost} onRefresh={onRefresh} />
+          ))}
+        </div>
+      </Card>
+      <Placeholder title="Wizualizacja postaci w trakcie treningu" />
+    </div>
+  );
+}
 
 // ── GŁÓWNY KOMPONENT ─────────────────────────────────
 
@@ -711,20 +765,24 @@ export default function DashboardPage() {
   const [character, setCharacter]     = useState<any>(null);
   const [upgradeCosts, setUpgradeCosts] = useState<any>(null);
   const [actions, setActions]         = useState<any>(null);
+  const [effectiveStats, setEffectiveStats] = useState<any>(null);
   const [equipmentData, setEquipmentData] = useState<any>(null);
   const [loading, setLoading]         = useState(true);
   const [equipmentRefreshKey, setEquipmentRefreshKey] = useState(0);
 
   const fetchAll = useCallback(async () => {
     try {
-      const [char, costs, acts] = await Promise.all([
+      const [char, costs, acts, effStats] = await Promise.all([
         getMyCharacter(),
         getUpgradeCosts(),
         api.get("/actions").then(r => r.data),
+        api.get("/character/effective-stats").then(r => r.data),
+
       ]);
       setCharacter(char);
       setUpgradeCosts(costs);
       setActions(acts);
+      setEffectiveStats(effStats);
     } catch {
       // interceptor przekieruje przy 401
     } finally {
@@ -748,9 +806,13 @@ export default function DashboardPage() {
     );
   }
 
-  const leftPanel = character && upgradeCosts ? (
-    <LeftPanel character={character} upgradeCosts={upgradeCosts} onRefresh={fetchAll} />
-  ) : null;
+const leftPanel = character && upgradeCosts && effectiveStats ? (
+  <LeftPanel
+    character={character}
+    effectiveStats={effectiveStats}
+    upgradeCosts={upgradeCosts}
+  />
+) : null;
 
   function renderContent() {
     switch (page) {
@@ -788,6 +850,17 @@ case "tower":
   return (
     <TowerView onResourcesUpdated={fetchAll} />
   );
+  
+case "training":
+  return (
+    <PageLayout
+      left={leftPanel}
+      right={upgradeCosts ? <TrainingView upgradeCosts={upgradeCosts} onRefresh={fetchAll} /> : null}
+    />
+  );
+
+  case "combat":
+  return <CombatPanel onRefresh={fetchAll} />;
 
       case "study":
         return (
@@ -807,20 +880,7 @@ case "tower":
         );
 
       case "exploration":
-        return (
-          <PageLayout
-            left={<Placeholder title="Menu eksploracji" />}
-            right={<Placeholder title="Wizualizacja eksploracji" />}
-          />
-        );
-
-      case "combat":
-        return (
-          <PageLayout
-            left={<Placeholder title="Menu pojedynku" />}
-            right={<Placeholder title="Arena walki" />}
-          />
-        );
+        return <ExplorationPanel onRefresh={fetchAll} />;
 
       case "guild":
         return (
@@ -883,6 +943,7 @@ case "tower":
 
       <main className="max-w-6xl mx-auto px-6 py-6">
         {renderContent()}
+
       </main>
     </div>
   );

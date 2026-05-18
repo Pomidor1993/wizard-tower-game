@@ -47,7 +47,7 @@ model Character {
   endurance    Int @default(0)  // Wytrzymałość
 
   // Zasoby
-  powerShards  Int @default(0)  // Okruchy mocy
+  powerShards  Int @default(1)  // Okruchy mocy
   gold         Int @default(0)  // Złoto
   skillPoints  Int @default(0)  // Punkty umiejętności do wydania
   prestige     Int @default(0)  // Prestiż (punkty rankingowe)
@@ -56,8 +56,8 @@ model Character {
   maxSpells           Int @default(10) // limit czarów
 
   // Pule akcji
-  studyActions      Int      @default(5)   // Szalone studia (max 30)
-  explorationActions Int     @default(3)   // Eksploracja (max 15)
+  studyActions      Int      @default(30)   // Szalone studia (max 30)
+  explorationActions Int     @default(15)   // Eksploracja (max 15)
   lastStudyRegen    DateTime @default(now())
   lastExploreRegen  DateTime @default(now())
 

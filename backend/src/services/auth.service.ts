@@ -33,24 +33,29 @@ export async function registerUser(
       username,
       email,
       passwordHash,
-      character: {
-        create: {
-          name: username,
-          tower: {
-            create: {
-              level: 1,
-              buildings: {
-                create: [
-                  { buildingType: "power_collector", level: 1 },
-                  { buildingType: "library", level: 1 },
-                  { buildingType: "wardrobe", level: 1 },
-                  { buildingType: "storage", level: 1 },
-                ],
-              },
-            },
-          },
+character: {
+  create: {
+    name: username,
+    studyActions: 30,
+    explorationActions: 15,
+    powerShards: 1,
+    equipment: {
+      create: {}
+    },
+    tower: {
+      create: {
+        level: 1,
+        buildings: {
+          create: [
+            { buildingType: "power_collector", level: 0 },
+            { buildingType: "library", level: 0 },
+            { buildingType: "wardrobe", level: 0 },
+          ],
         },
       },
+    },
+  },
+},
     },
   });
 

@@ -14,3 +14,8 @@ export async function upgradeStat(stat: string) {
   const res = await api.post("/character/upgrade", { stat });
   return res.data;
 }
+
+export async function getEffectiveStats() {
+  const res = await api.get("/character/effective-stats");
+  return res.data;
+}
