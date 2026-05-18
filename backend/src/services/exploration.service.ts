@@ -3,7 +3,7 @@ import { calculateRegenActions } from "./action.service.js";
 
 // ── KONFIGURACJA ─────────────────────────────────────
 const EXPLORATION_CONFIG = [
-  { level: 1, durationSeconds: 5, minPoints: 10, maxPoints: 20,  itemChance: 0.10, encounterChance: 0.05, requiredStat: 0  },
+  { level: 1, durationSeconds: 5, minPoints: 10, maxPoints: 20,  itemChance: 0.90, encounterChance: 0.05, requiredStat: 0  },
   { level: 2, durationSeconds: 240, minPoints: 20, maxPoints: 40,  itemChance: 0.20, encounterChance: 0.10, requiredStat: 5  },
   { level: 3, durationSeconds: 360, minPoints: 40, maxPoints: 60,  itemChance: 0.30, encounterChance: 0.00, requiredStat: 10 },
   { level: 4, durationSeconds: 480, minPoints: 60, maxPoints: 80,  itemChance: 0.20, encounterChance: 0.40, requiredStat: 20 },
@@ -37,11 +37,14 @@ export async function startExploration(userId: number, level: number) {
 
   // Sprawdź wymagania statystyk (suma wszystkich żywiołów)
   const totalElements =
-    character.fireElement +
-    character.earthElement +
-    character.airElement +
-    character.waterElement +
-    character.chaos;
+    character.fireMagic +
+    character.earthMagic +
+    character.airMagic +
+    character.waterMagic +
+    character.chaosMagic +
+    character.energyMagic +
+    character.lifeMagic +
+    character.deathMagic;
 
   if (totalElements < config.requiredStat) {
     throw new Error(
@@ -143,11 +146,17 @@ export async function claimExploration(userId: number, actionId: number) {
     const enemyPower = ENCOUNTER_ENEMY_POWER[action.actionLevel - 1];
     const playerPower =
       character.endurance +
-      character.fireElement +
-      character.earthElement +
-      character.airElement +
-      character.waterElement +
-      character.chaos;
+      character.resistance +
+      character.initiative +
+      character.power +
+      character.fireMagic +
+      character.earthMagic +
+      character.airMagic +
+      character.waterMagic +
+      character.chaosMagic +
+      character.energyMagic +
+      character.lifeMagic +
+      character.deathMagic;
 
     const playerWon = playerPower >= enemyPower || randomChance(0.3);
 

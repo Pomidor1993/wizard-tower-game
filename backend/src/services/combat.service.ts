@@ -9,13 +9,17 @@ interface Fighter {
   name: string;
   hp: number;
   maxHp: number;
-  castSpeed: number;
+  resistance: number;
+  initiative: number;
   power: number;
-  fireElement: number;
-  waterElement: number;
-  earthElement: number;
-  airElement: number;
-  chaos: number;
+  fireMagic: number;
+  waterMagic: number;
+  earthMagic: number;
+  airMagic: number;
+  chaosMagic: number;
+  energyMagic: number;
+  lifeMagic: number;
+  deathMagic: number;
   spells: { name: string; damage: number; element: string }[];
 }
 
@@ -35,11 +39,14 @@ function randomInt(min: number, max: number): number {
 // Oblicz bonus żywiołu do obrażeń
 function elementBonus(spell: { element: string }, fighter: Fighter): number {
   const bonuses: Record<string, number> = {
-    fire:  fighter.fireElement,
-    water: fighter.waterElement,
-    earth: fighter.earthElement,
-    air:   fighter.airElement,
-    chaos: fighter.chaos,
+    fire:  fighter.fireMagic,
+    water: fighter.waterMagic,
+    earth: fighter.earthMagic,
+    air:   fighter.airMagic,
+    chaos: fighter.chaosMagic,
+    energy: fighter.energyMagic,
+    life:   fighter.lifeMagic,
+    death:  fighter.deathMagic,
   };
   return bonuses[spell.element] ?? 0;
 }
@@ -77,7 +84,7 @@ async function buildFighter(characterId: number): Promise<Fighter> {
 
   // Zbierz bonusy z ekwipunku
   let bonusEndurance = 0;
-  let bonusCastSpeed = 0;
+  let bonusInitiative = 0;
   let bonusPower = 0;
 
   if (character.equipment) {
@@ -91,7 +98,7 @@ async function buildFighter(characterId: number): Promise<Fighter> {
       const items = await prisma.item.findMany({ where: { id: { in: itemIds } } });
       for (const item of items) {
         bonusEndurance += item.bonusEndurance;
-        bonusCastSpeed += item.bonusCastSpeed;
+        bonusInitiative += item.bonusInitiative;
         bonusPower     += item.bonusPower;
       }
     }
@@ -104,14 +111,17 @@ async function buildFighter(characterId: number): Promise<Fighter> {
     name: character.name,
     hp: maxHp,
     maxHp,
-    castSpeed:    character.castSpeed + bonusCastSpeed,
+    initiative:   character.initiative + bonusInitiative,
     power:        character.power + bonusPower,
-    fireElement:  character.fireElement,
-    waterElement: character.waterElement,
-    earthElement: character.earthElement,
-    airElement:   character.airElement,
-    chaos:        character.chaos,
-    spells: character.spellSlots.map(ss => ({
+    fireMagic:    character.fireMagic,
+    waterMagic:   character.waterMagic,
+    earthMagic:   character.earthMagic,
+    airMagic:     character.airMagic,
+    chaosMagic:   character.chaosMagic,
+    energyMagic:  character.energyMagic,
+    lifeMagic:    character.lifeMagic,
+    deathMagic:   character.deathMagic,
+    spells:       character.spellSlots.map(ss => ({
       name:    ss.spell.name,
       damage:  ss.spell.damage,
       element: ss.spell.element,
@@ -146,14 +156,14 @@ function simulateBattle(attackerFighter: Fighter, defenderFighter: Fighter): {
   while (hpA > 0 && hpD > 0 && turn < MAX_TURNS) {
     turn++;
 
-    // Ustal kolejność w turze na podstawie Cast Speed
+    // Ustal kolejność w turze na podstawie Initiative + losowość
     let firstFighter: Fighter;
     let secondFighter: Fighter;
     let firstHp: number;
     let secondHp: number;
 
-    const aSpeed = attackerFighter.castSpeed + Math.random() * 2;
-    const dSpeed = defenderFighter.castSpeed + Math.random() * 2;
+    const aSpeed = attackerFighter.initiative + Math.random() * 2;
+    const dSpeed = defenderFighter.initiative + Math.random() * 2;
 
     if (aSpeed >= dSpeed) {
       firstFighter = attackerFighter;  firstHp = hpA;

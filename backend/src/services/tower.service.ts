@@ -177,7 +177,7 @@ function checkUnmet(reqs: ReturnType<typeof getBuildingReqs>, character: any, to
   if (character.knowledge < reqs.reqKnowledge)     unmet.push(`Wiedza ${reqs.reqKnowledge} (masz ${character.knowledge})`);
   if (reqs.reqIntelligence > 0 && character.intelligence < reqs.reqIntelligence) unmet.push(`Inteligencja ${reqs.reqIntelligence} (masz ${character.intelligence})`);
   if (reqs.reqPower > 0 && character.power < reqs.reqPower)                       unmet.push(`Moc ${reqs.reqPower} (masz ${character.power})`);
-  if (reqs.reqFire > 0 && character.fireElement < reqs.reqFire)                   unmet.push(`Żywioł ognia ${reqs.reqFire} (masz ${character.fireElement})`);
+  if (reqs.reqFire > 0 && character.fireMagic < reqs.reqFire)                   unmet.push(`Żywioł ognia ${reqs.reqFire} (masz ${character.fireMagic})`);
   if (reqs.costShards > 0 && character.powerShards < reqs.costShards)             unmet.push(`Okruchy mocy ${reqs.costShards} (masz ${character.powerShards})`);
   if (reqs.costGold > 0 && character.gold < reqs.costGold)                        unmet.push(`Złoto ${reqs.costGold} (masz ${character.gold})`);
   return unmet;

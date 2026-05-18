@@ -18,23 +18,32 @@ async function getEffectiveCharacter(userId: number) {
     eq?.amuletId, eq?.mainHandId, eq?.offHandId,
   ].filter(Boolean) as number[];
 
-  let bonusFire = 0, bonusWater = 0, bonusEarth = 0,
-      bonusAir = 0, bonusChaos = 0, bonusPower = 0,
-      bonusCastSpeed = 0, bonusEndurance = 0;
+  let bonusKnowledge = 0, bonusIntelligence = 0, bonusPower = 0,
+  bonusEndurance = 0, bonusResistance = 0, bonusInitiative = 0, 
+  bonusFireMagic = 0, bonusWaterMagic = 0, bonusEarthMagic = 0, bonusAirMagic = 0,
+  bonusChaosMagic = 0, bonusEnergy = 0, bonusLife = 0, bonusDeath = 0; 
+
 
   if (equippedItemIds.length > 0) {
     const equippedItems = await prisma.item.findMany({
       where: { id: { in: equippedItemIds } },
     });
     for (const item of equippedItems) {
-      bonusFire      += item.bonusFire;
-      bonusWater     += item.bonusWater;
-      bonusEarth     += item.bonusEarth;
-      bonusAir       += item.bonusAir;
-      bonusChaos     += item.bonusChaos;
-      bonusPower     += item.bonusPower;
-      bonusCastSpeed += item.bonusCastSpeed;
+      bonusKnowledge += item.bonusKnowledge;
+      bonusIntelligence += item.bonusIntelligence;
+      bonusPower += item.bonusPower;
       bonusEndurance += item.bonusEndurance;
+      bonusResistance += item.bonusResistance;
+      bonusInitiative += item.bonusInitiative;
+      bonusFireMagic += item.bonusFireMagic;
+      bonusWaterMagic += item.bonusWaterMagic;
+      bonusEarthMagic += item.bonusEarthMagic;
+      bonusAirMagic += item.bonusAirMagic;
+      bonusChaosMagic += item.bonusChaosMagic;
+      bonusEnergyMagic += item.bonusEnergyMagic;
+      bonusLifeMagic += item.bonusLifeMagic;
+      bonusDeathMagic += item.bonusDeathMagic;
+
     }
   }
 
@@ -42,16 +51,20 @@ async function getEffectiveCharacter(userId: number) {
     // oryginalne dane postaci (id, items, spells, equipment itd.)
     ...character,
     // efektywne statystyki (bazowe + bonusy)
-    knowledge:    character.knowledge,
-    intelligence: character.intelligence,
-    power:        character.power        + bonusPower,
-    fireElement:  character.fireElement  + bonusFire,
-    waterElement: character.waterElement + bonusWater,
-    earthElement: character.earthElement + bonusEarth,
-    airElement:   character.airElement   + bonusAir,
-    chaos:        character.chaos        + bonusChaos,
-    castSpeed:    character.castSpeed    + bonusCastSpeed,
-    endurance:    character.endurance    + bonusEndurance,
+    knowledge:    character.knowledge      + bonusKnowledge,
+    intelligence: character.intelligence   + bonusIntelligence,
+    power:        character.power          + bonusPower,
+    endurance:    character.endurance      + bonusEndurance,
+    resistance:   character.resistance     + bonusResistance,
+    initiative:   character.initiative     + bonusInitiative,
+    fireMagic:    character.fireMagic      + bonusFireMagic,
+    waterMagic:   character.waterMagic     + bonusWaterMagic,
+    earthMagic:   character.earthMagic     + bonusEarthMagic,
+    airMagic:     character.airMagic       + bonusAirMagic,
+    chaosMagic:   character.chaosMagic     + bonusChaosMagic,
+    energyMagic:  character.energyMagic    + bonusEnergyMagic,
+    lifeMagic:    character.lifeMagic      + bonusLifeMagic,
+    deathMagic:   character.deathMagic     + bonusDeathMagic,
   };
 }
 
@@ -61,32 +74,66 @@ function checkItemRequirements(item: any, character: any) {
   const errors: string[] = [];
   if (item.reqKnowledge > 0 && character.knowledge    < item.reqKnowledge)
     errors.push(`Wiedza ${item.reqKnowledge} (masz ${character.knowledge})`);
-  if (item.reqFire      > 0 && character.fireElement  < item.reqFire)
-    errors.push(`Żywioł ognia ${item.reqFire} (masz ${character.fireElement})`);
-  if (item.reqWater     > 0 && character.waterElement < item.reqWater)
-    errors.push(`Żywioł wody ${item.reqWater} (masz ${character.waterElement})`);
-  if (item.reqEarth     > 0 && character.earthElement < item.reqEarth)
-    errors.push(`Żywioł ziemi ${item.reqEarth} (masz ${character.earthElement})`);
-  if (item.reqAir       > 0 && character.airElement   < item.reqAir)
-    errors.push(`Żywioł powietrza ${item.reqAir} (masz ${character.airElement})`);
-  if (item.reqChaos     > 0 && character.chaos        < item.reqChaos)
-    errors.push(`Chaos ${item.reqChaos} (masz ${character.chaos})`);
+  if (item.reqIntelligence > 0 && character.intelligence < item.reqIntelligence)
+    errors.push(`Inteligencja ${item.reqIntelligence} (masz ${character.intelligence})`);
+  if (item.reqPower     > 0 && character.power        < item.reqPower)
+    errors.push(`Moc ${item.reqPower} (masz ${character.power})`);
+  if (item.reqEndurance > 0 && character.endurance    < item.reqEndurance)
+    errors.push(`Wytrzymałość ${item.reqEndurance} (masz ${character.endurance})`);
+  if (item.reqResistance > 0 && character.resistance   < item.reqResistance)
+    errors.push(`Odporność ${item.reqResistance} (masz ${character.resistance})`);
+  if (item.reqInitiative > 0 && character.initiative   < item.reqInitiative)
+    errors.push(`Inicjatywa ${item.reqInitiative} (masz ${character.initiative})`);
+  if (item.reqFireMagic       > 0 && character.fireMagic  < item.reqFireMagic)
+    errors.push(`Żywioł ognia ${item.reqFireMagic} (masz ${character.fireMagic})`);
+  if (item.reqWaterMagic      > 0 && character.waterMagic < item.reqWaterMagic)
+    errors.push(`Żywioł wody ${item.reqWaterMagic} (masz ${character.waterMagic})`);
+  if (item.reqEarthMagic      > 0 && character.earthMagic < item.reqEarthMagic)
+    errors.push(`Żywioł ziemi ${item.reqEarthMagic} (masz ${character.earthMagic})`);
+  if (item.reqAirMagic        > 0 && character.airMagic   < item.reqAirMagic)
+    errors.push(`Żywioł powietrza ${item.reqAirMagic} (masz ${character.airMagic})`);
+  if (item.reqChaosMagic      > 0 && character.chaosMagic        < item.reqChaosMagic)
+    errors.push(`Chaos ${item.reqChaosMagic} (masz ${character.chaosMagic})`);
+  if (item.reqLifeMagic       > 0 && character.lifeMagic      < item.reqLifeMagic )
+    errors.push(`Życie ${item.reqLifeMagic} (masz ${character.lifeMagic})`);
+  if (item.reqDeathMagic      > 0 && character.deathMagic     < item.reqDeathMagic)
+    errors.push(`Śmierć ${item.reqDeathMagic} (masz ${character.deathMagic})`);
+  if (item.reqEnergyMagic    > 0 && character.energyMagic    < item.reqEnergyMagic)
+    errors.push(`Energia ${item.reqEnergyMagic} (masz ${character.energyMagic})`);
   if (errors.length > 0)
     throw new Error(`Nie spełniasz wymagań: ${errors.join(", ")}`);
 }
 
 function checkSpellRequirements(spell: any, character: any) {
   const errors: string[] = [];
-  if (spell.reqFire  > 0 && character.fireElement  < spell.reqFire)
-    errors.push(`Żywioł ognia ${spell.reqFire} (masz ${character.fireElement})`);
-  if (spell.reqWater > 0 && character.waterElement < spell.reqWater)
-    errors.push(`Żywioł wody ${spell.reqWater} (masz ${character.waterElement})`);
-  if (spell.reqEarth > 0 && character.earthElement < spell.reqEarth)
-    errors.push(`Żywioł ziemi ${spell.reqEarth} (masz ${character.earthElement})`);
-  if (spell.reqAir   > 0 && character.airElement   < spell.reqAir)
-    errors.push(`Żywioł powietrza ${spell.reqAir} (masz ${character.airElement})`);
-  if (spell.reqChaos > 0 && character.chaos        < spell.reqChaos)
-    errors.push(`Chaos ${spell.reqChaos} (masz ${character.chaos})`);
+  if (spell.reqKnowledge > 0 && character.knowledge    < spell.reqKnowledge)
+    errors.push(`Wiedza ${spell.reqKnowledge} (masz ${character.knowledge})`);
+  if (spell.reqIntelligence > 0 && character.intelligence < spell.reqIntelligence)
+    errors.push(`Inteligencja ${spell.reqIntelligence} (masz ${character.intelligence})`);
+  if (spell.reqPower     > 0 && character.power        < spell.reqPower)
+    errors.push(`Moc ${spell.reqPower} (masz ${character.power})`);
+  if (spell.reqEndurance > 0 && character.endurance    < spell.reqEndurance)
+    errors.push(`Wytrzymałość ${spell.reqEndurance} (masz ${character.endurance})`);
+  if (spell.reqResistance > 0 && character.resistance   < spell.reqResistance)
+    errors.push(`Odporność ${spell.reqResistance} (masz ${character.resistance})`);
+  if (spell.reqInitiative > 0 && character.initiative   < spell.reqInitiative)
+    errors.push(`Inicjatywa ${spell.reqInitiative} (masz ${character.initiative})`);
+  if (spell.reqLifeMagic      > 0 && character.lifeMagic      < spell.reqLifeMagic)
+    errors.push(`Życie ${spell.reqLifeMagic} (masz ${character.lifeMagic})`);
+  if (spell.reqDeathMagic     > 0 && character.deathMagic     < spell.reqDeathMagic)
+    errors.push(`Śmierć ${spell.reqDeathMagic} (masz ${character.deathMagic})`);
+  if (spell.reqEnergyMagic    > 0 && character.energyMagic    < spell.reqEnergyMagic)
+    errors.push(`Energia ${spell.reqEnergyMagic} (masz ${character.energyMagic})`);
+  if (spell.reqFireMagic  > 0 && character.fireMagic  < spell.reqFireMagic)
+    errors.push(`Żywioł ognia ${spell.reqFireMagic} (masz ${character.fireMagic})`);
+  if (spell.reqWaterMagic > 0 && character.waterMagic < spell.reqWaterMagic)
+    errors.push(`Żywioł wody ${spell.reqWaterMagic} (masz ${character.waterMagic})`);
+  if (spell.reqEarthMagic > 0 && character.earthMagic < spell.reqEarthMagic)
+    errors.push(`Żywioł ziemi ${spell.reqEarthMagic} (masz ${character.earthMagic})`);
+  if (spell.reqAirMagic   > 0 && character.airMagic   < spell.reqAirMagic)
+    errors.push(`Żywioł powietrza ${spell.reqAirMagic} (masz ${character.airMagic})`);
+  if (spell.reqChaosMagic > 0 && character.chaosMagic        < spell.reqChaosMagic)
+    errors.push(`Chaos ${spell.reqChaosMagic} (masz ${character.chaosMagic})`);
   if (errors.length > 0)
     throw new Error(`Nie spełniasz wymagań: ${errors.join(", ")}`);
 }

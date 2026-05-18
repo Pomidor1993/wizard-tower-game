@@ -22,16 +22,21 @@ const NAV_ITEMS: { id: Page; label: string }[] = [
 ];
 
 const STAT_LABELS: Record<string, string> = {
-  knowledge:    "Wiedza",
+  knowledge: "Wiedza",
   intelligence: "Inteligencja",
-  power:        "Moc",
-  fireElement:  "Żywioł ognia",
-  earthElement: "Żywioł ziemi",
-  airElement:   "Żywioł powietrza",
-  waterElement: "Żywioł wody",
-  chaos:        "Chaos",
-  castSpeed:    "Cast Speed",
-  endurance:    "Wytrzymałość",
+  power: "Moc",
+  endurance: "Wytrzymałość",
+  resistance: "Odporność",
+  initiative: "Inicjatywa",
+
+  fireMagic: "Ogień",
+  waterMagic: "Woda",
+  earthMagic: "Ziemia",
+  airMagic: "Powietrze",
+  lifeMagic: "Życie",
+  deathMagic: "Śmierć",
+  chaosMagic: "Chaos",
+  energyMagic: "Energia",
 };
 
 const RARITY_COLORS: Record<string, string> = {
@@ -46,9 +51,9 @@ const RARITY_LABELS: Record<string, string> = {
 };
 
 const SLOT_LABELS: Record<string, string> = {
+  hat:      "Czapka",
   robe:     "Szata",
   boots:    "Buty",
-  hat:      "Czapka",
   amulet:   "Amulet",
   mainHand: "Prawa ręka",
   offHand:  "Lewa ręka",
@@ -133,9 +138,11 @@ function LeftPanel({ character, effectiveStats, upgradeCosts }: {
 
   const STAT_LABELS: Record<string, string> = {
     knowledge: "Wiedza", intelligence: "Inteligencja", power: "Moc",
-    fireElement: "Żywioł ognia", earthElement: "Żywioł ziemi",
-    airElement: "Żywioł powietrza", waterElement: "Żywioł wody",
-    chaos: "Chaos", castSpeed: "Cast Speed", endurance: "Wytrzymałość",
+    endurance: "Wytrzymałość", resistance: "Odporność", initiative: "Inicjatywa",
+    
+    fireMagic: "Żywioł ognia", earthMagic: "Żywioł ziemi",
+    airMagic: "Żywioł powietrza", waterMagic: "Żywioł wody",
+    chaosMagic: "Chaos", energyMagic: "Energia", lifeMagic: "Życie", deathMagic: "Śmierć",
   };
 
   return (
@@ -340,25 +347,38 @@ function ItemModal({ item, onClose }: { item: any; onClose: () => void }) {
           {item.slot     && <p className="text-xs text-gray-600">Slot: {SLOT_LABELS[item.slot] ?? item.slot}</p>}
           {item.element  && <p className="text-xs text-gray-600">Żywioł: {item.element}</p>}
           {item.damage   > 0 && <p className="text-xs text-gray-600">Obrażenia: {item.damage}</p>}
-          {item.bonusFire      > 0 && <p className="text-xs text-gray-600">+{item.bonusFire} Żywioł ognia</p>}
-          {item.bonusWater     > 0 && <p className="text-xs text-gray-600">+{item.bonusWater} Żywioł wody</p>}
-          {item.bonusEarth     > 0 && <p className="text-xs text-gray-600">+{item.bonusEarth} Żywioł ziemi</p>}
-          {item.bonusAir       > 0 && <p className="text-xs text-gray-600">+{item.bonusAir} Żywioł powietrza</p>}
-          {item.bonusChaos     > 0 && <p className="text-xs text-gray-600">+{item.bonusChaos} Chaos</p>}
+          {item.bonusKnowledge   > 0 && <p className="text-xs text-gray-600">+{item.bonusKnowledge} Wiedza</p>}
+          {item.bonusIntelligence > 0 && <p className="text-xs text-gray-600">+{item.bonusIntelligence} Inteligencja</p>}
           {item.bonusEndurance > 0 && <p className="text-xs text-gray-600">+{item.bonusEndurance} Wytrzymałość</p>}
-          {item.bonusCastSpeed > 0 && <p className="text-xs text-gray-600">+{item.bonusCastSpeed} Cast Speed</p>}
           {item.bonusPower     > 0 && <p className="text-xs text-gray-600">+{item.bonusPower} Moc</p>}
+          {item.bonusInitiative > 0 && <p className="text-xs text-gray-600">+{item.bonusInitiative} Inicjatywa</p>}
+          {item.bonusFireMagic      > 0 && <p className="text-xs text-gray-600">+{item.bonusFireMagic} Żywioł ognia</p>}
+          {item.bonusWaterMagic     > 0 && <p className="text-xs text-gray-600">+{item.bonusWaterMagic} Żywioł wody</p>}
+          {item.bonusEarthMagic     > 0 && <p className="text-xs text-gray-600">+{item.bonusEarthMagic} Żywioł ziemi</p>}
+          {item.bonusAirMagic       > 0 && <p className="text-xs text-gray-600">+{item.bonusAirMagic} Żywioł powietrza</p>}
+          {item.bonusChaosMagic     > 0 && <p className="text-xs text-gray-600">+{item.bonusChaosMagic} Chaos</p>}
+          {item.bonusEnergyMagic    > 0 && <p className="text-xs text-gray-600">+{item.bonusEnergyMagic} Energia</p>}
+          {item.bonusLifeMagic       > 0 && <p className="text-xs text-gray-600">+{item.bonusLifeMagic} Życie</p>}
+          {item.bonusDeathMagic      > 0 && <p className="text-xs text-gray-600">+{item.bonusDeathMagic} Śmierć</p>}
 
-          {(item.reqKnowledge > 0 || item.reqFire > 0 || item.reqWater > 0 ||
-            item.reqEarth > 0 || item.reqAir > 0 || item.reqChaos > 0) && (
+          {(item.reqKnowledge > 0 || item.reqFireMagic > 0 || item.reqWaterMagic > 0 ||
+            item.reqEarthMagic > 0 || item.reqAirMagic > 0 || item.reqChaosMagic > 0) && (
             <div className="mt-3 pt-3 border-t border-gray-100">
               <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Wymagania</p>
               {item.reqKnowledge > 0 && <p className="text-xs text-gray-600">Wiedza: {item.reqKnowledge}</p>}
-              {item.reqFire      > 0 && <p className="text-xs text-gray-600">Żywioł ognia: {item.reqFire}</p>}
-              {item.reqWater     > 0 && <p className="text-xs text-gray-600">Żywioł wody: {item.reqWater}</p>}
-              {item.reqEarth     > 0 && <p className="text-xs text-gray-600">Żywioł ziemi: {item.reqEarth}</p>}
-              {item.reqAir       > 0 && <p className="text-xs text-gray-600">Żywioł powietrza: {item.reqAir}</p>}
-              {item.reqChaos     > 0 && <p className="text-xs text-gray-600">Chaos: {item.reqChaos}</p>}
+              {item.reqIntelligence > 0 && <p className="text-xs text-gray-600">Inteligencja: {item.reqIntelligence}</p>}
+              {item.reqPower     > 0 && <p className="text-xs text-gray-600">Moc: {item.reqPower}</p>}
+              {item.reqEndurance  > 0 && <p className="text-xs text-gray-600">Wytrzymałość: {item.reqEndurance}</p>}
+              {item.reqResistance > 0 && <p className="text-xs text-gray-600">Odporność: {item.reqResistance}</p>}
+              {item.reqInitiative > 0 && <p className="text-xs text-gray-600">Inicjatywa: {item.reqInitiative}</p>}
+              {item.reqFireMagic       > 0 && <p className="text-xs text-gray-600">Żywioł ognia: {item.reqFireMagic}</p>}
+              {item.reqWaterMagic      > 0 && <p className="text-xs text-gray-600">Żywioł wody: {item.reqWaterMagic}</p>}
+              {item.reqEarthMagic      > 0 && <p className="text-xs text-gray-600">Żywioł ziemi: {item.reqEarthMagic}</p>}
+              {item.reqAirMagic        > 0 && <p className="text-xs text-gray-600">Żywioł powietrza: {item.reqAirMagic}</p>}
+              {item.reqChaosMagic      > 0 && <p className="text-xs text-gray-600">Chaos: {item.reqChaosMagic}</p>}
+              {item.reqEnergyMagic     > 0 && <p className="text-xs text-gray-600">Energia: {item.reqEnergyMagic}</p>}
+              {item.reqLifeMagic       > 0 && <p className="text-xs text-gray-600">Życie: {item.reqLifeMagic}</p>}
+              {item.reqDeathMagic      > 0 && <p className="text-xs text-gray-600">Śmierć: {item.reqDeathMagic}</p>}
             </div>
           )}
         </div>
@@ -411,11 +431,19 @@ function EquipmentView({ onRefresh, onDataLoaded }: {
     if (!character) return [];
     const unmet: string[] = [];
     if (item.reqKnowledge > 0 && character.knowledge    < item.reqKnowledge) unmet.push(`Wiedza ${item.reqKnowledge} (masz ${character.knowledge})`);
-    if (item.reqFire      > 0 && character.fireElement  < item.reqFire)      unmet.push(`Żywioł ognia ${item.reqFire} (masz ${character.fireElement})`);
-    if (item.reqWater     > 0 && character.waterElement < item.reqWater)     unmet.push(`Żywioł wody ${item.reqWater} (masz ${character.waterElement})`);
-    if (item.reqEarth     > 0 && character.earthElement < item.reqEarth)     unmet.push(`Żywioł ziemi ${item.reqEarth} (masz ${character.earthElement})`);
-    if (item.reqAir       > 0 && character.airElement   < item.reqAir)       unmet.push(`Żywioł powietrza ${item.reqAir} (masz ${character.airElement})`);
-    if (item.reqChaos     > 0 && character.chaos        < item.reqChaos)     unmet.push(`Chaos ${item.reqChaos} (masz ${character.chaos})`);
+    if (item.reqIntelligence > 0 && character.intelligence < item.reqIntelligence) unmet.push(`Inteligencja ${item.reqIntelligence} (masz ${character.intelligence})`);
+    if (item.reqPower     > 0 && character.power       < item.reqPower)     unmet.push(`Moc ${item.reqPower} (masz ${character.power})`);
+    if (item.reqEndurance  > 0 && character.endurance    < item.reqEndurance)  unmet.push(`Wytrzymałość ${item.reqEndurance} (masz ${character.endurance})`);
+    if (item.reqResistance > 0 && character.resistance   < item.reqResistance) unmet.push(`Odporność ${item.reqResistance} (masz ${character.resistance})`);
+    if (item.reqInitiative > 0 && character.initiative   < item.reqInitiative) unmet.push(`Inicjatywa ${item.reqInitiative} (masz ${character.initiative})`);
+    if (item.reqFireMagic  > 0 && character.fireMagic    < item.reqFireMagic)  unmet.push(`Moc ognia ${item.reqFireMagic} (masz ${character.fireMagic})`);
+    if (item.reqWaterMagic > 0 && character.waterMagic   < item.reqWaterMagic) unmet.push(`Moc wody ${item.reqWaterMagic} (masz ${character.waterMagic})`);
+    if (item.reqEarthMagic > 0 && character.earthMagic   < item.reqEarthMagic) unmet.push(`Moc ziemi ${item.reqEarthMagic} (masz ${character.earthMagic})`);
+    if (item.reqAirMagic   > 0 && character.airMagic     < item.reqAirMagic)   unmet.push(`Moc powietrza ${item.reqAirMagic} (masz ${character.airMagic})`);
+    if (item.reqLifeMagic  > 0 && character.lifeMagic    < item.reqLifeMagic)  unmet.push(`Moc życia ${item.reqLifeMagic} (masz ${character.lifeMagic})`);
+    if (item.reqDeathMagic > 0 && character.deathMagic   < item.reqDeathMagic) unmet.push(`Moc śmierci ${item.reqDeathMagic} (masz ${character.deathMagic})`);
+    if (item.reqEnergyMagic > 0 && character.energyMagic < item.reqEnergyMagic) unmet.push(`Moc energii ${item.reqEnergyMagic} (masz ${character.energyMagic})`);
+    if (item.reqChaosMagic  > 0 && character.chaosMagic   < item.reqChaosMagic)  unmet.push(`Moc chaosu ${item.reqChaosMagic} (masz ${character.chaosMagic})`);
     return unmet;
   }
 
