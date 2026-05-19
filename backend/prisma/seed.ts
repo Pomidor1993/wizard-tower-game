@@ -18,7 +18,7 @@ async function main() {
       // ── CZAPKI ──
       { name: "Słomkowy kapelusz",          rarity: "common",   slot: "hat",        bonusPower: 1 },
       { name: "Spiczasta czapka maga",      rarity: "uncommon", slot: "hat",        reqKnowledge: 5,  bonusPower: 4,  bonusInitiative: 2 },
-      { name: "Kaptur chaosu",              rarity: "rare",     slot: "hat",        reqChaos: 10,     bonusChaosMagic: 5,  bonusPower: 6 },
+      { name: "Kaptur chaosu",              rarity: "rare",     slot: "hat",        reqChaosMagic: 10,     bonusChaosMagic: 5,  bonusPower: 6 },
       // ── AMULETY ──
       { name: "Sznurek z kamieniem",        rarity: "common",   slot: "amulet",     bonusFireMagic: 1 },
       { name: "Magiczny łańcuch",           rarity: "uncommon", slot: "amulet",     reqKnowledge: 5,  bonusFireMagic: 3, bonusWaterMagic: 3, bonusEarthMagic: 3, bonusAirMagic: 3, bonusChaosMagic: 3 },
@@ -38,15 +38,17 @@ async function main() {
   await prisma.spell.createMany({
     skipDuplicates: true,
     data: [
-      { name: "Kula ognia",               element: "fire",  rarity: "common",   damage: 10, reqFire: 5,  reqChaos: 1 },
-      { name: "Piorun kulisty",           element: "air",   rarity: "common",   damage: 10, reqAir: 5,   reqChaos: 1 },
-      { name: "Sople lodu",               element: "water", rarity: "common",   damage: 10, reqWater: 5, reqChaos: 1 },
-      { name: "Błoto",                    element: "earth", rarity: "common",   damage: 2,  reqWater: 1, reqEarth: 1 },
-      { name: "Strumień wody",            element: "water", rarity: "common",   damage: 2,  reqWater: 2 },
-      { name: "Podmuch",                  element: "air",   rarity: "common",   damage: 2,  reqAir: 2 },
-      { name: "Zabójczy królik",          element: "chaos", rarity: "uncommon", damage: 25, reqChaos: 10 },
-      { name: "Tornado",                  element: "air",   rarity: "uncommon", damage: 25, reqAir: 10,  reqChaos: 5 },
-      { name: "Rój magicznych pszczół",   element: "chaos", rarity: "uncommon", damage: 15, reqFire: 3,  reqWater: 3, reqEarth: 3, reqAir: 3, reqChaos: 3 },
+      { name: "Kula ognia",               element: "fire",  rarity: "common",   damage: 10, reqFireMagic: 5,  reqChaosMagic: 1 },
+      { name: "Piorun kulisty",           element: "air",   rarity: "common",   damage: 10, reqAirMagic: 5,   reqChaosMagic: 1 },
+      { name: "Sople lodu",               element: "water", rarity: "common",   damage: 10, reqWaterMagic: 5, reqChaosMagic: 1 },
+      { name: "Błoto",                    element: "earth", rarity: "common",   damage: 2,  reqWaterMagic: 1, reqEarthMagic: 1 },
+      { name: "Strumień wody",            element: "water", rarity: "common",   damage: 2,  reqWaterMagic: 2 },
+      { name: "Strumień wódy",            element: "water", rarity: "common",   damage: 10, reqWaterMagic: 5, reqChaosMagic: 5 },
+      { name: "Podmuch",                  element: "air",   rarity: "common",   damage: 2,  reqAirMagic: 2 },
+      { name: "Mocny podmuch",            element: "air",   rarity: "common",   damage: 5,  reqAirMagic: 8 },
+      { name: "Zabójczy królik",          element: "chaos", rarity: "uncommon", damage: 25, reqChaosMagic: 10 },
+      { name: "Tornado",                  element: "air",   rarity: "uncommon", damage: 25, reqAirMagic: 10,  reqChaosMagic: 5 },
+      { name: "Rój magicznych pszczół",   element: "chaos", rarity: "uncommon", damage: 15, reqFireMagic: 3,  reqWaterMagic: 3, reqEarthMagic: 3, reqAirMagic: 3, reqChaosMagic: 3 },
     ],
   });
 

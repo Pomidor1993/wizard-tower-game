@@ -165,27 +165,20 @@ export async function claimStudyAction(userId: number, actionId: number) {
       const chosen = availableSpells[randomInt(0, availableSpells.length - 1)];
       const knownCount = character.spells.length;
 
-      if (knownCount < character.maxSpells) {
-        await prisma.characterSpell.create({
-          data: { characterId: character.id, spellId: chosen.id },
-        });
-        discoveredSpellName = chosen.name;
-        spellDestination = "library";
-      } else {
-        const chaosVault = character.tower?.buildings?.find(
-          (b: any) => b.buildingType === "chaos_vault"
-        );
-        if (chaosVault && chaosVault.level > 0) {
-          await prisma.chaosVaultItem.create({
-            data: { characterId: character.id, spellId: chosen.id },
-          });
-          discoveredSpellName = chosen.name;
-          spellDestination = "chaos_vault";
-        } else {
-          spellDestination = "lost";
-          overflowSpellName = chosen.name;
-        }
-      }
+if (knownCount < character.maxSpells) {
+  await prisma.characterSpell.create({
+    data: { characterId: character.id, spellId: chosen.id },
+  });
+  discoveredSpellName = chosen.name;
+  spellDestination = "library";
+} else {
+  // Zawsze ląduje w chaos_vault
+  await prisma.chaosVaultItem.create({
+    data: { characterId: character.id, spellId: chosen.id },
+  });
+  discoveredSpellName = chosen.name;
+  spellDestination = "chaos_vault";
+}
     }
   }
 
@@ -194,13 +187,11 @@ export async function claimStudyAction(userId: number, actionId: number) {
     discoveredSpell: discoveredSpellName,
     spellDestination,
     overflowSpellName,
-    message: spellDestination === "library"
-      ? `Zdobyłeś ${skillPointsEarned} pkt umiejętności i odkryłeś czar: ${discoveredSpellName}!`
-      : spellDestination === "chaos_vault"
-      ? `Zdobyłeś ${skillPointsEarned} pkt umiejętności. Czar ${discoveredSpellName} trafił do Komnaty nieładu — brak miejsca w bibliotece!`
-      : spellDestination === "lost"
-      ? `Zdobyłeś ${skillPointsEarned} pkt umiejętności. Ups! Nie możesz znaleźć miejsca w bibliotece dla czaru ${overflowSpellName}. Rozbuduj bibliotekę lub wybuduj Komnatę nieładu!`
-      : `Zdobyłeś ${skillPointsEarned} pkt umiejętności.`,
+message: spellDestination === "library"
+  ? `Zdobyłeś ${skillPointsEarned} pkt umiejętności i odkryłeś czar: ${discoveredSpellName}!`
+  : spellDestination === "chaos_vault"
+  ? `Zdobyłeś ${skillPointsEarned} pkt umiejętności i odkryłeś czar: ${discoveredSpellName}! Niestety, wszystkie regały w Twojej bibliotece są już zajęte, więc postanowiłeś wrzucić pergamin do Komnaty Nieładu. Rozbuduj bibliotekę, aby uzyskać do niego dostęp!`
+  : `Zdobyłeś ${skillPointsEarned} pkt umiejętności.`,
   };
 
   await prisma.$transaction([

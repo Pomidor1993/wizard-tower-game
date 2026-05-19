@@ -131,3 +131,55 @@ export async function moveItemFromVault(userId: number, vaultItemId: number, rep
 
   return { message: "Przedmiot przeniesiony do graciarni" };
 }
+export async function addToVaultFromInventory(
+  userId: number,
+  type: "item" | "spell",
+  sourceId: number // characterItemId lub characterSpellId
+) {
+  const character = await prisma.character.findUnique({
+    where: { userId },
+    include: { equipment: true },
+  });
+  if (!character) throw new Error("Postać nie znaleziona");
+
+  if (type === "item") {
+    const ci = await prisma.characterItem.findFirst({
+      where: { id: sourceId, characterId: character.id },
+    });
+    if (!ci) throw new Error("Przedmiot nie znaleziony w graciarni");
+
+    const eq = character.equipment;
+    const equippedIds = [
+      eq?.robeId, eq?.bootsId, eq?.hatId,
+      eq?.amuletId, eq?.mainHandId, eq?.offHandId,
+    ].filter(Boolean);
+    if (equippedIds.includes(ci.itemId)) {
+      throw new Error("Najpierw zdejmij przedmiot zanim wrzucisz go do Komnaty");
+    }
+
+    await prisma.$transaction([
+      prisma.chaosVaultItem.create({ data: { characterId: character.id, itemId: ci.itemId } }),
+      prisma.characterItem.delete({ where: { id: sourceId } }),
+    ]);
+
+  } else {
+    const cs = await prisma.characterSpell.findFirst({
+      where: { id: sourceId, characterId: character.id },
+    });
+    if (!cs) throw new Error("Czar nie znaleziony w bibliotece");
+
+    const inSlot = await prisma.characterSpellSlots.findFirst({
+      where: { characterId: character.id, spellId: cs.spellId },
+    });
+    if (inSlot) {
+      throw new Error("Najpierw zdejmij czar ze slotu zanim wrzucisz go do Komnaty");
+    }
+
+    await prisma.$transaction([
+      prisma.chaosVaultItem.create({ data: { characterId: character.id, spellId: cs.spellId } }),
+      prisma.characterSpell.delete({ where: { id: sourceId } }),
+    ]);
+  }
+
+  return { message: "Przeniesiono do Komnaty Nieładu" };
+}

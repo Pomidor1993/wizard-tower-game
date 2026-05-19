@@ -183,8 +183,6 @@ model CharacterItem {
   itemId      Int
   item        Item      @relation(fields: [itemId], references: [id])
   foundAt     DateTime  @default(now())
-
-  @@unique([characterId, itemId])
 }
 
 // ── AKTYWNY EKWIPUNEK POSTACI ────────────────────────

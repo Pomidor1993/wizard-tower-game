@@ -11,7 +11,7 @@ import {
   startChaosVaultUpgrade, claimChaosVaultUpgrade,
   startDisintegratorUpgrade, claimDisintegratorUpgrade,
 } from "../services/tower.service.js";
-import { getChaosVault, moveSpellFromVault, moveItemFromVault } from "../services/chaos_vault.service.js";
+import { getChaosVault, moveSpellFromVault, moveItemFromVault, addToVaultFromInventory } from "../services/chaos_vault.service.js";
 import { previewDisintegrate, confirmDisintegrate } from "../services/disintegrator.service.js";
 
 
@@ -45,6 +45,9 @@ export const moveSpell         = (req: Request, res: Response) => handle(res, ()
 );
 export const moveItem          = (req: Request, res: Response) => handle(res, () =>
   moveItemFromVault(req.userId!, parseInt(req.body.vaultItemId), req.body.replaceItemId ? parseInt(req.body.replaceItemId) : undefined)
+);
+export const addToVault = (req: Request, res: Response) => handle(res, () =>
+  addToVaultFromInventory(req.userId!, req.body.type, parseInt(req.body.sourceId))
 );
 
 export const upgradeDisintegrator = (req: Request, res: Response) =>

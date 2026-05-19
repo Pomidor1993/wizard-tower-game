@@ -21,7 +21,7 @@ async function getEffectiveCharacter(userId: number) {
   let bonusKnowledge = 0, bonusIntelligence = 0, bonusPower = 0,
   bonusEndurance = 0, bonusResistance = 0, bonusInitiative = 0, 
   bonusFireMagic = 0, bonusWaterMagic = 0, bonusEarthMagic = 0, bonusAirMagic = 0,
-  bonusChaosMagic = 0, bonusEnergy = 0, bonusLife = 0, bonusDeath = 0; 
+  bonusChaosMagic = 0, bonusEnergyMagic = 0, bonusLifeMagic = 0, bonusDeathMagic = 0; 
 
 
   if (equippedItemIds.length > 0) {

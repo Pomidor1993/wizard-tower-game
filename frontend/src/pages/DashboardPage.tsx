@@ -7,7 +7,6 @@ import TowerView from "../components/TowerView";
 import ExplorationPanel from "../components/ExplorationPanel";
 import CombatPanel from "../components/CombatPanel";
 
-
 type Page = "overview" | "training" | "equipment" | "tower" | "study" | "exploration" | "combat" | "guild" | "settings";
 
 const NAV_ITEMS: { id: Page; label: string }[] = [
@@ -20,24 +19,6 @@ const NAV_ITEMS: { id: Page; label: string }[] = [
   { id: "combat",      label: "Pojedynek" },
   { id: "guild",       label: "Gildia" },
 ];
-
-const STAT_LABELS: Record<string, string> = {
-  knowledge: "Wiedza",
-  intelligence: "Inteligencja",
-  power: "Moc",
-  endurance: "Wytrzymałość",
-  resistance: "Odporność",
-  initiative: "Inicjatywa",
-
-  fireMagic: "Ogień",
-  waterMagic: "Woda",
-  earthMagic: "Ziemia",
-  airMagic: "Powietrze",
-  lifeMagic: "Życie",
-  deathMagic: "Śmierć",
-  chaosMagic: "Chaos",
-  energyMagic: "Energia",
-};
 
 const RARITY_COLORS: Record<string, string> = {
   common:   "text-gray-500 bg-gray-100",
@@ -63,7 +44,7 @@ const SLOT_LABELS: Record<string, string> = {
 
 function Placeholder({ title }: { title: string }) {
   return (
-    <div className="flex items-center justify-center h-64 border-2 border-dashed border-gray-200 rounded-xl">
+    <div className="flex items-center justify-center h-40 border-2 border-dashed border-gray-200 rounded-xl">
       <p className="text-gray-400 text-sm">{title} — wizualizacja wkrótce</p>
     </div>
   );
@@ -94,6 +75,429 @@ function PageLayout({ left, right }: { left: React.ReactNode; right: React.React
   );
 }
 
+// ── MODAL PRZEDMIOTU / CZARU ─────────────────────────
+
+function ItemModal({ item, onClose }: { item: any; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-white rounded-xl border border-gray-200 p-6 w-80 shadow-lg" onClick={e => e.stopPropagation()}>
+        <div className="flex justify-between items-start mb-4">
+          <div>
+            <p className="font-semibold text-gray-900">{item.name}</p>
+            <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${RARITY_COLORS[item.rarity]}`}>
+              {RARITY_LABELS[item.rarity]}
+            </span>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg leading-none">×</button>
+        </div>
+        <Placeholder title="Grafika przedmiotu" />
+        <div className="mt-4 space-y-1">
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Statystyki</p>
+          {item.slot    && <p className="text-xs text-gray-600">Slot: {SLOT_LABELS[item.slot] ?? item.slot}</p>}
+          {item.element && <p className="text-xs text-gray-600">Żywioł: {item.element}</p>}
+          {item.damage  > 0 && <p className="text-xs text-gray-600">Obrażenia: {item.damage}</p>}
+          {item.bonusKnowledge    > 0 && <p className="text-xs text-gray-600">+{item.bonusKnowledge} Wiedza</p>}
+          {item.bonusIntelligence > 0 && <p className="text-xs text-gray-600">+{item.bonusIntelligence} Inteligencja</p>}
+          {item.bonusEndurance    > 0 && <p className="text-xs text-gray-600">+{item.bonusEndurance} Wytrzymałość</p>}
+          {item.bonusPower        > 0 && <p className="text-xs text-gray-600">+{item.bonusPower} Moc</p>}
+          {item.bonusInitiative   > 0 && <p className="text-xs text-gray-600">+{item.bonusInitiative} Inicjatywa</p>}
+          {item.bonusFireMagic    > 0 && <p className="text-xs text-gray-600">+{item.bonusFireMagic} Żywioł ognia</p>}
+          {item.bonusWaterMagic   > 0 && <p className="text-xs text-gray-600">+{item.bonusWaterMagic} Żywioł wody</p>}
+          {item.bonusEarthMagic   > 0 && <p className="text-xs text-gray-600">+{item.bonusEarthMagic} Żywioł ziemi</p>}
+          {item.bonusAirMagic     > 0 && <p className="text-xs text-gray-600">+{item.bonusAirMagic} Żywioł powietrza</p>}
+          {item.bonusChaosMagic   > 0 && <p className="text-xs text-gray-600">+{item.bonusChaosMagic} Chaos</p>}
+          {item.bonusEnergyMagic  > 0 && <p className="text-xs text-gray-600">+{item.bonusEnergyMagic} Energia</p>}
+          {item.bonusLifeMagic    > 0 && <p className="text-xs text-gray-600">+{item.bonusLifeMagic} Życie</p>}
+          {item.bonusDeathMagic   > 0 && <p className="text-xs text-gray-600">+{item.bonusDeathMagic} Śmierć</p>}
+          {(item.reqKnowledge > 0 || item.reqFireMagic > 0 || item.reqWaterMagic > 0 ||
+            item.reqEarthMagic > 0 || item.reqAirMagic > 0 || item.reqChaosMagic > 0) && (
+            <div className="mt-3 pt-3 border-t border-gray-100">
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Wymagania</p>
+              {item.reqKnowledge    > 0 && <p className="text-xs text-gray-600">Wiedza: {item.reqKnowledge}</p>}
+              {item.reqIntelligence > 0 && <p className="text-xs text-gray-600">Inteligencja: {item.reqIntelligence}</p>}
+              {item.reqPower        > 0 && <p className="text-xs text-gray-600">Moc: {item.reqPower}</p>}
+              {item.reqEndurance    > 0 && <p className="text-xs text-gray-600">Wytrzymałość: {item.reqEndurance}</p>}
+              {item.reqResistance   > 0 && <p className="text-xs text-gray-600">Odporność: {item.reqResistance}</p>}
+              {item.reqInitiative   > 0 && <p className="text-xs text-gray-600">Inicjatywa: {item.reqInitiative}</p>}
+              {item.reqFireMagic    > 0 && <p className="text-xs text-gray-600">Żywioł ognia: {item.reqFireMagic}</p>}
+              {item.reqWaterMagic   > 0 && <p className="text-xs text-gray-600">Żywioł wody: {item.reqWaterMagic}</p>}
+              {item.reqEarthMagic   > 0 && <p className="text-xs text-gray-600">Żywioł ziemi: {item.reqEarthMagic}</p>}
+              {item.reqAirMagic     > 0 && <p className="text-xs text-gray-600">Żywioł powietrza: {item.reqAirMagic}</p>}
+              {item.reqChaosMagic   > 0 && <p className="text-xs text-gray-600">Chaos: {item.reqChaosMagic}</p>}
+              {item.reqEnergyMagic  > 0 && <p className="text-xs text-gray-600">Energia: {item.reqEnergyMagic}</p>}
+              {item.reqLifeMagic    > 0 && <p className="text-xs text-gray-600">Życie: {item.reqLifeMagic}</p>}
+              {item.reqDeathMagic   > 0 && <p className="text-xs text-gray-600">Śmierć: {item.reqDeathMagic}</p>}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── KOMNATA NIEŁADU — MODAL ──────────────────────────
+
+function ChaosVaultModal({
+  onClose,
+  character,
+  onRefresh,
+  disintegratorAvailable,
+}: {
+  onClose: () => void;
+  character: any;
+  onRefresh: () => void;
+  disintegratorAvailable: boolean;
+}) {
+  const [vaultData, setVaultData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<"spells" | "items">("spells");
+  const [filterRarity, setFilterRarity] = useState<string>("all");
+  const [search, setSearch] = useState("");
+  const [moving, setMoving] = useState<number | null>(null);
+  const [previewData, setPreviewData] = useState<any>(null);
+  const [confirming, setConfirming] = useState(false);
+  const [selectedForDezint, setSelectedForDezint] = useState<{ id: number; name: string; rarity: string; type: string }[]>([]);
+  const [dezintMode, setDezintMode] = useState(false);
+
+  const fetchVault = useCallback(async () => {
+    try {
+      const res = await api.get("/tower/chaos-vault");
+      setVaultData(res.data);
+    } catch (err: any) {
+      alert(err.response?.data?.error ?? "Błąd ładowania Komnaty Nieładu");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchVault(); }, [fetchVault]);
+
+  async function handleMoveSpell(vaultItemId: number) {
+    setMoving(vaultItemId);
+    try {
+      await api.post("/tower/chaos-vault/move-spell", { vaultItemId });
+      await fetchVault();
+      onRefresh();
+    } catch (err: any) {
+      alert(err.response?.data?.error ?? "Błąd przenoszenia czaru");
+    } finally {
+      setMoving(null);
+    }
+  }
+
+  async function handleMoveItem(vaultItemId: number) {
+    setMoving(vaultItemId);
+    try {
+      await api.post("/tower/chaos-vault/move-item", { vaultItemId });
+      await fetchVault();
+      onRefresh();
+    } catch (err: any) {
+      alert(err.response?.data?.error ?? "Błąd przenoszenia przedmiotu");
+    } finally {
+      setMoving(null);
+    }
+  }
+
+  async function handleDezintPreview() {
+    if (selectedForDezint.length === 0) return;
+    try {
+      const res = await api.post("/tower/disintegrator/preview", {
+        targets: selectedForDezint.map(s => ({
+          type: s.type === "spell" ? "vault_spell" : "vault_item",
+          id: s.id,
+        })),
+      });
+      setPreviewData(res.data);
+    } catch (err: any) {
+      alert(err.response?.data?.error ?? "Błąd");
+    }
+  }
+
+  async function handleDezintConfirm() {
+    setConfirming(true);
+    try {
+      const res = await api.post("/tower/disintegrator/confirm", {
+        targets: selectedForDezint.map(s => ({
+          type: s.type === "spell" ? "vault_spell" : "vault_item",
+          id: s.id,
+        })),
+      });
+      alert(res.data.message);
+      setSelectedForDezint([]);
+      setPreviewData(null);
+      setDezintMode(false);
+      await fetchVault();
+      onRefresh();
+    } catch (err: any) {
+      alert(err.response?.data?.error ?? "Błąd dezintegracji");
+    } finally {
+      setConfirming(false);
+    }
+  }
+
+  function toggleDezint(id: number, name: string, rarity: string, type: string) {
+    setSelectedForDezint(prev => {
+      const exists = prev.find(s => s.id === id && s.type === type);
+      if (exists) return prev.filter(s => !(s.id === id && s.type === type));
+      return [...prev, { id, name, rarity, type }];
+    });
+  }
+
+  function isDezintSelected(id: number, type: string) {
+    return selectedForDezint.some(s => s.id === id && s.type === type);
+  }
+
+  const bgClass = !vaultData ? "bg-gray-900" :
+    vaultData.totalCount > 100 ? "bg-gradient-to-br from-gray-950 via-red-950 to-gray-900" :
+    vaultData.totalCount > 50  ? "bg-gradient-to-br from-gray-900 via-purple-950 to-gray-900" :
+                                  "bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900";
+
+  const allSpells = vaultData?.items.filter((i: any) => i.spell) ?? [];
+  const allItems  = vaultData?.items.filter((i: any) => i.item)  ?? [];
+
+  function applyFilters(list: any[], nameKey: string) {
+    return list.filter(entry => {
+      const obj = entry.spell ?? entry.item;
+      const matchRarity = filterRarity === "all" || obj.rarity === filterRarity;
+      const matchSearch = obj.name.toLowerCase().includes(search.toLowerCase());
+      return matchRarity && matchSearch;
+    });
+  }
+
+  const filteredSpells = applyFilters(allSpells, "spell");
+  const filteredItems  = applyFilters(allItems,  "item");
+
+  const spellsFull = character ? character.spells?.length >= character.maxSpells : false;
+  const itemsFull  = character ? character.items?.length  >= character.maxItems  : false;
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div
+        className={`${bgClass} rounded-2xl w-full max-w-3xl max-h-[88vh] flex flex-col shadow-2xl overflow-hidden`}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Nagłówek */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
+          <div>
+            <h2 className="text-lg font-semibold text-white">Komnata Nieładu</h2>
+            {vaultData && (
+              <p className="text-xs text-gray-400 mt-0.5">
+                {vaultData.totalCount} przedmiotów · widoczne: {vaultData.visibleSlots} slotów (poziom {vaultData.vaultLevel})
+                {vaultData.hiddenCount > 0 && (
+                  <span className="text-yellow-400 ml-1">· {vaultData.hiddenCount} ukrytych — rozbuduj komnatę</span>
+                )}
+              </p>
+            )}
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl leading-none transition-colors">×</button>
+        </div>
+
+        {/* Filtry */}
+        <div className="px-6 py-3 border-b border-white/10 flex items-center gap-3 flex-wrap">
+          <input
+            type="text"
+            placeholder="Szukaj po nazwie..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="bg-white/10 text-white text-xs placeholder-gray-500 border border-white/10 rounded-lg px-3 py-1.5 w-44 focus:outline-none focus:border-white/30"
+          />
+          <div className="flex items-center gap-1">
+            {["all", "common", "uncommon", "rare", "unique"].map(r => (
+              <button
+                key={r}
+                onClick={() => setFilterRarity(r)}
+                className={`text-xs px-2.5 py-1 rounded-md transition-colors ${
+                  filterRarity === r
+                    ? "bg-white text-gray-900 font-medium"
+                    : "text-gray-400 hover:text-white"
+                }`}
+              >
+                {r === "all" ? "Wszystkie" : RARITY_LABELS[r]}
+              </button>
+            ))}
+          </div>
+
+          {disintegratorAvailable && (
+            <button
+              onClick={() => { setDezintMode(m => !m); setSelectedForDezint([]); }}
+              className={`ml-auto text-xs px-3 py-1.5 rounded-md border transition-colors ${
+                dezintMode
+                  ? "bg-red-600 text-white border-red-600"
+                  : "border-white/20 text-gray-400 hover:text-white hover:border-white/40"
+              }`}
+            >
+              {dezintMode ? "Anuluj dezintegrację" : "Dezintegruj"}
+            </button>
+          )}
+          {dezintMode && selectedForDezint.length > 0 && (
+            <button
+              onClick={handleDezintPreview}
+              className="text-xs px-3 py-1.5 bg-red-700 text-white rounded-md hover:bg-red-800 transition-colors"
+            >
+              Wrzuć do dezintegratora ({selectedForDezint.length})
+            </button>
+          )}
+        </div>
+
+        {/* Zakładki */}
+        <div className="flex border-b border-white/10 px-6">
+          <button
+            onClick={() => setActiveTab("spells")}
+            className={`text-sm py-3 px-4 border-b-2 transition-colors ${
+              activeTab === "spells"
+                ? "border-white text-white"
+                : "border-transparent text-gray-500 hover:text-gray-300"
+            }`}
+          >
+            Czary ({allSpells.length})
+          </button>
+          <button
+            onClick={() => setActiveTab("items")}
+            className={`text-sm py-3 px-4 border-b-2 transition-colors ${
+              activeTab === "items"
+                ? "border-white text-white"
+                : "border-transparent text-gray-500 hover:text-gray-300"
+            }`}
+          >
+            Artefakty ({allItems.length})
+          </button>
+        </div>
+
+        {/* Lista */}
+        <div className="flex-1 overflow-y-auto px-6 py-4">
+          {loading && <p className="text-gray-400 text-sm text-center py-8">Ładowanie...</p>}
+
+          {!loading && activeTab === "spells" && (
+            filteredSpells.length === 0
+              ? <p className="text-gray-500 text-sm text-center py-8">Brak czarów w komnacie</p>
+              : <div className="space-y-2">
+                  {filteredSpells.map((entry: any) => {
+                    const spell = entry.spell;
+                    const isFull = spellsFull;
+                    const isSelected = isDezintSelected(entry.id, "spell");
+                    return (
+                      <div
+                        key={entry.id}
+                        onClick={() => dezintMode && toggleDezint(entry.id, spell.name, spell.rarity, "spell")}
+                        className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
+                          dezintMode
+                            ? isSelected
+                              ? "border-red-500 bg-red-900/30 cursor-pointer"
+                              : "border-white/10 bg-white/5 hover:border-white/20 cursor-pointer"
+                            : "border-white/10 bg-white/5"
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <span className="text-sm font-medium text-white">{spell.name}</span>
+                            <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${RARITY_COLORS[spell.rarity]}`}>
+                              {RARITY_LABELS[spell.rarity]}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-400">{spell.element} · {spell.damage} obrażeń</p>
+                        </div>
+                        {!dezintMode && (
+                          <button
+                            onClick={() => !isFull && handleMoveSpell(entry.id)}
+                            disabled={isFull || moving === entry.id}
+                            className={`text-xs px-3 py-1.5 rounded-md border transition-colors shrink-0 ml-3 ${
+                              isFull
+                                ? "border-red-800 text-red-500 cursor-not-allowed opacity-60"
+                                : "border-green-700 text-green-400 hover:bg-green-900/30"
+                            }`}
+                          >
+                            {moving === entry.id ? "..." : isFull ? "Biblioteka pełna" : "Przenieś do biblioteki"}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+          )}
+
+          {!loading && activeTab === "items" && (
+            filteredItems.length === 0
+              ? <p className="text-gray-500 text-sm text-center py-8">Brak artefaktów w komnacie</p>
+              : <div className="space-y-2">
+                  {filteredItems.map((entry: any) => {
+                    const item = entry.item;
+                    const isFull = itemsFull;
+                    const isSelected = isDezintSelected(entry.id, "item");
+                    return (
+                      <div
+                        key={entry.id}
+                        onClick={() => dezintMode && toggleDezint(entry.id, item.name, item.rarity, "item")}
+                        className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
+                          dezintMode
+                            ? isSelected
+                              ? "border-red-500 bg-red-900/30 cursor-pointer"
+                              : "border-white/10 bg-white/5 hover:border-white/20 cursor-pointer"
+                            : "border-white/10 bg-white/5"
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <span className="text-sm font-medium text-white">{item.name}</span>
+                            <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${RARITY_COLORS[item.rarity]}`}>
+                              {RARITY_LABELS[item.rarity]}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-400">{SLOT_LABELS[item.slot] ?? item.slot}</p>
+                        </div>
+                        {!dezintMode && (
+                          <button
+                            onClick={() => !isFull && handleMoveItem(entry.id)}
+                            disabled={isFull || moving === entry.id}
+                            className={`text-xs px-3 py-1.5 rounded-md border transition-colors shrink-0 ml-3 ${
+                              isFull
+                                ? "border-red-800 text-red-500 cursor-not-allowed opacity-60"
+                                : "border-green-700 text-green-400 hover:bg-green-900/30"
+                            }`}
+                          >
+                            {moving === entry.id ? "..." : isFull ? "Graciarnia pełna" : "Przenieś do graciarni"}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+          )}
+        </div>
+      </div>
+
+      {/* Modal dezintegratora */}
+      {previewData && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-60" onClick={() => setPreviewData(null)}>
+          <div className="bg-white rounded-xl border border-gray-200 p-6 w-96 shadow-lg max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <h3 className="font-semibold text-gray-900 mb-3">Potwierdź dezintegrację</h3>
+            <p className="text-xs text-gray-500 mb-3">Czy na pewno chcesz zniszczyć następujące przedmioty?</p>
+            <div className="overflow-y-auto flex-1 space-y-1 mb-4">
+              {previewData.items.map((item: any, i: number) => (
+                <div key={i} className="flex items-center justify-between py-1.5 border-b border-gray-50">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-900">{item.name}</span>
+                    <span className={`text-xs px-1.5 py-0.5 rounded ${RARITY_COLORS[item.rarity]}`}>{RARITY_LABELS[item.rarity]}</span>
+                  </div>
+                  <span className="text-xs text-gray-500">+{item.value} okruchów</span>
+                </div>
+              ))}
+            </div>
+            <div className="p-3 bg-gray-50 rounded-lg mb-4">
+              <p className="text-sm font-semibold text-gray-900">Łącznie: +{previewData.totalShards} okruchów mocy</p>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setPreviewData(null)} className="flex-1 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50">Anuluj</button>
+              <button onClick={handleDezintConfirm} disabled={confirming} className="flex-1 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50">
+                {confirming ? "..." : "Zniszcz"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── LEWA KOLUMNA — statystyki postaci ───────────────
 
 function StatRow({ cost, onRefresh }: { cost: any; onRefresh: () => void }) {
@@ -114,7 +518,7 @@ function StatRow({ cost, onRefresh }: { cost: any; onRefresh: () => void }) {
   return (
     <div className="flex items-center justify-between py-1.5 border-b border-gray-50 last:border-0">
       <div className="flex items-center gap-2">
-        <span className="text-sm text-gray-600 w-32">{STAT_LABELS[cost.stat]}</span>
+        <span className="text-sm text-gray-600 w-32">{cost.stat}</span>
         <span className="text-sm font-semibold text-gray-900 w-6 text-center">{cost.currentLevel}</span>
       </div>
       <button
@@ -139,7 +543,6 @@ function LeftPanel({ character, effectiveStats, upgradeCosts }: {
   const STAT_LABELS: Record<string, string> = {
     knowledge: "Wiedza", intelligence: "Inteligencja", power: "Moc",
     endurance: "Wytrzymałość", resistance: "Odporność", initiative: "Inicjatywa",
-    
     fireMagic: "Żywioł ognia", earthMagic: "Żywioł ziemi",
     airMagic: "Żywioł powietrza", waterMagic: "Żywioł wody",
     chaosMagic: "Chaos", energyMagic: "Energia", lifeMagic: "Życie", deathMagic: "Śmierć",
@@ -185,9 +588,7 @@ function LeftPanel({ character, effectiveStats, upgradeCosts }: {
                 <span className="text-sm text-gray-600 w-32">{label}</span>
                 <div className="flex items-center gap-1.5">
                   <span className="text-sm font-semibold text-gray-900">{effective}</span>
-                  {bonus > 0 && (
-                    <span className="text-xs text-green-600 font-medium">(+{bonus})</span>
-                  )}
+                  {bonus > 0 && <span className="text-xs text-green-600 font-medium">(+{bonus})</span>}
                 </div>
               </div>
             );
@@ -201,7 +602,7 @@ function LeftPanel({ character, effectiveStats, upgradeCosts }: {
   );
 }
 
-// ── LEWA KOLUMNA — ekwipunek postaci ────────────────
+// ── LEWA KOLUMNA EKWIPUNKU ───────────────────────────
 
 function EquipmentLeftPanel({ equipmentData, onRefresh }: {
   equipmentData: any;
@@ -239,11 +640,14 @@ function EquipmentLeftPanel({ equipmentData, onRefresh }: {
 
   return (
     <>
-      {selectedItem && (
-        <ItemModal item={selectedItem} onClose={() => setSelectedItem(null)} />
-      )}
-
+      {selectedItem && <ItemModal item={selectedItem} onClose={() => setSelectedItem(null)} />}
       <div className="space-y-4">
+
+        {/* Wizualizacja postaci — teraz po lewej */}
+        <Card className="p-3">
+          <Placeholder title="Wizualizacja postaci z ekwipunkiem" />
+        </Card>
+
         <Card>
           <SectionTitle>Założony ekwipunek</SectionTitle>
           <div className="space-y-1">
@@ -313,110 +717,35 @@ function EquipmentLeftPanel({ equipmentData, onRefresh }: {
   );
 }
 
-// ── MODAL PRZEDMIOTU / CZARU ─────────────────────────
+// ── PRAWA KOLUMNA — graciarnia, biblioteka, komnata ──
 
-function ItemModal({ item, onClose }: { item: any; onClose: () => void }) {
-  return (
-    <div
-      className="fixed inset-0 bg-black/30 flex items-center justify-center z-50"
-      onClick={onClose}
-    >
-      <div
-        className="bg-white rounded-xl border border-gray-200 p-6 w-80 shadow-lg"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="flex justify-between items-start mb-4">
-          <div>
-            <p className="font-semibold text-gray-900">{item.name}</p>
-            <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${RARITY_COLORS[item.rarity]}`}>
-              {RARITY_LABELS[item.rarity]}
-            </span>
-          </div>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 text-lg leading-none"
-          >
-            ×
-          </button>
-        </div>
-
-        <Placeholder title="Grafika przedmiotu" />
-
-        <div className="mt-4 space-y-1">
-          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Statystyki</p>
-          {item.slot     && <p className="text-xs text-gray-600">Slot: {SLOT_LABELS[item.slot] ?? item.slot}</p>}
-          {item.element  && <p className="text-xs text-gray-600">Żywioł: {item.element}</p>}
-          {item.damage   > 0 && <p className="text-xs text-gray-600">Obrażenia: {item.damage}</p>}
-          {item.bonusKnowledge   > 0 && <p className="text-xs text-gray-600">+{item.bonusKnowledge} Wiedza</p>}
-          {item.bonusIntelligence > 0 && <p className="text-xs text-gray-600">+{item.bonusIntelligence} Inteligencja</p>}
-          {item.bonusEndurance > 0 && <p className="text-xs text-gray-600">+{item.bonusEndurance} Wytrzymałość</p>}
-          {item.bonusPower     > 0 && <p className="text-xs text-gray-600">+{item.bonusPower} Moc</p>}
-          {item.bonusInitiative > 0 && <p className="text-xs text-gray-600">+{item.bonusInitiative} Inicjatywa</p>}
-          {item.bonusFireMagic      > 0 && <p className="text-xs text-gray-600">+{item.bonusFireMagic} Żywioł ognia</p>}
-          {item.bonusWaterMagic     > 0 && <p className="text-xs text-gray-600">+{item.bonusWaterMagic} Żywioł wody</p>}
-          {item.bonusEarthMagic     > 0 && <p className="text-xs text-gray-600">+{item.bonusEarthMagic} Żywioł ziemi</p>}
-          {item.bonusAirMagic       > 0 && <p className="text-xs text-gray-600">+{item.bonusAirMagic} Żywioł powietrza</p>}
-          {item.bonusChaosMagic     > 0 && <p className="text-xs text-gray-600">+{item.bonusChaosMagic} Chaos</p>}
-          {item.bonusEnergyMagic    > 0 && <p className="text-xs text-gray-600">+{item.bonusEnergyMagic} Energia</p>}
-          {item.bonusLifeMagic       > 0 && <p className="text-xs text-gray-600">+{item.bonusLifeMagic} Życie</p>}
-          {item.bonusDeathMagic      > 0 && <p className="text-xs text-gray-600">+{item.bonusDeathMagic} Śmierć</p>}
-
-          {(item.reqKnowledge > 0 || item.reqFireMagic > 0 || item.reqWaterMagic > 0 ||
-            item.reqEarthMagic > 0 || item.reqAirMagic > 0 || item.reqChaosMagic > 0) && (
-            <div className="mt-3 pt-3 border-t border-gray-100">
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Wymagania</p>
-              {item.reqKnowledge > 0 && <p className="text-xs text-gray-600">Wiedza: {item.reqKnowledge}</p>}
-              {item.reqIntelligence > 0 && <p className="text-xs text-gray-600">Inteligencja: {item.reqIntelligence}</p>}
-              {item.reqPower     > 0 && <p className="text-xs text-gray-600">Moc: {item.reqPower}</p>}
-              {item.reqEndurance  > 0 && <p className="text-xs text-gray-600">Wytrzymałość: {item.reqEndurance}</p>}
-              {item.reqResistance > 0 && <p className="text-xs text-gray-600">Odporność: {item.reqResistance}</p>}
-              {item.reqInitiative > 0 && <p className="text-xs text-gray-600">Inicjatywa: {item.reqInitiative}</p>}
-              {item.reqFireMagic       > 0 && <p className="text-xs text-gray-600">Żywioł ognia: {item.reqFireMagic}</p>}
-              {item.reqWaterMagic      > 0 && <p className="text-xs text-gray-600">Żywioł wody: {item.reqWaterMagic}</p>}
-              {item.reqEarthMagic      > 0 && <p className="text-xs text-gray-600">Żywioł ziemi: {item.reqEarthMagic}</p>}
-              {item.reqAirMagic        > 0 && <p className="text-xs text-gray-600">Żywioł powietrza: {item.reqAirMagic}</p>}
-              {item.reqChaosMagic      > 0 && <p className="text-xs text-gray-600">Chaos: {item.reqChaosMagic}</p>}
-              {item.reqEnergyMagic     > 0 && <p className="text-xs text-gray-600">Energia: {item.reqEnergyMagic}</p>}
-              {item.reqLifeMagic       > 0 && <p className="text-xs text-gray-600">Życie: {item.reqLifeMagic}</p>}
-              {item.reqDeathMagic      > 0 && <p className="text-xs text-gray-600">Śmierć: {item.reqDeathMagic}</p>}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── PRAWA KOLUMNA — plecak i czary ───────────────────
-
-function EquipmentView({ onRefresh, onDataLoaded }: {
+function EquipmentView({ onRefresh, onDataLoaded, character }: {
   onRefresh: () => void;
   onDataLoaded: (data: any) => void;
+  character: any;
 }) {
   const [data, setData] = useState<any>(null);
-  const [character, setCharacter] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [equipping, setEquipping] = useState<number | null>(null);
-  const [unequipping, setUnequipping] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<{ type: string; id: number; name: string; rarity: string }[]>([]);
   const [disintegratorAvailable, setDisintegratorAvailable] = useState(false);
   const [previewData, setPreviewData] = useState<any>(null);
   const [confirming, setConfirming] = useState(false);
-  const [effectiveStats, setEffectiveStats] = useState<any>(null);
+  const [showVault, setShowVault] = useState(false);
+  const [sendingToVault, setSendingToVault] = useState<number | null>(null);
+  const [vaultMode, setVaultMode] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
-      const [eqRes, charRes] = await Promise.all([
+      const [eqRes, towerRes] = await Promise.all([
         api.get("/equipment"),
-        getMyCharacter(),
+        api.get("/tower"),
       ]);
-      const towerRes = await api.get("/tower");
       const di = towerRes.data.buildings.disintegrator;
       setDisintegratorAvailable(di?.level > 0);
       setData(eqRes.data);
-      setCharacter(charRes);
       onDataLoaded(eqRes.data);
     } catch (err: any) {
       alert(err.response?.data?.error ?? "Błąd ładowania ekwipunku");
@@ -430,20 +759,20 @@ function EquipmentView({ onRefresh, onDataLoaded }: {
   function getUnmetRequirements(item: any): string[] {
     if (!character) return [];
     const unmet: string[] = [];
-    if (item.reqKnowledge > 0 && character.knowledge    < item.reqKnowledge) unmet.push(`Wiedza ${item.reqKnowledge} (masz ${character.knowledge})`);
-    if (item.reqIntelligence > 0 && character.intelligence < item.reqIntelligence) unmet.push(`Inteligencja ${item.reqIntelligence} (masz ${character.intelligence})`);
-    if (item.reqPower     > 0 && character.power       < item.reqPower)     unmet.push(`Moc ${item.reqPower} (masz ${character.power})`);
-    if (item.reqEndurance  > 0 && character.endurance    < item.reqEndurance)  unmet.push(`Wytrzymałość ${item.reqEndurance} (masz ${character.endurance})`);
-    if (item.reqResistance > 0 && character.resistance   < item.reqResistance) unmet.push(`Odporność ${item.reqResistance} (masz ${character.resistance})`);
-    if (item.reqInitiative > 0 && character.initiative   < item.reqInitiative) unmet.push(`Inicjatywa ${item.reqInitiative} (masz ${character.initiative})`);
-    if (item.reqFireMagic  > 0 && character.fireMagic    < item.reqFireMagic)  unmet.push(`Moc ognia ${item.reqFireMagic} (masz ${character.fireMagic})`);
-    if (item.reqWaterMagic > 0 && character.waterMagic   < item.reqWaterMagic) unmet.push(`Moc wody ${item.reqWaterMagic} (masz ${character.waterMagic})`);
-    if (item.reqEarthMagic > 0 && character.earthMagic   < item.reqEarthMagic) unmet.push(`Moc ziemi ${item.reqEarthMagic} (masz ${character.earthMagic})`);
-    if (item.reqAirMagic   > 0 && character.airMagic     < item.reqAirMagic)   unmet.push(`Moc powietrza ${item.reqAirMagic} (masz ${character.airMagic})`);
-    if (item.reqLifeMagic  > 0 && character.lifeMagic    < item.reqLifeMagic)  unmet.push(`Moc życia ${item.reqLifeMagic} (masz ${character.lifeMagic})`);
-    if (item.reqDeathMagic > 0 && character.deathMagic   < item.reqDeathMagic) unmet.push(`Moc śmierci ${item.reqDeathMagic} (masz ${character.deathMagic})`);
-    if (item.reqEnergyMagic > 0 && character.energyMagic < item.reqEnergyMagic) unmet.push(`Moc energii ${item.reqEnergyMagic} (masz ${character.energyMagic})`);
-    if (item.reqChaosMagic  > 0 && character.chaosMagic   < item.reqChaosMagic)  unmet.push(`Moc chaosu ${item.reqChaosMagic} (masz ${character.chaosMagic})`);
+    if (item.reqKnowledge    > 0 && character.knowledge    < item.reqKnowledge)    unmet.push(`Wiedza ${item.reqKnowledge}`);
+    if (item.reqIntelligence > 0 && character.intelligence < item.reqIntelligence) unmet.push(`Inteligencja ${item.reqIntelligence}`);
+    if (item.reqPower        > 0 && character.power        < item.reqPower)        unmet.push(`Moc ${item.reqPower}`);
+    if (item.reqEndurance    > 0 && character.endurance    < item.reqEndurance)    unmet.push(`Wytrzymałość ${item.reqEndurance}`);
+    if (item.reqResistance   > 0 && character.resistance   < item.reqResistance)   unmet.push(`Odporność ${item.reqResistance}`);
+    if (item.reqInitiative   > 0 && character.initiative   < item.reqInitiative)   unmet.push(`Inicjatywa ${item.reqInitiative}`);
+    if (item.reqFireMagic    > 0 && character.fireMagic    < item.reqFireMagic)    unmet.push(`Ogień ${item.reqFireMagic}`);
+    if (item.reqWaterMagic   > 0 && character.waterMagic   < item.reqWaterMagic)   unmet.push(`Woda ${item.reqWaterMagic}`);
+    if (item.reqEarthMagic   > 0 && character.earthMagic   < item.reqEarthMagic)   unmet.push(`Ziemia ${item.reqEarthMagic}`);
+    if (item.reqAirMagic     > 0 && character.airMagic     < item.reqAirMagic)     unmet.push(`Powietrze ${item.reqAirMagic}`);
+    if (item.reqLifeMagic    > 0 && character.lifeMagic    < item.reqLifeMagic)    unmet.push(`Życie ${item.reqLifeMagic}`);
+    if (item.reqDeathMagic   > 0 && character.deathMagic   < item.reqDeathMagic)   unmet.push(`Śmierć ${item.reqDeathMagic}`);
+    if (item.reqEnergyMagic  > 0 && character.energyMagic  < item.reqEnergyMagic)  unmet.push(`Energia ${item.reqEnergyMagic}`);
+    if (item.reqChaosMagic   > 0 && character.chaosMagic   < item.reqChaosMagic)   unmet.push(`Chaos ${item.reqChaosMagic}`);
     return unmet;
   }
 
@@ -465,19 +794,6 @@ function EquipmentView({ onRefresh, onDataLoaded }: {
     }
   }
 
-  async function handleUnequipItem(slot: string) {
-    setUnequipping(slot);
-    try {
-      await api.post("/equipment/item/unequip", { slot });
-      await fetchData();
-      onRefresh();
-    } catch (err: any) {
-      alert(err.response?.data?.error ?? "Błąd zdejmowania przedmiotu");
-    } finally {
-      setUnequipping(null);
-    }
-  }
-
   async function handleEquipSpell(spellId: number, slotIndex: number, spell: any) {
     const unmet = getUnmetRequirements(spell);
     if (unmet.length > 0) {
@@ -492,12 +808,59 @@ function EquipmentView({ onRefresh, onDataLoaded }: {
     }
   }
 
-  async function handleUnequipSpell(slotIndex: number) {
+  async function handleSendToVault(type: "item" | "spell", sourceId: number) {
+    setSendingToVault(sourceId);
     try {
-      await api.post("/equipment/spell/unequip", { slotIndex });
+      await api.post("/tower/chaos-vault/add", { type, sourceId });
       await fetchData();
+      onRefresh();
     } catch (err: any) {
-      alert(err.response?.data?.error ?? "Błąd zdejmowania czaru");
+      alert(err.response?.data?.error ?? "Błąd przenoszenia do Komnaty");
+    } finally {
+      setSendingToVault(null);
+    }
+  }
+
+  function toggleSelect(type: string, id: number, name: string, rarity: string) {
+    setSelected(prev => {
+      const exists = prev.find(s => s.type === type && s.id === id);
+      if (exists) return prev.filter(s => !(s.type === type && s.id === id));
+      return [...prev, { type, id, name, rarity }];
+    });
+  }
+
+  function isSelected(type: string, id: number) {
+    return selected.some(s => s.type === type && s.id === id);
+  }
+
+  async function handlePreview() {
+    if (selected.length === 0) return;
+    try {
+      const res = await api.post("/tower/disintegrator/preview", {
+        targets: selected.map(s => ({ type: s.type, id: s.id })),
+      });
+      setPreviewData(res.data);
+    } catch (err: any) {
+      alert(err.response?.data?.error ?? "Błąd");
+    }
+  }
+
+  async function handleConfirm() {
+    setConfirming(true);
+    try {
+      const res = await api.post("/tower/disintegrator/confirm", {
+        targets: selected.map(s => ({ type: s.type, id: s.id })),
+      });
+      alert(res.data.message);
+      setSelected([]);
+      setPreviewData(null);
+      setSelectMode(false);
+      await fetchData();
+      onRefresh();
+    } catch (err: any) {
+      alert(err.response?.data?.error ?? "Błąd");
+    } finally {
+      setConfirming(false);
     }
   }
 
@@ -505,164 +868,135 @@ function EquipmentView({ onRefresh, onDataLoaded }: {
   if (!data) return null;
 
   const equippedSpellIds = new Set(data.spellSlots.map((s: any) => s.spellId));
-  const equippedItemIds  = new Set(
-    Object.values(data.equipped).filter(Boolean).map((i: any) => i.id)
-  );
+  const equippedItemIds  = new Set(Object.values(data.equipped).filter(Boolean).map((i: any) => i.id));
+  const inventoryItems   = data.inventory.filter((item: any) => !equippedItemIds.has(item.id));
+  const inventorySpells  = data.knownSpells.filter((spell: any) => !equippedSpellIds.has(spell.id));
 
-  const inventoryItems  = data.inventory.filter((item: any)  => !equippedItemIds.has(item.id));
-  const inventorySpells = data.knownSpells.filter((spell: any) => !equippedSpellIds.has(spell.id));
-
-function toggleSelect(type: string, id: number, name: string, rarity: string) {
-  setSelected(prev => {
-    const exists = prev.find(s => s.type === type && s.id === id);
-    if (exists) return prev.filter(s => !(s.type === type && s.id === id));
-    return [...prev, { type, id, name, rarity }];
-  });
-}
-
-function isSelected(type: string, id: number) {
-  return selected.some(s => s.type === type && s.id === id);
-}
-
-async function handlePreview() {
-  if (selected.length === 0) return;
-  try {
-    const res = await api.post("/tower/disintegrator/preview", {
-      targets: selected.map(s => ({ type: s.type, id: s.id })),
-    });
-    setPreviewData(res.data);
-  } catch (err: any) {
-    alert(err.response?.data?.error ?? "Błąd");
-  }
-}
-
-async function handleConfirm() {
-  setConfirming(true);
-  try {
-    const res = await api.post("/tower/disintegrator/confirm", {
-      targets: selected.map(s => ({ type: s.type, id: s.id })),
-    });
-    alert(res.data.message);
-    setSelected([]);
-    setPreviewData(null);
-    setSelectMode(false);
-    await fetchData();
-    onRefresh();
-  } catch (err: any) {
-    alert(err.response?.data?.error ?? "Błąd");
-  } finally {
-    setConfirming(false);
-  }
-}
+  // Dla każdego przedmiotu w inventory potrzebujemy characterItemId do "wrzuć do komnaty"
+  // getEquipment zwraca items jako Item[], ale potrzebujemy CharacterItem.id
+  // Zakładamy że endpoint /equipment zwraca inventory z polem characterItemId lub id z CharacterItem
+  // Jeśli nie — trzeba to dodać do equipment.service.ts (patrz uwaga poniżej)
 
   return (
     <>
-      {selectedItem && (
-        <ItemModal item={selectedItem} onClose={() => setSelectedItem(null)} />
-      )}
-{/* Modal dezintegratora */}
-{previewData && (
-  <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-    <div className="bg-white rounded-xl border border-gray-200 p-6 w-96 shadow-lg max-h-[80vh] flex flex-col">
-      <h3 className="font-semibold text-gray-900 mb-3">Potwierdź dezintegrację</h3>
-      <p className="text-xs text-gray-500 mb-3">Czy na pewno chcesz zniszczyć następujące przedmioty?</p>
+      {selectedItem && <ItemModal item={selectedItem} onClose={() => setSelectedItem(null)} />}
 
-      <div className="overflow-y-auto flex-1 space-y-1 mb-4">
-        {previewData.items.map((item: any, i: number) => (
-          <div key={i} className="flex items-center justify-between py-1.5 border-b border-gray-50">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-900">{item.name}</span>
-              <span className={`text-xs px-1.5 py-0.5 rounded ${RARITY_COLORS[item.rarity]}`}>
-                {RARITY_LABELS[item.rarity]}
-              </span>
+      {showVault && (
+        <ChaosVaultModal
+          onClose={() => setShowVault(false)}
+          character={character}
+          onRefresh={() => { fetchData(); onRefresh(); }}
+          disintegratorAvailable={disintegratorAvailable}
+        />
+      )}
+
+      {/* Modal dezintegratora */}
+      {previewData && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl border border-gray-200 p-6 w-96 shadow-lg max-h-[80vh] flex flex-col">
+            <h3 className="font-semibold text-gray-900 mb-3">Potwierdź dezintegrację</h3>
+            <p className="text-xs text-gray-500 mb-3">Czy na pewno chcesz zniszczyć następujące przedmioty?</p>
+            <div className="overflow-y-auto flex-1 space-y-1 mb-4">
+              {previewData.items.map((item: any, i: number) => (
+                <div key={i} className="flex items-center justify-between py-1.5 border-b border-gray-50">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-900">{item.name}</span>
+                    <span className={`text-xs px-1.5 py-0.5 rounded ${RARITY_COLORS[item.rarity]}`}>{RARITY_LABELS[item.rarity]}</span>
+                  </div>
+                  <span className="text-xs text-gray-500">+{item.value} okruchów</span>
+                </div>
+              ))}
             </div>
-            <span className="text-xs text-gray-500">+{item.value} okruchów</span>
+            <div className="p-3 bg-gray-50 rounded-lg mb-4">
+              <p className="text-sm font-semibold text-gray-900">Łącznie: +{previewData.totalShards} okruchów mocy</p>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setPreviewData(null)} className="flex-1 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50">Anuluj</button>
+              <button onClick={handleConfirm} disabled={confirming} className="flex-1 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50">
+                {confirming ? "..." : "Zniszcz"}
+              </button>
+            </div>
           </div>
-        ))}
-      </div>
-
-      <div className="p-3 bg-gray-50 rounded-lg mb-4">
-        <p className="text-sm font-semibold text-gray-900">
-          Łącznie: +{previewData.totalShards} okruchów mocy
-        </p>
-      </div>
-
-      <div className="flex gap-2">
-        <button
-          onClick={() => setPreviewData(null)}
-          className="flex-1 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50"
-        >
-          Anuluj
-        </button>
-        <button
-          onClick={handleConfirm}
-          disabled={confirming}
-          className="flex-1 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
-        >
-          {confirming ? "..." : "Zniszcz"}
-        </button>
-      </div>
-    </div>
-  </div>
-)}
-
-{/* Pasek trybu selekcji */}
-{disintegratorAvailable && (
-  <div className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg">
-    <div className="flex items-center gap-2">
-      <button
-        onClick={() => { setSelectMode(m => !m); setSelected([]); }}
-        className={`text-xs px-3 py-1.5 rounded-md border transition-colors ${
-          selectMode
-            ? "bg-gray-900 text-white border-gray-900"
-            : "border-gray-300 text-gray-600 hover:bg-gray-50"
-        }`}
-      >
-        {selectMode ? "Anuluj wybór" : "Wybierz do dezintegracji"}
-      </button>
-      {selectMode && selected.length > 0 && (
-        <span className="text-xs text-gray-500">Wybrano: {selected.length}</span>
+        </div>
       )}
-    </div>
-    {selectMode && selected.length > 0 && (
-      <button
-        onClick={handlePreview}
-        className="text-xs px-3 py-1.5 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
-      >
-        Wrzuć do dezintegratora ({selected.length})
-      </button>
-    )}
-  </div>
-)}
-      <div className="space-y-4">
-        <Placeholder title="Grafika / wizualizacja postaci z ekwipunkiem" />
 
-        {/* Plecak — przedmioty (bez założonych) */}
+      {/* Pasek trybu selekcji — dezintegrator */}
+      {disintegratorAvailable && (
+        <div className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg mb-4">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => { setSelectMode(m => !m); setVaultMode(false); setSelected([]); }}
+              className={`text-xs px-3 py-1.5 rounded-md border transition-colors ${
+                selectMode ? "bg-gray-900 text-white border-gray-900" : "border-gray-300 text-gray-600 hover:bg-gray-50"
+              }`}
+            >
+              {selectMode ? "Anuluj dezintegrację" : "Wybierz do dezintegracji"}
+            </button>
+            <button
+              onClick={() => { setVaultMode(m => !m); setSelectMode(false); setSelected([]); }}
+              className={`text-xs px-3 py-1.5 rounded-md border transition-colors ${
+                vaultMode ? "bg-purple-900 text-white border-purple-900" : "border-gray-300 text-gray-600 hover:bg-gray-50"
+              }`}
+            >
+              {vaultMode ? "Anuluj" : "Wrzuć do Komnaty"}
+            </button>
+            {(selectMode || vaultMode) && selected.length > 0 && (
+              <span className="text-xs text-gray-500">Wybrano: {selected.length}</span>
+            )}
+          </div>
+          <div className="flex gap-2">
+            {selectMode && selected.length > 0 && (
+              <button onClick={handlePreview} className="text-xs px-3 py-1.5 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors">
+                Dezintegruj ({selected.length})
+              </button>
+            )}
+            {vaultMode && selected.length > 0 && (
+              <button
+                onClick={async () => {
+                  for (const s of selected) {
+                    await handleSendToVault(s.type as "item" | "spell", s.id);
+                  }
+                  setSelected([]);
+                  setVaultMode(false);
+                }}
+                className="text-xs px-3 py-1.5 bg-purple-700 text-white rounded-md hover:bg-purple-800 transition-colors"
+              >
+                Przenieś do Komnaty ({selected.length})
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-4">
+        {/* Graciarnia */}
         <Card>
-          <SectionTitle>Plecak — przedmioty ({inventoryItems.length})</SectionTitle>
+          <SectionTitle>Graciarnia ({inventoryItems.length} / {character?.maxItems ?? "?"})</SectionTitle>
           {inventoryItems.length === 0 ? (
-            <p className="text-sm text-gray-300 text-center py-3">Brak przedmiotów w plecaku</p>
+            <p className="text-sm text-gray-300 text-center py-3">Brak przedmiotów w graciarni</p>
           ) : (
             <div className="space-y-2">
               {inventoryItems.map((item: any) => {
                 const unmet    = getUnmetRequirements(item);
                 const canEquip = unmet.length === 0;
+                const activeMode = selectMode ? "dezint" : vaultMode ? "vault" : null;
+                const selType = "item";
+                // UWAGA: item.characterItemId musi być zwracany przez /equipment endpoint
+                // Dodaj to pole do getEquipment w equipment.service.ts (patrz komentarz na końcu)
+                const selId = item.characterItemId ?? item.id;
                 return (
-<div
-  key={item.id}
-  onClick={() => selectMode && toggleSelect("item", item.id, item.name, item.rarity)}
-  className={`flex items-center justify-between p-3 border rounded-lg transition-colors ${
-    selectMode
-      ? isSelected("item", item.id)
-        ? "border-red-300 bg-red-50 cursor-pointer"
-        : "border-gray-100 hover:border-gray-300 cursor-pointer"
-      : "border-gray-100"
-  }`}
->
-                    <div
-                      className="cursor-pointer hover:opacity-70 transition-opacity"
-                      onClick={() => setSelectedItem(item)}
-                    >
+                  <div
+                    key={item.id}
+                    onClick={() => activeMode && toggleSelect(selType, selId, item.name, item.rarity)}
+                    className={`flex items-center justify-between p-3 border rounded-lg transition-colors ${
+                      activeMode
+                        ? isSelected(selType, selId)
+                          ? activeMode === "dezint" ? "border-red-300 bg-red-50 cursor-pointer" : "border-purple-300 bg-purple-50 cursor-pointer"
+                          : "border-gray-100 hover:border-gray-300 cursor-pointer"
+                        : "border-gray-100"
+                    }`}
+                  >
+                    <div className="cursor-pointer hover:opacity-70 transition-opacity" onClick={() => !activeMode && setSelectedItem(item)}>
                       <div className="flex items-center gap-2 mb-0.5">
                         <span className="text-sm font-medium text-gray-900">{item.name}</span>
                         <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${RARITY_COLORS[item.rarity]}`}>
@@ -671,17 +1005,17 @@ async function handleConfirm() {
                       </div>
                       <p className="text-xs text-gray-400">{SLOT_LABELS[item.slot] ?? item.slot}</p>
                     </div>
-                    <button
-                      onClick={() => handleEquipItem(item.id, item)}
-                      disabled={equipping === item.id}
-                      className={`text-xs px-3 py-1.5 rounded-md border transition-colors shrink-0 ml-3 ${
-                        !canEquip
-                          ? "border-red-100 text-red-400 hover:bg-red-50"
-                          : "border-gray-300 text-gray-600 hover:bg-gray-50"
-                      }`}
-                    >
-                      {equipping === item.id ? "..." : canEquip ? "Załóż" : "Wymagania ✕"}
-                    </button>
+                    {!activeMode && (
+                      <button
+                        onClick={() => handleEquipItem(item.id, item)}
+                        disabled={equipping === item.id}
+                        className={`text-xs px-3 py-1.5 rounded-md border transition-colors shrink-0 ml-3 ${
+                          !canEquip ? "border-red-100 text-red-400 hover:bg-red-50" : "border-gray-300 text-gray-600 hover:bg-gray-50"
+                        }`}
+                      >
+                        {equipping === item.id ? "..." : canEquip ? "Załóż" : "Wymagania ✕"}
+                      </button>
+                    )}
                   </div>
                 );
               })}
@@ -689,14 +1023,12 @@ async function handleConfirm() {
           )}
         </Card>
 
-        {/* Znane czary (bez założonych) */}
+        {/* Biblioteka czarów */}
         <Card>
-          <SectionTitle>Znane czary ({inventorySpells.length})</SectionTitle>
+          <SectionTitle>Biblioteka czarów ({inventorySpells.length} / {character?.maxSpells ?? "?"})</SectionTitle>
           {inventorySpells.length === 0 ? (
             <p className="text-sm text-gray-300 text-center py-3">
-              {data.knownSpells.length === 0
-                ? "Nie znasz jeszcze żadnych czarów"
-                : "Wszystkie czary są w slotach"}
+              {data.knownSpells.length === 0 ? "Nie znasz jeszcze żadnych czarów" : "Wszystkie czary są w slotach"}
             </p>
           ) : (
             <div className="space-y-2">
@@ -705,23 +1037,23 @@ async function handleConfirm() {
                 const canEquip = unmet.length === 0;
                 const freeSlot = Array.from({ length: 10 }, (_, i) => i)
                   .find(i => !data.spellSlots.find((s: any) => s.slotIndex === i));
-
+                const activeMode = selectMode ? "dezint" : vaultMode ? "vault" : null;
+                const selType = "spell";
+                // UWAGA: spell.characterSpellId musi być zwracany przez /equipment endpoint
+                const selId = spell.characterSpellId ?? spell.id;
                 return (
-<div
-  key={spell.id}
-  onClick={() => selectMode && toggleSelect("spell", spell.id, spell.name, spell.rarity)}
-  className={`flex items-center justify-between p-3 border rounded-lg transition-colors ${
-    selectMode
-      ? isSelected("spell", spell.id)
-        ? "border-red-300 bg-red-50 cursor-pointer"
-        : "border-gray-100 hover:border-gray-300 cursor-pointer"
-      : "border-gray-100"
-  }`}
->
-                    <div
-                      className="cursor-pointer hover:opacity-70 transition-opacity"
-                      onClick={() => setSelectedItem(spell)}
-                    >
+                  <div
+                    key={spell.id}
+                    onClick={() => activeMode && toggleSelect(selType, selId, spell.name, spell.rarity)}
+                    className={`flex items-center justify-between p-3 border rounded-lg transition-colors ${
+                      activeMode
+                        ? isSelected(selType, selId)
+                          ? activeMode === "dezint" ? "border-red-300 bg-red-50 cursor-pointer" : "border-purple-300 bg-purple-50 cursor-pointer"
+                          : "border-gray-100 hover:border-gray-300 cursor-pointer"
+                        : "border-gray-100"
+                    }`}
+                  >
+                    <div className="cursor-pointer hover:opacity-70 transition-opacity" onClick={() => !activeMode && setSelectedItem(spell)}>
                       <div className="flex items-center gap-2 mb-0.5">
                         <span className="text-sm font-medium text-gray-900">{spell.name}</span>
                         <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${RARITY_COLORS[spell.rarity]}`}>
@@ -730,37 +1062,40 @@ async function handleConfirm() {
                       </div>
                       <p className="text-xs text-gray-400">{spell.element} · {spell.damage} obrażeń</p>
                     </div>
-                    <button
-                      onClick={() =>
-                        canEquip && freeSlot !== undefined &&
-                        handleEquipSpell(spell.id, freeSlot, spell)
-                      }
-                      disabled={freeSlot === undefined}
-                      className={`text-xs px-3 py-1.5 rounded-md border transition-colors shrink-0 ml-3 ${
-                        freeSlot === undefined
-                          ? "border-gray-100 text-gray-300 cursor-default"
-                          : !canEquip
-                          ? "border-red-100 text-red-400 hover:bg-red-50"
+                    {!activeMode && (
+                      <button
+                        onClick={() => canEquip && freeSlot !== undefined && handleEquipSpell(spell.id, freeSlot, spell)}
+                        disabled={freeSlot === undefined}
+                        className={`text-xs px-3 py-1.5 rounded-md border transition-colors shrink-0 ml-3 ${
+                          freeSlot === undefined ? "border-gray-100 text-gray-300 cursor-default"
+                          : !canEquip ? "border-red-100 text-red-400 hover:bg-red-50"
                           : "border-gray-300 text-gray-600 hover:bg-gray-50"
-                      }`}
-                    >
-                      {freeSlot === undefined
-                        ? "Brak slotów"
-                        : canEquip
-                        ? "Dodaj do slotu"
-                        : "Wymagania ✕"}
-                    </button>
+                        }`}
+                      >
+                        {freeSlot === undefined ? "Brak slotów" : canEquip ? "Dodaj do slotu" : "Wymagania ✕"}
+                      </button>
+                    )}
                   </div>
                 );
               })}
             </div>
           )}
         </Card>
+
+        {/* Przycisk Komnaty Nieładu */}
+        <button
+          onClick={() => setShowVault(true)}
+          className="w-full py-3 rounded-xl border-2 border-dashed border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-700 hover:bg-gray-50 transition-all text-sm font-medium"
+        >
+          ✦ Otwórz Komnatę Nieładu
+        </button>
       </div>
     </>
   );
 }
-//Trening statystyk — wydawanie punktów umiejętności
+
+// ── TRENING ──────────────────────────────────────────
+
 function TrainingView({ upgradeCosts, onRefresh }: { upgradeCosts: any; onRefresh: () => void }) {
   return (
     <div className="space-y-4">
@@ -768,7 +1103,6 @@ function TrainingView({ upgradeCosts, onRefresh }: { upgradeCosts: any; onRefres
         <SectionTitle>Trening statystyk</SectionTitle>
         <p className="text-xs text-gray-500 mb-3">
           Wydaj punkty umiejętności na rozwinięcie statystyk bazowych.
-          Bonusy z ekwipunku są widoczne w Przeglądzie konta.
         </p>
         <div className="mb-4 p-3 bg-gray-900 rounded-lg text-white flex justify-between items-center">
           <p className="text-xs text-gray-400">Dostępne punkty umiejętności</p>
@@ -788,14 +1122,14 @@ function TrainingView({ upgradeCosts, onRefresh }: { upgradeCosts: any; onRefres
 // ── GŁÓWNY KOMPONENT ─────────────────────────────────
 
 export default function DashboardPage() {
-  const navigate   = useNavigate();
-  const [page, setPage]               = useState<Page>("overview");
-  const [character, setCharacter]     = useState<any>(null);
+  const navigate = useNavigate();
+  const [page, setPage]             = useState<Page>("overview");
+  const [character, setCharacter]   = useState<any>(null);
   const [upgradeCosts, setUpgradeCosts] = useState<any>(null);
-  const [actions, setActions]         = useState<any>(null);
+  const [actions, setActions]       = useState<any>(null);
   const [effectiveStats, setEffectiveStats] = useState<any>(null);
-  const [equipmentData, setEquipmentData] = useState<any>(null);
-  const [loading, setLoading]         = useState(true);
+  const [equipmentData, setEquipmentData]   = useState<any>(null);
+  const [loading, setLoading]       = useState(true);
   const [equipmentRefreshKey, setEquipmentRefreshKey] = useState(0);
 
   const fetchAll = useCallback(async () => {
@@ -805,7 +1139,6 @@ export default function DashboardPage() {
         getUpgradeCosts(),
         api.get("/actions").then(r => r.data),
         api.get("/character/effective-stats").then(r => r.data),
-
       ]);
       setCharacter(char);
       setUpgradeCosts(costs);
@@ -834,13 +1167,9 @@ export default function DashboardPage() {
     );
   }
 
-const leftPanel = character && upgradeCosts && effectiveStats ? (
-  <LeftPanel
-    character={character}
-    effectiveStats={effectiveStats}
-    upgradeCosts={upgradeCosts}
-  />
-) : null;
+  const leftPanel = character && upgradeCosts && effectiveStats ? (
+    <LeftPanel character={character} effectiveStats={effectiveStats} upgradeCosts={upgradeCosts} />
+  ) : null;
 
   function renderContent() {
     switch (page) {
@@ -852,43 +1181,39 @@ const leftPanel = character && upgradeCosts && effectiveStats ? (
           />
         );
 
-case "equipment":
-  return (
-    <PageLayout
-      left={
-        <EquipmentLeftPanel
-          equipmentData={equipmentData}
-          onRefresh={() => {
-            setEquipmentRefreshKey(k => k + 1);
-            fetchAll();
-          }}
-        />
-      }
-      right={
-        <EquipmentView
-          key={equipmentRefreshKey}
-          onRefresh={fetchAll}
-          onDataLoaded={setEquipmentData}
-        />
-      }
-    />
-  );
+      case "equipment":
+        return (
+          <PageLayout
+            left={
+              <EquipmentLeftPanel
+                equipmentData={equipmentData}
+                onRefresh={() => { setEquipmentRefreshKey(k => k + 1); fetchAll(); }}
+              />
+            }
+            right={
+              <EquipmentView
+                key={equipmentRefreshKey}
+                onRefresh={fetchAll}
+                onDataLoaded={setEquipmentData}
+                character={character}
+              />
+            }
+          />
+        );
 
-case "tower":
-  return (
-    <TowerView onResourcesUpdated={fetchAll} />
-  );
-  
-case "training":
-  return (
-    <PageLayout
-      left={leftPanel}
-      right={upgradeCosts ? <TrainingView upgradeCosts={upgradeCosts} onRefresh={fetchAll} /> : null}
-    />
-  );
+      case "tower":
+        return <TowerView onResourcesUpdated={fetchAll} />;
 
-  case "combat":
-  return <CombatPanel onRefresh={fetchAll} />;
+      case "training":
+        return (
+          <PageLayout
+            left={leftPanel}
+            right={upgradeCosts ? <TrainingView upgradeCosts={upgradeCosts} onRefresh={fetchAll} /> : null}
+          />
+        );
+
+      case "combat":
+        return <CombatPanel onRefresh={fetchAll} />;
 
       case "study":
         return (
@@ -934,44 +1259,32 @@ case "training":
         <div className="max-w-6xl mx-auto px-6">
           <div className="flex items-center justify-between h-14">
             <span className="font-bold text-gray-900">Wieża Magów</span>
-
             <nav className="flex items-center gap-1">
               {NAV_ITEMS.map(item => (
                 <button
                   key={item.id}
                   onClick={() => setPage(item.id)}
                   className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                    page === item.id
-                      ? "bg-gray-900 text-white"
-                      : "text-gray-600 hover:bg-gray-100"
+                    page === item.id ? "bg-gray-900 text-white" : "text-gray-600 hover:bg-gray-100"
                   }`}
                 >
                   {item.label}
                 </button>
               ))}
             </nav>
-
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => setPage("settings")}
-                className="text-sm text-gray-500 hover:text-gray-900 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
-              >
+              <button onClick={() => setPage("settings")} className="text-sm text-gray-500 hover:text-gray-900 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">
                 Ustawienia
               </button>
-              <button
-                onClick={logout}
-                className="text-sm text-gray-500 hover:text-gray-900 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
-              >
+              <button onClick={logout} className="text-sm text-gray-500 hover:text-gray-900 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">
                 Wyloguj
               </button>
             </div>
           </div>
         </div>
       </header>
-
       <main className="max-w-6xl mx-auto px-6 py-6">
         {renderContent()}
-
       </main>
     </div>
   );

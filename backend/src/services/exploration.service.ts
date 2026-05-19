@@ -185,19 +185,9 @@ export async function claimExploration(userId: number, actionId: number) {
 
   // Zapisz przedmiot do ekwipunku gracza (jeśli nie ma już tego przedmiotu)
   if (foundItem) {
-    await prisma.characterItem.upsert({
-      where: {
-        characterId_itemId: {
-          characterId: character.id,
-          itemId: foundItem.id,
-        },
-      },
-      update: {},
-      create: {
-        characterId: character.id,
-        itemId: foundItem.id,
-      },
-    });
+await prisma.characterItem.create({
+  data: { characterId: character.id, itemId: foundItem.id },
+});
   }
 
   // Zbuduj raport

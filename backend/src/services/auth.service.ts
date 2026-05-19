@@ -48,9 +48,9 @@ character: {
         buildings: {
           create: [
             { buildingType: "power_collector", level: 0 },
-            { buildingType: "library", level: 0 },
-            { buildingType: "wardrobe", level: 0 },
-          ],
+            { buildingType: "library", level: 0 }, 
+            { buildingType: "chaos_vault", level: 1 },
+         ],
         },
       },
     },
