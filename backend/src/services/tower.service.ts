@@ -17,6 +17,7 @@ interface BuildingConfig {
   baseDurationSeconds: number;
   scaleMultiplier: number;
   costScaleMultiplier?: number;
+  towerLevelPerUpgrade?: number[];
 }
 
 const BUILDING_CONFIG: Record<string, BuildingConfig> = {
@@ -41,13 +42,14 @@ const BUILDING_CONFIG: Record<string, BuildingConfig> = {
   },
   library: {
     requiredTowerLevel: 1,
-    maxLevel: 30,
+    maxLevel: 5,
+    towerLevelPerUpgrade: [1, 10, 25, 50, 100], // indeks = docelowy poziom biblioteki (1-5)
     baseCostShards: 7,
     baseReqKnowledge: 3,
     baseReqIntelligence: 3,
     baseReqPower: 3,
     baseDurationSeconds: 120,
-    scaleMultiplier: 1.3,
+    scaleMultiplier: 5.0,
   },
   magic_hands: {
     requiredTowerLevel: 5,
@@ -300,6 +302,17 @@ async function startBuildingUpgrade(userId: number, buildingType: string) {
 
   const finishesAt = new Date(Date.now() + reqs.durationSeconds * 1000);
 
+if (buildingType === "library") {
+  const nextLevel = currentLevel + 1; // 1..5
+  const requiredTowerLevels = [1, 10, 25, 50, 100];
+  const requiredTower = requiredTowerLevels[nextLevel - 1];
+  if (character.tower.level < requiredTower) {
+    throw new Error(
+      `LIBRARY_TOWER_LOCKED:${requiredTower}`
+    );
+  }
+}
+
   // Pobierz koszt
   await prisma.character.update({
     where: { id: character.id },
@@ -351,7 +364,6 @@ async function claimBuildingUpgrade(userId: number, buildingType: string) {
   // Efekty ukończenia budynku
   const updates: Record<string, any> = {};
   if (buildingType === "storage") updates.maxItems = { increment: 10 };
-  if (buildingType === "library") updates.maxSpells = { increment: 2 };
   if (Object.keys(updates).length > 0) {
     await prisma.character.update({ where: { id: character.id }, data: updates });
   }
@@ -387,6 +399,11 @@ export const claimTowerUpgrade = async (userId: number) => {
   await prisma.tower.update({ where: { id: character.tower.id }, data: { level: { increment: 1 }, isUpgrading: false, upgradeFinishesAt: null } });
   return { newLevel: character.tower.level + 1 };
 };
+
+export function getSpellSlotCount(libraryLevel: number): number {
+  // poziom 0 = 0 slotów, 1=1, 2=2, 3=3, 4=4, 5=4 (max 4)
+  return Math.min(libraryLevel, 4);
+}
 
 export const startPowerCollectorUpgrade   = (userId: number) => startBuildingUpgrade(userId, "power_collector");
 export const claimPowerCollectorUpgrade   = (userId: number) => claimBuildingUpgrade(userId, "power_collector");

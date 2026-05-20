@@ -79,13 +79,13 @@ export async function getEffectiveStats(req: Request, res: Response) {
         bonuses.endurance  += item.bonusEndurance;
         bonuses.resistance += item.bonusResistance;
         bonuses.initiative += item.bonusInitiative;
-        bonuses.fireMagic += item.bonusFireMagicMagic;
-        bonuses.waterMagic += item.bonusWaterMagicMagic;
-        bonuses.earthMagic += item.bonusEarthMagicMagic;
-        bonuses.airMagic   += item.bonusAirMagicMagic;
+        bonuses.fireMagic += item.bonusFireMagic;
+        bonuses.waterMagic += item.bonusWaterMagic;
+        bonuses.earthMagic += item.bonusEarthMagic;
+        bonuses.airMagic   += item.bonusAirMagic;
         bonuses.lifeMagic   += item.bonusLifeMagic;
         bonuses.deathMagic  += item.bonusDeathMagic;
-        bonuses.chaosMagic  += item.bonusChaosMagicMagic;
+        bonuses.chaosMagic  += item.bonusChaosMagic;
         bonuses.energyMagic += item.bonusEnergyMagic;
 
       }

@@ -109,6 +109,20 @@ model Spell {
   element     String  // "fire", "water", "earth", "air", "chaos", "life", "death", "energy"
   rarity      String  // "common", "uncommon", "rare", "unique"
   damage      Int
+  spellPool   String @default("chaotic") // "chaotic"|"controlled"|"incantation"|"professional"|"master"
+  statusEffect String? // "burn"|"ignite"|"soak"|"electrify"|"poison"|"chill" lub null
+  special     String?
+  specialValue Int   @default(0)
+
+  // Mechanika summon/companion
+  specialType String? // "summon", "globalDamage", "skipTurn", itp.
+  summonCount   Int @default(0)     // ile minionu przywołać
+  summonHp      Int @default(0)     // HP każdego
+  summonDamage  Int @default(0)     // obrażenia każdego
+  summonElement String?              // element jego obrażeń
+  summonInitiative Int @default(0)  // inicjatywa
+  summonTargetType String?           // "randomEnemy"|"randomAlly"|"allEnemies"|"allAllies"|"all"|"randomAny"
+
   reqFireMagic     Int @default(0)
   reqWaterMagic    Int @default(0)
   reqEarthMagic    Int @default(0)

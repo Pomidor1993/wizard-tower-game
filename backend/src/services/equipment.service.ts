@@ -1,4 +1,6 @@
 import prisma from "../lib/prisma.js";
+import { getSpellSlotCount } from "./tower.service.js";
+
 
 // ── HELPER — efektywne statystyki z bonusami ekwipunku ──
 async function getEffectiveCharacter(userId: number) {
@@ -274,10 +276,21 @@ export async function unequipItem(userId: number, slot: string) {
 // ── DODAJ CZAR DO SLOTU ──────────────────────────────
 
 export async function equipSpell(userId: number, spellId: number, slotIndex: number) {
-  if (slotIndex < 0 || slotIndex > 9) throw new Error("Slot musi być między 0 a 9");
 
-  // Pobierz postać z efektywnymi statystykami
+  // Pobierz postać z efektami ekwipunku (statystyki) oraz osobno wieżę (bibliotekę)
   const character = await getEffectiveCharacter(userId);
+  const charTower = await prisma.character.findUnique({
+    where: { userId },
+    include: { tower: { include: { buildings: true } } },
+  });
+  if (!character) throw new Error("Postać nie znaleziona");
+
+  const libraryLevel = charTower?.tower?.buildings
+    .find(b => b.buildingType === "library")?.level ?? 0;
+  const maxSlots = getSpellSlotCount(libraryLevel);
+
+  if (maxSlots === 0) throw new Error("Wybuduj Bibliotekę aby aktywować czary bojowe");
+  if (slotIndex >= maxSlots) throw new Error(`Biblioteka poziomu ${libraryLevel} daje tylko ${maxSlots} slot(y) aktywnych czarów`);
 
   // Sprawdź czy gracz zna czar
   const known = character.spells.find((cs: any) => cs.spellId === spellId);
