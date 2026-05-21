@@ -5,18 +5,17 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-
 }
 
 // ── GRACZE ──────────────────────────────────────────
 model User {
-  id           Int      @id @default(autoincrement())
-  username     String   @unique
-  email        String   @unique
+  id           Int       @id @default(autoincrement())
+  username     String    @unique
+  email        String    @unique
   passwordHash String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  isPremium    Boolean  @default(false)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  isPremium    Boolean   @default(false)
   premiumUntil DateTime?
 
   character    Character?
@@ -30,48 +29,49 @@ model Character {
   name      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  equipment    CharacterEquipment?
-  spellSlots   CharacterSpellSlots[]
+
+  equipment   CharacterEquipment?
+  spellSlots  CharacterSpellSlots[]
   chaosVault  ChaosVaultItem[]
 
-  // Statystyki
-// Bazowe
-knowledge     Int @default(0)
-intelligence  Int @default(0)
-power         Int @default(0)
-endurance     Int @default(0)
-resistance    Int @default(0)
-initiative    Int @default(0)
+  // Statystyki bazowe
+  knowledge    Int @default(0)
+  intelligence Int @default(0)
+  power        Int @default(0)
+  endurance    Int @default(0)
+  resistance   Int @default(0)
+  initiative   Int @default(0)
 
-// Magia
-fireMagic     Int @default(0)
-waterMagic    Int @default(0)
-earthMagic    Int @default(0)
-airMagic      Int @default(0)
-lifeMagic     Int @default(0)
-deathMagic    Int @default(0)
-chaosMagic    Int @default(0)
-energyMagic   Int @default(0)
+  // Magia
+  fireMagic   Int @default(0)
+  waterMagic  Int @default(0)
+  earthMagic  Int @default(0)
+  airMagic    Int @default(0)
+  lifeMagic   Int @default(0)
+  deathMagic  Int @default(0)
+  chaosMagic  Int @default(0)
+  energyMagic Int @default(0)
 
   // Zasoby
-  powerShards  Int @default(1)  // Okruchy mocy
-  gold         Int @default(0)  // Złoto
-  skillPoints  Int @default(0)  // Punkty umiejętności do wydania
-  prestige     Int @default(0)  // Prestiż (punkty rankingowe)
-  lastResourceCollect DateTime @default(now()) // Bazowe 
-  maxItems            Int @default(10) // limit przedmiotów
-  maxSpells           Int @default(10) // limit czarów
+  powerShards         Int      @default(1)
+  gold                Int      @default(0)
+  skillPoints         Int      @default(50)
+  prestige            Int      @default(0)
+  lastResourceCollect DateTime @default(now())
+  maxItems            Int      @default(10)
+  maxSpells           Int      @default(10)
 
   // Pule akcji
-  studyActions      Int      @default(30)   // Szalone studia (max 30)
-  explorationActions Int     @default(15)   // Eksploracja (max 15)
-  lastStudyRegen    DateTime @default(now())
-  lastExploreRegen  DateTime @default(now())
+  studyActions       Int      @default(30)
+  explorationActions Int      @default(15)
+  lastStudyRegen     DateTime @default(now())
+  lastExploreRegen   DateTime @default(now())
 
-  tower        Tower?
-  spells       CharacterSpell[]
-  items        CharacterItem[]
-  actions      CharacterAction[]
+  tower     Tower?
+  spells    CharacterSpell[]
+  items     CharacterItem[]
+  actions   CharacterAction[]
+
   battlesAsAttacker Battle[] @relation("BattleAttacker")
   battlesAsDefender Battle[] @relation("BattleDefender")
   battlesAsWinner   Battle[] @relation("BattleWinner")
@@ -79,24 +79,24 @@ energyMagic   Int @default(0)
 
 // ── WIEŻA ────────────────────────────────────────────
 model Tower {
-  id          Int      @id @default(autoincrement())
-  characterId Int      @unique
-  character   Character @relation(fields: [characterId], references: [id])
-  level       Int      @default(1)
-  isUpgrading Boolean  @default(false)
-  upgradeFinishesAt DateTime?               
-  updatedAt   DateTime @updatedAt
+  id                Int       @id @default(autoincrement())
+  characterId       Int       @unique
+  character         Character @relation(fields: [characterId], references: [id])
+  level             Int       @default(1)
+  isUpgrading       Boolean   @default(false)
+  upgradeFinishesAt DateTime?
+  updatedAt         DateTime  @updatedAt
 
-  buildings   TowerBuilding[]
+  buildings TowerBuilding[]
 }
 
 model TowerBuilding {
-  id        Int     @id @default(autoincrement())
-  towerId   Int
-  tower     Tower   @relation(fields: [towerId], references: [id])
-  buildingType String  // "power_collector", "magic_hands", "library" itd.
-  level     Int     @default(1)
-  isUpgrading Boolean @default(false)
+  id                Int     @id @default(autoincrement())
+  towerId           Int
+  tower             Tower   @relation(fields: [towerId], references: [id])
+  buildingType      String
+  level             Int     @default(1)
+  isUpgrading       Boolean @default(false)
   upgradeFinishesAt DateTime?
 
   @@unique([towerId, buildingType])
@@ -104,47 +104,58 @@ model TowerBuilding {
 
 // ── CZARY ────────────────────────────────────────────
 model Spell {
-  id          Int    @id @default(autoincrement())
-  name        String @unique
-  element     String  // "fire", "water", "earth", "air", "chaos", "life", "death", "energy"
-  rarity      String  // "common", "uncommon", "rare", "unique"
-  damage      Int
-  spellPool   String @default("chaotic") // "chaotic"|"controlled"|"incantation"|"professional"|"master"
-  statusEffect String? // "burn"|"ignite"|"soak"|"electrify"|"poison"|"chill" lub null
-  special     String?
-  specialValue Int   @default(0)
+  id        Int    @id @default(autoincrement())
+  name      String @unique
+  element   String // "fire"|"water"|"earth"|"air"|"chaos"|"life"|"death"|"energy"
+  rarity    String // "common"|"uncommon"|"rare"|"unique"
+  damage    Int
+  spellPool String @default("chaotic") // "chaotic"|"controlled"|"incantation"|"professional"|"master"
+  castEffects String @default("[]")  // JSON array: CastEffectDef[]
 
-  // Mechanika summon/companion
-  specialType String? // "summon", "globalDamage", "skipTurn", itp.
-  summonCount   Int @default(0)     // ile minionu przywołać
-  summonHp      Int @default(0)     // HP każdego
-  summonDamage  Int @default(0)     // obrażenia każdego
-  summonElement String?              // element jego obrażeń
-  summonInitiative Int @default(0)  // inicjatywa
-  summonTargetType String?           // "randomEnemy"|"randomAlly"|"allEnemies"|"allAllies"|"all"|"randomAny"
+  // ── NOWY SYSTEM STATUSÓW ──────────────────────────
+  // JSON array: StatusEffectDef[]
+  // Przykład: [{"type":"dot","element":"fire","damage":2,"target":"target","duration":3}]
+  // Pełna specyfikacja typów w: src/types/status.types.ts
+  statusEffects String @default("[]")
 
-  reqFireMagic     Int @default(0)
-  reqWaterMagic    Int @default(0)
-  reqEarthMagic    Int @default(0)
-  reqAirMagic      Int @default(0)
-  reqChaosMagic    Int @default(0)
-  reqLifeMagic     Int @default(0)
-  reqDeathMagic    Int @default(0)
-  reqEnergyMagic   Int @default(0)
+  // ── MECHANIKI SPECJALNE ───────────────────────────
+  // Czy czar jest kierunkowy (może chybić przy miss_chance)
+  isDirectional Boolean @default(true)
 
-  spellSlots   CharacterSpellSlots[]
+  // Tekst fabularny / opis efektu widoczny w logu walki
+  special      String?
+
+  // Mechanika przywołań
+  summonCount      Int     @default(0)
+  summonHp         Int     @default(0)
+  summonDamage     Int     @default(0)
+  summonElement    String?
+  summonInitiative Int     @default(0)
+  summonTargetType String? // "randomEnemy"|"randomAlly"|"allEnemies"|"allAllies"|"all"|"randomAny"
+
+  // Wymagania statystyk
+  reqFireMagic   Int @default(0)
+  reqWaterMagic  Int @default(0)
+  reqEarthMagic  Int @default(0)
+  reqAirMagic    Int @default(0)
+  reqChaosMagic  Int @default(0)
+  reqLifeMagic   Int @default(0)
+  reqDeathMagic  Int @default(0)
+  reqEnergyMagic Int @default(0)
+
+  spellSlots  CharacterSpellSlots[]
   characters  CharacterSpell[]
   chaosVault  ChaosVaultItem[]
 }
 
 model CharacterSpell {
-  id          Int       @id @default(autoincrement())
-  characterId Int
-  character   Character @relation(fields: [characterId], references: [id])
-  spellId     Int
-  spell       Spell     @relation(fields: [spellId], references: [id])
-  isEquipped  Boolean   @default(false)
-  discoveredAt DateTime @default(now())
+  id           Int       @id @default(autoincrement())
+  characterId  Int
+  character    Character @relation(fields: [characterId], references: [id])
+  spellId      Int
+  spell        Spell     @relation(fields: [spellId], references: [id])
+  isEquipped   Boolean   @default(false)
+  discoveredAt DateTime  @default(now())
 
   @@unique([characterId, spellId])
 }
@@ -153,41 +164,43 @@ model CharacterSpell {
 model Item {
   id             Int    @id @default(autoincrement())
   name           String
-  rarity         String  // "common", "uncommon", "rare", "unique"
-  slot           String  // "robe", "boots", "hat", "amulet", "weapon_one", "weapon_two"
-  weaponType     String? // "one_handed", "two_handed" — tylko dla broni
-  reqKnowledge    Int @default(0)
+  rarity         String
+  slot           String
+  weaponType     String?
+  element        String?
+
+  reqKnowledge   Int @default(0)
   reqIntelligence Int @default(0)
   reqPower        Int @default(0)
   reqEndurance    Int @default(0)
   reqResistance   Int @default(0)
   reqInitiative   Int @default(0)
-  reqFireMagic         Int @default(0)
-  reqWaterMagic        Int @default(0)
-  reqEarthMagic        Int @default(0)
-  reqAirMagic          Int @default(0)
-  reqChaosMagic        Int @default(0)
-  reqLifeMagic         Int @default(0)
-  reqDeathMagic        Int @default(0)
-  reqEnergyMagic       Int @default(0)
-  bonusKnowledge    Int @default(0)
+  reqFireMagic    Int @default(0)
+  reqWaterMagic   Int @default(0)
+  reqEarthMagic   Int @default(0)
+  reqAirMagic     Int @default(0)
+  reqChaosMagic   Int @default(0)
+  reqLifeMagic    Int @default(0)
+  reqDeathMagic   Int @default(0)
+  reqEnergyMagic  Int @default(0)
+
+  bonusKnowledge   Int @default(0)
   bonusIntelligence Int @default(0)
   bonusPower        Int @default(0)
   bonusEndurance    Int @default(0)
   bonusResistance   Int @default(0)
   bonusInitiative   Int @default(0)
-  bonusFireMagic         Int @default(0)
-  bonusWaterMagic        Int @default(0)
-  bonusEarthMagic        Int @default(0)
-  bonusAirMagic          Int @default(0)
-  bonusChaosMagic        Int @default(0)
-  bonusLifeMagic         Int @default(0)
-  bonusDeathMagic        Int @default(0)
-  bonusEnergyMagic       Int @default(0)
+  bonusFireMagic    Int @default(0)
+  bonusWaterMagic   Int @default(0)
+  bonusEarthMagic   Int @default(0)
+  bonusAirMagic     Int @default(0)
+  bonusChaosMagic   Int @default(0)
+  bonusLifeMagic    Int @default(0)
+  bonusDeathMagic   Int @default(0)
+  bonusEnergyMagic  Int @default(0)
 
-
-  characters     CharacterItem[]
-  chaosVault  ChaosVaultItem[]
+  characters CharacterItem[]
+  chaosVault ChaosVaultItem[]
 }
 
 model CharacterItem {
@@ -205,13 +218,12 @@ model CharacterEquipment {
   characterId Int       @unique
   character   Character @relation(fields: [characterId], references: [id])
 
-  // Sloty ekwipunku (null = pusty slot)
-  robeId      Int?      // szata
-  bootsId     Int?      // buty
-  hatId       Int?      // czapka
-  amuletId    Int?      // amulet
-  mainHandId  Int?      // prawa ręka
-  offHandId   Int?      // lewa ręka (null jeśli dwuręczna w mainHand)
+  robeId     Int?
+  bootsId    Int?
+  hatId      Int?
+  amuletId   Int?
+  mainHandId Int?
+  offHandId  Int?
 }
 
 // ── AKTYWNE CZARY POSTACI ────────────────────────────
@@ -221,7 +233,7 @@ model CharacterSpellSlots {
   character   Character @relation(fields: [characterId], references: [id])
   spellId     Int
   spell       Spell     @relation(fields: [spellId], references: [id])
-  slotIndex   Int       // 0-9 (max 10 czarów)
+  slotIndex   Int       // 0–9
 
   @@unique([characterId, slotIndex])
   @@unique([characterId, spellId])
@@ -229,22 +241,22 @@ model CharacterSpellSlots {
 
 // ── AKCJE GRACZA ─────────────────────────────────────
 model CharacterAction {
-  id            Int      @id @default(autoincrement())
-  characterId   Int
-  character     Character @relation(fields: [characterId], references: [id])
-  actionType    String   // "study", "exploration"
-  actionLevel   Int      // 1-5
-  status        String   @default("in_progress") // "in_progress", "completed", "claimed"
-  startedAt     DateTime @default(now())
-  finishesAt    DateTime
-  
-  // Wynik (wypełniany po zakończeniu)
+  id          Int       @id @default(autoincrement())
+  characterId Int
+  character   Character @relation(fields: [characterId], references: [id])
+  actionType  String    // "study" | "exploration"
+  actionLevel Int       // 1–5
+  status      String    @default("in_progress") // "in_progress"|"completed"|"claimed"
+  startedAt   DateTime  @default(now())
+  finishesAt  DateTime
+
   skillPointsEarned Int?
-  spellDiscovered   String?  // nazwa czaru lub null
-  report            String?  // JSON z pełnym raportem
+  spellDiscovered   String?
+  report            String?
 
   @@index([characterId, status])
 }
+
 // ── WALKI PVP ─────────────────────────────────────────
 model Battle {
   id           Int       @id @default(autoincrement())
@@ -254,7 +266,7 @@ model Battle {
   defender     Character @relation("BattleDefender", fields: [defenderId], references: [id])
   winnerId     Int
   winner       Character @relation("BattleWinner", fields: [winnerId], references: [id])
-  log          String    // JSON z logiem tur
+  log          String
   summary      String
   prestigeGain Int       @default(0)
   foughtAt     DateTime  @default(now())
@@ -262,13 +274,14 @@ model Battle {
   @@index([attackerId])
   @@index([defenderId])
 }
+
 // ── KOMNATA NIEŁADU ───────────────────────────────────
 model ChaosVaultItem {
   id          Int       @id @default(autoincrement())
   characterId Int
   character   Character @relation(fields: [characterId], references: [id])
-  itemId      Int?      // null jeśli to czar
-  spellId     Int?      // null jeśli to przedmiot
+  itemId      Int?
+  spellId     Int?
   item        Item?     @relation(fields: [itemId], references: [id])
   spell       Spell?    @relation(fields: [spellId], references: [id])
   addedAt     DateTime  @default(now())

@@ -1,12 +1,5 @@
-import { useEffect, useState, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import api from "../api/client";
-
-const RARITY_COLORS: Record<string, string> = {
-  common:   "text-gray-500 bg-gray-100",
-  uncommon: "text-green-700 bg-green-100",
-  rare:     "text-blue-700 bg-blue-100",
-  unique:   "text-yellow-700 bg-yellow-100",
-};
 
 interface RankingEntry {
   rank: number;
@@ -47,6 +40,7 @@ export default function CombatPanel({ onRefresh }: { onRefresh: () => void }) {
       const res = await api.post("/combat/challenge", {
         defenderCharacterId: selected.characterId,
       });
+      console.log("Battle result:", res.data); // DEBUG
       setBattleResult(res.data);
       await fetchRanking();
       onRefresh();
@@ -89,14 +83,66 @@ export default function CombatPanel({ onRefresh }: { onRefresh: () => void }) {
           {battleResult.log?.length > 0 && (
             <div className="mt-3">
               <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Przebieg walki</p>
-              <div className="max-h-48 overflow-y-auto space-y-1 bg-white rounded-lg p-3 border border-gray-100">
-                {battleResult.log.map((entry: any, i: number) => (
-                  <div key={i} className="flex items-center gap-2 text-xs">
-                    <span className="text-gray-400 w-12 shrink-0">Tura {entry.turn}</span>
-                    <span className="font-medium text-gray-700 w-24 shrink-0 truncate">{entry.attacker}</span>
-                    <span className="text-gray-500 flex-1">{entry.spell}</span>
-                    <span className="text-red-500 shrink-0">-{entry.damage} HP</span>
-                    <span className="text-gray-400 shrink-0">({entry.targetHpAfter} HP)</span>
+              <div className="max-h-72 overflow-y-auto space-y-3 bg-white rounded-lg p-3 border border-gray-100">
+                {battleResult.log.map((turn: any) => (
+                  <div key={turn.turn} className="space-y-2 text-xs">
+                    <div className="flex items-center gap-2 text-gray-500">
+                      <span className="font-semibold">Tura {turn.turn}</span>
+                      <span>•</span>
+                      <span>HP Atakującego: {turn.sideAFighterHps?.[0]?.hp ?? "?"}</span>
+                      <span>•</span>
+                      <span>HP Obrońcy: {turn.sideBFighterHps?.[0]?.hp ?? "?"}</span>
+                    </div>
+                    <div className="space-y-1">
+{turn.events?.map((event: any, eventIndex: number) => {
+                         // Determine color based on participant side relative to current user
+                         const getEventColor = (participantName: string): string => {
+                           const metadata = battleResult?.metadata;
+                           if (!metadata) return "text-gray-700";
+                           
+                           // Safely check if arrays exist before using includes
+                           const sideAFighterNames = metadata.sideAFighterNames || [];
+                           const sideBFighterNames = metadata.sideBFighterNames || [];
+                           const sideAMinionNames = metadata.sideAMinionNames || [];
+                           const sideBMinionNames = metadata.sideBMinionNames || [];
+                           
+                           const isOnSideA = 
+                             sideAFighterNames.includes(participantName) ||
+                             sideAMinionNames.includes(participantName);
+                           
+                           const isOnSideB = 
+                             sideBFighterNames.includes(participantName) ||
+                             sideBMinionNames.includes(participantName);
+                           
+                           // Determine which side is "my" side based on myCharacterId
+                           const mySide = (myCharacterId === metadata.attackerId) ? "sideA" :
+                                          (myCharacterId === metadata.defenderId) ? "sideB" : null;
+                           
+                           // If I'm not a participant, default to SideA = green, SideB = red
+                           if (mySide === null) {
+                             if (isOnSideA) return "text-green-700";
+                             if (isOnSideB) return "text-red-700";
+                             return "text-gray-700";
+                           }
+                           
+                           // My side = green, enemy side = red
+                           const isMySide = (mySide === "sideA" && isOnSideA) || (mySide === "sideB" && isOnSideB);
+                           const isEnemySide = (mySide === "sideA" && isOnSideB) || (mySide === "sideB" && isOnSideA);
+                           
+                           if (isMySide) return "text-green-700";
+                           if (isEnemySide) return "text-red-700";
+                           return "text-gray-700";
+                         };
+                        
+                        const eventColor = getEventColor(event.attacker);
+                        
+                        return (
+                          <div key={eventIndex} className={eventColor}>
+                            <span className="font-medium">{event.description}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -146,7 +192,6 @@ export default function CombatPanel({ onRefresh }: { onRefresh: () => void }) {
 
           <div className="max-h-64 overflow-y-auto divide-y divide-gray-50">
             {ranking.map((entry) => {
-              const isSelectable = !entry.isMe && !entry.foughtToday;
               const isSelected = selected?.characterId === entry.characterId;
 
               return (
@@ -284,8 +329,33 @@ function HistoryPanel() {
               </div>
             </div>
             {expanded === battle.id && (
-              <div className="mt-1 p-3 bg-gray-50 rounded-lg text-xs text-gray-600 border border-gray-100">
-                {battle.summary}
+              <div className="mt-1 p-3 bg-gray-50 rounded-lg text-xs text-gray-600 border border-gray-100 space-y-3">
+                <p>{battle.summary}</p>
+                {battle.log?.length > 0 && (
+                  <div className="space-y-3 bg-white rounded-lg p-3 border border-gray-100">
+                    {battle.log.map((turn: any) => (
+                      <div key={turn.turn} className="space-y-2">
+                        <div className="flex items-center gap-2 text-gray-500">
+                          <span className="font-semibold">Tura {turn.turn}</span>
+                          <span>•</span>
+                          <span>HP Atakującego: {turn.attackerHp}</span>
+                          <span>•</span>
+                          <span>HP Obrońcy: {turn.defenderHp}</span>
+                        </div>
+                        <div className="space-y-1 text-gray-700">
+                          {turn.events?.map((event: any, eventIndex: number) => (
+                            <div key={eventIndex}>
+                              <span className="font-medium">{event.description}</span>
+                              {event.damage > 0 && (
+                                <span className="text-red-500"> (−{event.damage} HP, cel: {event.targetHpAfter})</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>

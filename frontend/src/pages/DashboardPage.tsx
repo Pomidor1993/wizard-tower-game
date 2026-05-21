@@ -255,7 +255,7 @@ function ChaosVaultModal({
   const allSpells = vaultData?.items.filter((i: any) => i.spell) ?? [];
   const allItems  = vaultData?.items.filter((i: any) => i.item)  ?? [];
 
-  function applyFilters(list: any[], nameKey: string) {
+  function applyFilters(list: any[], _nameKey: string) {
     return list.filter(entry => {
       const obj = entry.spell ?? entry.item;
       const matchRarity = filterRarity === "all" || obj.rarity === filterRarity;
@@ -734,7 +734,7 @@ function EquipmentView({ onRefresh, onDataLoaded, character }: {
   const [previewData, setPreviewData] = useState<any>(null);
   const [confirming, setConfirming] = useState(false);
   const [showVault, setShowVault] = useState(false);
-  const [sendingToVault, setSendingToVault] = useState<number | null>(null);
+  const [, setSendingToVault] = useState<number | null>(null);
   const [vaultMode, setVaultMode] = useState(false);
 
   const fetchData = useCallback(async () => {
