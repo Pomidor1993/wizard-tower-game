@@ -268,6 +268,7 @@ model Battle {
   winner       Character @relation("BattleWinner", fields: [winnerId], references: [id])
   log          String
   summary      String
+  metadata     String    @default("{}")
   prestigeGain Int       @default(0)
   foughtAt     DateTime  @default(now())
 

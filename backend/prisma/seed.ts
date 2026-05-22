@@ -653,6 +653,84 @@ async function main() {
         ]),
       },
 
+      // ── STAT BOOST — demonstracja ─────────────────────────────────────────────
+
+// Buff power o stałą wartość (na siebie, 3 tury)
+{
+  name: "Wzmocnienie mocy",
+  element: "energy", rarity: "uncommon", damage: 0, spellPool: "controlled",
+  isDirectional: false,
+  reqEnergyMagic: 8,
+  special: "{attacker} koncentruje energię — jego moc wzrasta o 5 pkt na 3 tury.",
+  statusEffects: fx([
+    {
+      type: "stat_boost",
+      stat: "power",
+      statMode: "flat",
+      statAmount: 5,
+      target: "self",
+      duration: 3,
+    },
+  ]),
+},
+
+// Debuff initiative wroga o % (do końca walki)
+{
+  name: "Spowolnienie",
+  element: "water", rarity: "common", damage: 0, spellPool: "controlled",
+  isDirectional: true,
+  reqWaterMagic: 5,
+  special: "Gęsta woda spowalnia ruchy {target} — traci 30% inicjatywy na stałe.",
+  statusEffects: fx([
+    {
+      type: "stat_boost",
+      stat: "initiative",
+      statMode: "percent",
+      statAmount: -30,
+      target: "target",
+      duration: null,
+    },
+  ]),
+},
+
+// Buff fireMagic sojuszników procentowo (krótko, ale mocno)
+{
+  name: "Zew ognia",
+  element: "fire", rarity: "rare", damage: 0, spellPool: "incantation",
+  isDirectional: false,
+  reqFireMagic: 20,
+  special: "Płomień w sercach sojuszników — +50% do magii ognia na 2 tury.",
+  statusEffects: fx([
+    {
+      type: "stat_boost",
+      stat: "fireMagic",
+      statMode: "percent",
+      statAmount: 50,
+      target: "allAllies",
+      duration: 2,
+    },
+  ]),
+},
+
+// Debuff resistance wroga flat — obniża odporność
+{
+  name: "Przebicie pancerza",
+  element: "chaos", rarity: "uncommon", damage: 2, spellPool: "controlled",
+  isDirectional: true,
+  reqChaosMagic: 10,
+  special: "Chaotyczna energia rozbija magiczny pancerz {target} — traci 10 pkt odporności.",
+  statusEffects: fx([
+    {
+      type: "stat_boost",
+      stat: "resistance",
+      statMode: "flat",
+      statAmount: -10,
+      target: "target",
+      duration: null,
+    },
+  ]),
+},
+
     ],
   });
 

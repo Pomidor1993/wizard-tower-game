@@ -53,7 +53,7 @@ interface BattleSpell {
   spellPool: SpellPool;
   isDirectional: boolean;
   statusEffectDefs: StatusEffectDef[];
-  castEffectDefs: CastEffectDef[];       // ← NOWE: jednorazowe przy rzuceniu
+  castEffectDefs: CastEffectDef[]; 
   special: string | null;
   reqFireMagic:   number;
   reqWaterMagic:  number;
@@ -157,7 +157,7 @@ interface TurnEvent {
     | "status_applied" | "status_expired"
     | "minion_summoned" | "minion_attack" | "minion_death"
     | "stun" | "miss" | "ice_slip"
-    | "sacrifice" | "dominate" | "resurrect"; // ← NOWE typy eventów
+    | "sacrifice" | "dominate" | "resurrect"; 
   attacker:      string;
   target:        string;
   spellName?:    string;
@@ -196,16 +196,16 @@ const POOL_LABELS: Record<SpellPool, string> = {
   master:       "rzuca mistrzowski czar",
 };
 
-function canUseSpell(spell: BattleSpell, fighter: Fighter): boolean {
+function canUseSpell(spell: BattleSpell, fighter: Fighter, globalStatuses: AppliedStatus[]): boolean {
   return (
-    fighter.fireMagic   >= spell.reqFireMagic   &&
-    fighter.waterMagic  >= spell.reqWaterMagic  &&
-    fighter.earthMagic  >= spell.reqEarthMagic  &&
-    fighter.airMagic    >= spell.reqAirMagic    &&
-    fighter.chaosMagic  >= spell.reqChaosMagic  &&
-    fighter.lifeMagic   >= spell.reqLifeMagic   &&
-    fighter.deathMagic  >= spell.reqDeathMagic  &&
-    fighter.energyMagic >= spell.reqEnergyMagic
+    getEffectiveStat(fighter, "fireMagic",   globalStatuses) >= spell.reqFireMagic   &&
+    getEffectiveStat(fighter, "waterMagic",  globalStatuses) >= spell.reqWaterMagic  &&
+    getEffectiveStat(fighter, "earthMagic",  globalStatuses) >= spell.reqEarthMagic  &&
+    getEffectiveStat(fighter, "airMagic",    globalStatuses) >= spell.reqAirMagic    &&
+    getEffectiveStat(fighter, "chaosMagic",  globalStatuses) >= spell.reqChaosMagic  &&
+    getEffectiveStat(fighter, "lifeMagic",   globalStatuses) >= spell.reqLifeMagic   &&
+    getEffectiveStat(fighter, "deathMagic",  globalStatuses) >= spell.reqDeathMagic  &&
+    getEffectiveStat(fighter, "energyMagic", globalStatuses) >= spell.reqEnergyMagic
   );
 }
 
@@ -219,31 +219,34 @@ function requiresEnemyMinion(spell: BattleSpell): boolean {
   return spell.castEffectDefs.some(e => e.type === "dominate");
 }
 
-function elementBonus(element: string, fighter: Fighter): number {
-  const map: Record<string, number> = {
-    fire:   fighter.fireMagic,
-    water:  fighter.waterMagic,
-    earth:  fighter.earthMagic,
-    air:    fighter.airMagic,
-    chaos:  fighter.chaosMagic,
-    energy: fighter.energyMagic,
-    life:   fighter.lifeMagic,
-    death:  fighter.deathMagic,
+function elementBonus(element: string, fighter: Fighter, globalStatuses: AppliedStatus[]): number {
+  const map: Record<string, FighterStatKey> = {
+    fire:   "fireMagic",
+    water:  "waterMagic",
+    earth:  "earthMagic",
+    air:    "airMagic",
+    chaos:  "chaosMagic",
+    energy: "energyMagic",
+    life:   "lifeMagic",
+    death:  "deathMagic",
   };
-  return map[element] ?? 0;
+  const key = map[element];
+  if (!key) return 0;
+  return getEffectiveStat(fighter, key, globalStatuses);
 }
 
 function pickRandomSpell(
   fighter: Fighter,
   usedSpellIds: Set<number>,
   ownSide: BattleSide,
-  enemySide: BattleSide
+  enemySide: BattleSide,
+  globalStatuses: AppliedStatus[]
 ): BattleSpell | null {
   const pool = pickPool(fighter.towerLevel);
 
   const isAvailable = (s: BattleSpell): boolean => {
     if (usedSpellIds.has(s.id)) return false;
-    if (!canUseSpell(s, fighter)) return false;
+    if (!canUseSpell(s, fighter, globalStatuses)) return false;
     // Czar wskrzeszenia dostępny tylko gdy ktoś po naszej stronie jest martwy
     if (requiresDeadAlly(s) && ownSide.deadFighters.length === 0) return false;
     // Czar dominacji dostępny tylko gdy przeciwnik ma miniony
@@ -259,6 +262,41 @@ function pickRandomSpell(
   const any = fighter.spellPool.filter(isAvailable);
   if (any.length === 0) return null;
   return any[randomInt(0, any.length - 1)]!;
+}
+
+// ── STAT BOOST: odczyt statystyki z uwzględnieniem aktywnych statusów ────────
+type FighterStatKey =
+  | "power" | "initiative" | "resistance"
+  | "fireMagic" | "waterMagic" | "earthMagic" | "airMagic"
+  | "chaosMagic" | "energyMagic" | "lifeMagic" | "deathMagic";
+
+function getEffectiveStat(
+  fighter: Fighter,
+  stat: FighterStatKey,
+  globalStatuses: AppliedStatus[]
+): number {
+  const base = fighter[stat] as number;
+  let flatBonus    = 0;
+  let percentBonus = 0;
+
+  for (const status of getEffectiveStatuses(fighter.appliedStatuses, globalStatuses)) {
+    const def = status.effectDef;
+    if (def.type !== "stat_boost" || def.stat !== stat) continue;
+    if (def.statMode === "flat")    flatBonus    += def.statAmount ?? 0;
+    if (def.statMode === "percent") percentBonus += def.statAmount ?? 0;
+  }
+
+  // Najpierw flat, potem procent od bazy
+  const modified = (base + flatBonus) * (1 + percentBonus / 100);
+  return Math.max(0, Math.round(modified));
+}
+
+// ── RESISTANCE: redukcja obrażeń fizycznych ───────────────────────────────
+function applyResistance(damage: number, element: string, target: Fighter, globalStatuses: AppliedStatus[]): number {
+  if (damage <= 0 || element === "basic") return damage;
+  const resistance = getEffectiveStat(target, "resistance", globalStatuses);
+  const reduction  = Math.floor(resistance / 3);
+  return Math.max(1, damage - reduction);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -343,6 +381,12 @@ function describeStatusApplied(def: StatusEffectDef, targetName: string, sourceN
     case "stun":          return `${targetName} może zostać ogłuszony przez ${sourceName} (${def.stunChance}% / ${def.stunDuration} tur).`;
     case "invisibility":  return `${targetName} zyskuje ${def.invisChance}% niewidzialności (${sourceName}).`;
     case "heal_chance":   return `${targetName} jest otoczony uzdrawiającą energią — ${def.healChance}% szansy na +${def.healAmount} HP/turę.`;
+    case "stat_boost": {
+      const sign   = (def.statAmount ?? 0) >= 0 ? "+" : "";
+      const suffix = def.statMode === "percent" ? "%" : " pkt";
+      const verb   = (def.statAmount ?? 0) >= 0 ? "zyskuje" : "traci";
+    return `${targetName} ${verb} ${sign}${def.statAmount}${suffix} do ${def.stat} — ${descDuration(def.duration)}.`;
+}
     default:              return `${targetName} otrzymuje status z czaru ${sourceName}.`;
   }
 }
@@ -673,14 +717,20 @@ function executeCastEffects(
 function calculateDamage(
   spell: { damage: number; element: string },
   attacker: Fighter,
-  targetStatuses: AppliedStatus[],
+  target: Fighter,
   globalStatuses: AppliedStatus[]
 ): number {
   if (spell.damage === 0) return 0;
   const base       = spell.damage;
-  const elemBonus  = Math.floor(elementBonus(spell.element, attacker) * 0.5);
-  const powerBonus = Math.floor(attacker.power * 0.3);
-  return applyElementModifiers(base + elemBonus + powerBonus, spell.element, targetStatuses, globalStatuses);
+  const elemBonus  = Math.floor(elementBonus(spell.element, attacker, globalStatuses) * 0.5);
+  const powerBonus = Math.floor(getEffectiveStat(attacker, "power", globalStatuses) * 0.3);
+  const withElements = applyElementModifiers(
+    base + elemBonus + powerBonus,
+    spell.element,
+    target.appliedStatuses,
+    globalStatuses
+  );
+  return applyResistance(withElements, spell.element, target, globalStatuses);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -751,6 +801,11 @@ function executeMinionAttacks(
     const targets = selectMinionTargets(minion, ownSide, enemySide, state.globalStatuses);
     for (const t of targets) {
       t.hp = Math.max(0, t.hp - minion.damage);
+      let minionDmg = minion.damage;
+if ("resistance" in t) {
+  minionDmg = applyResistance(minionDmg, minion.element, t as Fighter, state.globalStatuses);
+}
+t.hp = Math.max(0, t.hp - minionDmg);
       events.push({
         type: "minion_attack",
         attacker: minion.name,
@@ -758,7 +813,7 @@ function executeMinionAttacks(
         minionName: minion.name,
         damage: minion.damage,
         targetHpAfter: t.hp,
-        description: `${minion.name} atakuje ${t.name} — zadaje ${minion.damage} pkt obrażeń! [HP: ${t.hp}/${t.maxHp}]`,
+        description: `${minion.name} atakuje ${t.name} — zadaje ${minionDmg} pkt obrażeń! [HP: ${t.hp}/${t.maxHp}]`,
       });
       if (t.hp <= 0 && !("towerLevel" in t)) {
         events.push(minionDeathEvent(t as Minion));
@@ -871,7 +926,7 @@ async function buildFighter(characterId: number): Promise<Fighter> {
       spellPool:        s.spellPool as SpellPool,
       isDirectional:    s.isDirectional ?? true,
       statusEffectDefs: parseStatusEffects(s.statusEffects),
-      castEffectDefs:   parseCastEffects(s.castEffects),   // ← NOWE
+      castEffectDefs:   parseCastEffects(s.castEffects),
       special:          s.special,
       reqFireMagic:     s.reqFireMagic,
       reqWaterMagic:    s.reqWaterMagic,
@@ -995,7 +1050,7 @@ function simulateBattle(
       spell    = queue.shift()!;
       isActive = true;
     } else {
-      spell = pickRandomSpell(actor, used, ownSide, enemySide);
+      spell = pickRandomSpell(actor, used, ownSide, enemySide, state.globalStatuses);
       if (spell) used.add(spell.id);
     }
 
@@ -1045,7 +1100,7 @@ function simulateBattle(
     // Zadaj obrażenia
     let dmg = 0;
     if (spell.damage > 0 && spell.summonCount === 0 && primaryTarget) {
-      dmg = calculateDamage(spell, actor, primaryTarget.appliedStatuses, state.globalStatuses);
+        dmg = calculateDamage(spell, actor, primaryTarget, state.globalStatuses);
       primaryTarget.hp = Math.max(0, primaryTarget.hp - dmg);
     }
 
@@ -1153,7 +1208,9 @@ function simulateBattle(
 
     // Posortuj fighterów wg inicjatywy + losowości
     const sortedFighters = [...allLivingFighters(state)].sort(
-      (a, b) => (b.initiative + Math.random() * 2) - (a.initiative + Math.random() * 2)
+      (a, b) =>
+        (getEffectiveStat(b, "initiative", state.globalStatuses) + Math.random() * 2) -
+        (getEffectiveStat(a, "initiative", state.globalStatuses) + Math.random() * 2)
     );
 
     for (const actor of sortedFighters) {
@@ -1310,7 +1367,41 @@ export async function challengePlayer(attackerUserId: number, defenderCharacterI
   if (prestigeDiff < -100) prestigeGain = 6;
 
   const winnerId = result.winnerId ?? attackerChar.id;
-
+  const fullMetadata = {
+    ...result.metadata,
+    attackerUserId: attackerUserId,
+    attackerId: attackerChar.id,
+    attackerName: attackerChar.name,
+    defenderId: defenderChar.id,
+    defenderName: defenderChar.name,
+    allParticipants: [
+      ...result.metadata.sideAFighterIds.map((id, i) => ({
+        id,
+        name: result.metadata.sideAFighterNames[i],
+        side: "sideA",
+        type: "fighter" as const,
+      })),
+      ...result.metadata.sideBFighterIds.map((id, i) => ({
+        id,
+        name: result.metadata.sideBFighterNames[i],
+        side: "sideB",
+        type: "fighter" as const,
+      })),
+      ...result.metadata.sideAMinionNames.map((name) => ({
+        id: -1,
+        name,
+        side: "sideA",
+        type: "minion" as const,
+      })),
+      ...result.metadata.sideBMinionNames.map((name) => ({
+        id: -1,
+        name,
+        side: "sideB",
+        type: "minion" as const,
+      })),
+    ],
+  };
+ 
   const battle = await prisma.battle.create({
     data: {
       attackerId:   attackerChar.id,
@@ -1318,6 +1409,7 @@ export async function challengePlayer(attackerUserId: number, defenderCharacterI
       winnerId,
       log:          JSON.stringify(result.log),
       summary:      result.summary,
+      metadata:     JSON.stringify(fullMetadata),
       prestigeGain: attackerWon ? prestigeGain : 0,
     },
   });
@@ -1389,15 +1481,25 @@ export async function getBattleHistory(userId: number) {
     },
   });
 
-  return battles.map(b => ({
-    id:           b.id,
-    attacker:     b.attacker.name,
-    defender:     b.defender.name,
-    winner:       b.winner.name,
-    summary:      b.summary,
-    prestigeGain: b.prestigeGain,
-    foughtAt:     b.foughtAt,
-    youWon:       b.winnerId === character.id,
-    log:          JSON.parse(b.log),
-  }));
+return battles.map(b => {
+    let metadata: any = {};
+    try {
+      metadata = JSON.parse(b.metadata ?? "{}");
+    } catch {
+      metadata = {};
+    }
+    return {
+      id:              b.id,
+      attacker:        b.attacker.name,
+      defender:        b.defender.name,
+      winner:          b.winner.name,
+      summary:         b.summary,
+      prestigeGain:    b.prestigeGain,
+      foughtAt:        b.foughtAt,
+      youWon:          b.winnerId === character.id,
+      myCharacterId:   character.id,             
+      log:             JSON.parse(b.log),
+      metadata,
+    };
+  });
 }

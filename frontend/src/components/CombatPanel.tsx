@@ -10,6 +10,168 @@ interface RankingEntry {
   foughtToday: boolean;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// HELPER: kolorowanie eventów walki
+// ═══════════════════════════════════════════════════════════════════════════════
+
+type EventSide = "ally" | "enemy" | "neutral";
+
+/**
+ * Określa stronę eventu na podstawie pola `attacker` i metadanych walki.
+ *
+ * Logika:
+ * - "ally"    → ciemnozielony  — mój fighter lub mój minion
+ * - "enemy"   → ciemnoczerwony — fighter/minion przeciwnika
+ * - "neutral" → ciemnożółty   — minion z targetType=randomAny, efekty globalne,
+ *                                System, eventy bez wyraźnej strony
+ */
+function getEventSide(
+  attackerName: string,
+  metadata: any,
+  myCharacterId: number | null
+): EventSide {
+  if (!metadata || !myCharacterId) return "neutral";
+
+  const sideAFighterNames: string[] = metadata.sideAFighterNames ?? [];
+  const sideBFighterNames: string[] = metadata.sideBFighterNames ?? [];
+  const sideAMinionNames:  string[] = metadata.sideAMinionNames  ?? [];
+  const sideBMinionNames:  string[] = metadata.sideBMinionNames  ?? [];
+
+  // Eventy systemowe / globalne → neutralne
+  if (!attackerName || attackerName === "System" || attackerName === "Wszyscy") {
+    return "neutral";
+  }
+
+  // Określ moją stronę
+  const mySide: "sideA" | "sideB" | null =
+    myCharacterId === metadata.attackerId ? "sideA" :
+    myCharacterId === metadata.defenderId ? "sideB" :
+    null;
+
+  if (mySide === null) {
+    // Obserwator (nie uczestnik) — sideA zielona, sideB czerwona
+    if (sideAFighterNames.includes(attackerName) || sideAMinionNames.includes(attackerName)) return "ally";
+    if (sideBFighterNames.includes(attackerName) || sideBMinionNames.includes(attackerName)) return "enemy";
+    return "neutral";
+  }
+
+  // Sprawdź czy attacker należy do sideA lub sideB
+  const isOnSideA = sideAFighterNames.includes(attackerName) || sideAMinionNames.includes(attackerName);
+  const isOnSideB = sideBFighterNames.includes(attackerName) || sideBMinionNames.includes(attackerName);
+
+  // Miniony neutralne (randomAny) — identyfikacja przez allParticipants
+  // Jeśli attacker jest minionem ale nie ma go w żadnej liście fighterów/minionów,
+  // lub jawnie oznaczony jako neutralny w allParticipants — traktuj jako neutral.
+  // Dla uproszczenia: miniony z summonTargetType=randomAny są w sideBMinionNames/sideAMinionNames
+  // ale możemy oznaczyć je jako neutral w allParticipants jeśli dodasz to w serwisie.
+  // Tymczasowo: sprawdź allParticipants jeśli dostępne.
+  const allParticipants: Array<{ name: string; side: string; type: string }> =
+    metadata.allParticipants ?? [];
+
+  if (allParticipants.length > 0) {
+    const participant = allParticipants.find(p => p.name === attackerName);
+    if (participant) {
+      // Jeśli jest zidentyfikowany jako minion — sprawdź jego stronę
+      const participantIsAlly =
+        (mySide === "sideA" && participant.side === "sideA") ||
+        (mySide === "sideB" && participant.side === "sideB");
+      const participantIsEnemy =
+        (mySide === "sideA" && participant.side === "sideB") ||
+        (mySide === "sideB" && participant.side === "sideA");
+
+      if (participantIsAlly) return "ally";
+      if (participantIsEnemy) return "enemy";
+      return "neutral";
+    }
+  }
+
+  // Fallback: brak w allParticipants — użyj list nazw
+  const isAlly  = (mySide === "sideA" && isOnSideA) || (mySide === "sideB" && isOnSideB);
+  const isEnemy = (mySide === "sideA" && isOnSideB) || (mySide === "sideB" && isOnSideA);
+
+  if (isAlly)  return "ally";
+  if (isEnemy) return "enemy";
+  return "neutral";
+}
+
+const EVENT_COLORS: Record<EventSide, string> = {
+  ally:    "text-green-800",
+  enemy:   "text-red-800",
+  neutral: "text-yellow-700",
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// KOMPONENT: log jednej tury (wielokrotne użycie)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+interface TurnLogViewProps {
+  turn: any;
+  metadata: any;
+  myCharacterId: number | null;
+  /** true = świeży wynik walki (pokazuje HP z sideAFighterHps/sideBFighterHps) */
+  isFreshResult?: boolean;
+}
+
+function TurnLogView({ turn, metadata, myCharacterId, isFreshResult = false }: TurnLogViewProps) {
+  // HP header — świeży wynik używa sideAFighterHps/sideBFighterHps,
+  // historia używa starszego attackerHp/defenderHp
+  const hpHeader = isFreshResult
+    ? `HP Atakującego: ${turn.sideAFighterHps?.[0]?.hp ?? "?"} • HP Obrońcy: ${turn.sideBFighterHps?.[0]?.hp ?? "?"}`
+    : `HP Atakującego: ${turn.attackerHp ?? turn.sideAFighterHps?.[0]?.hp ?? "?"} • HP Obrońcy: ${turn.defenderHp ?? turn.sideBFighterHps?.[0]?.hp ?? "?"}`;
+
+  return (
+    <div className="space-y-2 text-xs">
+      <div className="flex items-center gap-2 text-gray-500">
+        <span className="font-semibold">Tura {turn.turn}</span>
+        <span>•</span>
+        <span>{hpHeader}</span>
+      </div>
+      <div className="space-y-1">
+        {turn.events?.map((event: any, eventIndex: number) => {
+          const side  = getEventSide(event.attacker, metadata, myCharacterId);
+          const color = EVENT_COLORS[side];
+          return (
+            <div key={eventIndex} className={color}>
+              <span className="font-medium">{event.description}</span>
+              {event.damage > 0 && side === "enemy" && (
+                <span className="opacity-75"> (cel: {event.targetHpAfter} HP)</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// KOMPONENT: legenda kolorów
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function ColorLegend() {
+  return (
+    <div className="flex items-center gap-4 text-xs text-gray-500 mb-2">
+      <span className="font-medium text-gray-400 uppercase tracking-wide">Legenda:</span>
+      <span className="flex items-center gap-1">
+        <span className="w-2.5 h-2.5 rounded-full bg-green-800 inline-block" />
+        <span className="text-green-800 font-medium">Twoje akcje</span>
+      </span>
+      <span className="flex items-center gap-1">
+        <span className="w-2.5 h-2.5 rounded-full bg-red-800 inline-block" />
+        <span className="text-red-800 font-medium">Akcje przeciwnika</span>
+      </span>
+      <span className="flex items-center gap-1">
+        <span className="w-2.5 h-2.5 rounded-full bg-yellow-600 inline-block" />
+        <span className="text-yellow-700 font-medium">Efekty globalne / neutralne</span>
+      </span>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// GŁÓWNY KOMPONENT
+// ═══════════════════════════════════════════════════════════════════════════════
+
 export default function CombatPanel({ onRefresh }: { onRefresh: () => void }) {
   const [ranking, setRanking] = useState<RankingEntry[]>([]);
   const [myCharacterId, setMyCharacterId] = useState<number | null>(null);
@@ -40,7 +202,6 @@ export default function CombatPanel({ onRefresh }: { onRefresh: () => void }) {
       const res = await api.post("/combat/challenge", {
         defenderCharacterId: selected.characterId,
       });
-      console.log("Battle result:", res.data); // DEBUG
       setBattleResult(res.data);
       await fetchRanking();
       onRefresh();
@@ -82,68 +243,16 @@ export default function CombatPanel({ onRefresh }: { onRefresh: () => void }) {
           {/* Log walki */}
           {battleResult.log?.length > 0 && (
             <div className="mt-3">
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Przebieg walki</p>
+              <ColorLegend />
               <div className="max-h-72 overflow-y-auto space-y-3 bg-white rounded-lg p-3 border border-gray-100">
                 {battleResult.log.map((turn: any) => (
-                  <div key={turn.turn} className="space-y-2 text-xs">
-                    <div className="flex items-center gap-2 text-gray-500">
-                      <span className="font-semibold">Tura {turn.turn}</span>
-                      <span>•</span>
-                      <span>HP Atakującego: {turn.sideAFighterHps?.[0]?.hp ?? "?"}</span>
-                      <span>•</span>
-                      <span>HP Obrońcy: {turn.sideBFighterHps?.[0]?.hp ?? "?"}</span>
-                    </div>
-                    <div className="space-y-1">
-{turn.events?.map((event: any, eventIndex: number) => {
-                         // Determine color based on participant side relative to current user
-                         const getEventColor = (participantName: string): string => {
-                           const metadata = battleResult?.metadata;
-                           if (!metadata) return "text-gray-700";
-                           
-                           // Safely check if arrays exist before using includes
-                           const sideAFighterNames = metadata.sideAFighterNames || [];
-                           const sideBFighterNames = metadata.sideBFighterNames || [];
-                           const sideAMinionNames = metadata.sideAMinionNames || [];
-                           const sideBMinionNames = metadata.sideBMinionNames || [];
-                           
-                           const isOnSideA = 
-                             sideAFighterNames.includes(participantName) ||
-                             sideAMinionNames.includes(participantName);
-                           
-                           const isOnSideB = 
-                             sideBFighterNames.includes(participantName) ||
-                             sideBMinionNames.includes(participantName);
-                           
-                           // Determine which side is "my" side based on myCharacterId
-                           const mySide = (myCharacterId === metadata.attackerId) ? "sideA" :
-                                          (myCharacterId === metadata.defenderId) ? "sideB" : null;
-                           
-                           // If I'm not a participant, default to SideA = green, SideB = red
-                           if (mySide === null) {
-                             if (isOnSideA) return "text-green-700";
-                             if (isOnSideB) return "text-red-700";
-                             return "text-gray-700";
-                           }
-                           
-                           // My side = green, enemy side = red
-                           const isMySide = (mySide === "sideA" && isOnSideA) || (mySide === "sideB" && isOnSideB);
-                           const isEnemySide = (mySide === "sideA" && isOnSideB) || (mySide === "sideB" && isOnSideA);
-                           
-                           if (isMySide) return "text-green-700";
-                           if (isEnemySide) return "text-red-700";
-                           return "text-gray-700";
-                         };
-                        
-                        const eventColor = getEventColor(event.attacker);
-                        
-                        return (
-                          <div key={eventIndex} className={eventColor}>
-                            <span className="font-medium">{event.description}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
+                  <TurnLogView
+                    key={turn.turn}
+                    turn={turn}
+                    metadata={battleResult.metadata}
+                    myCharacterId={myCharacterId}
+                    isFreshResult
+                  />
                 ))}
               </div>
             </div>
@@ -151,22 +260,18 @@ export default function CombatPanel({ onRefresh }: { onRefresh: () => void }) {
         </div>
       )}
 
-      {/* Arena — grafika z rankingiem na środku */}
+      {/* Arena */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-
-        {/* Grafika areny */}
         <div className="relative" style={{ height: "200px" }}>
           <div className="absolute inset-0 bg-gray-50 flex items-center justify-center">
             <p className="text-gray-200 text-sm">Grafika areny — tło z czarodziejami po bokach</p>
           </div>
-          {/* Lewa strona — Twój mag */}
           <div className="absolute left-4 top-1/2 -translate-y-1/2 text-center">
             <div className="w-16 h-16 rounded-full bg-gray-200 border-2 border-gray-300 flex items-center justify-center text-2xl font-bold text-gray-400 mb-1">
               ?
             </div>
             <p className="text-xs font-medium text-gray-500">Ty</p>
           </div>
-          {/* Prawa strona — przeciwnik */}
           <div className="absolute right-4 top-1/2 -translate-y-1/2 text-center">
             <div className={`w-16 h-16 rounded-full border-2 flex items-center justify-center text-2xl font-bold mb-1 transition-colors ${
               selected ? "bg-red-100 border-red-300 text-red-400" : "bg-gray-200 border-gray-300 text-gray-400"
@@ -177,7 +282,6 @@ export default function CombatPanel({ onRefresh }: { onRefresh: () => void }) {
               {selected ? selected.name : "Przeciwnik"}
             </p>
           </div>
-          {/* VS w środku */}
           <div className="absolute inset-0 flex items-center justify-center">
             <span className="text-2xl font-black text-gray-200">VS</span>
           </div>
@@ -189,11 +293,9 @@ export default function CombatPanel({ onRefresh }: { onRefresh: () => void }) {
             <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Ranking graczy</p>
             <p className="text-xs text-gray-400">Kliknij gracza aby wyzwać</p>
           </div>
-
           <div className="max-h-64 overflow-y-auto divide-y divide-gray-50">
             {ranking.map((entry) => {
               const isSelected = selected?.characterId === entry.characterId;
-
               return (
                 <div
                   key={entry.characterId}
@@ -208,7 +310,6 @@ export default function CombatPanel({ onRefresh }: { onRefresh: () => void }) {
                       : "hover:bg-gray-50 cursor-pointer"
                   }`}
                 >
-                  {/* Miejsce w rankingu */}
                   <span className={`text-sm font-bold w-8 text-center shrink-0 ${
                     entry.rank === 1 ? "text-yellow-500" :
                     entry.rank === 2 ? "text-gray-400" :
@@ -217,8 +318,6 @@ export default function CombatPanel({ onRefresh }: { onRefresh: () => void }) {
                   }`}>
                     {entry.rank === 1 ? "🥇" : entry.rank === 2 ? "🥈" : entry.rank === 3 ? "🥉" : `#${entry.rank}`}
                   </span>
-
-                  {/* Avatar */}
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${
                     entry.isMe ? "bg-gray-900 text-white" :
                     isSelected ? "bg-red-500 text-white" :
@@ -226,8 +325,6 @@ export default function CombatPanel({ onRefresh }: { onRefresh: () => void }) {
                   }`}>
                     {entry.name[0]}
                   </div>
-
-                  {/* Nazwa */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className={`text-sm font-medium truncate ${entry.isMe ? "text-gray-900" : "text-gray-700"}`}>
@@ -241,13 +338,9 @@ export default function CombatPanel({ onRefresh }: { onRefresh: () => void }) {
                       )}
                     </div>
                   </div>
-
-                  {/* Prestiż */}
                   <span className="text-sm font-semibold text-gray-700 shrink-0">
                     {entry.prestige} <span className="text-xs font-normal text-gray-400">prestiżu</span>
                   </span>
-
-                  {/* Wskaźnik zaznaczenia */}
                   {isSelected && (
                     <span className="text-red-500 shrink-0">⚔️</span>
                   )}
@@ -257,7 +350,6 @@ export default function CombatPanel({ onRefresh }: { onRefresh: () => void }) {
           </div>
         </div>
 
-        {/* Przycisk wyzwania */}
         <div className="px-4 py-3 border-t border-gray-100">
           {selected ? (
             <button
@@ -280,6 +372,10 @@ export default function CombatPanel({ onRefresh }: { onRefresh: () => void }) {
     </div>
   );
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// KOMPONENT: historia walk
+// ═══════════════════════════════════════════════════════════════════════════════
 
 function HistoryPanel() {
   const [history, setHistory] = useState<any[]>([]);
@@ -323,37 +419,27 @@ function HistoryPanel() {
                 <p className={`text-sm font-medium ${battle.youWon ? "text-green-600" : "text-red-400"}`}>
                   {battle.youWon ? `+${battle.prestigeGain} prestiżu` : "Porażka"}
                 </p>
-                <p className="text-xs text-gray-400">
-                  Wygrał: {battle.winner}
-                </p>
+                <p className="text-xs text-gray-400">Wygrał: {battle.winner}</p>
               </div>
             </div>
+
             {expanded === battle.id && (
               <div className="mt-1 p-3 bg-gray-50 rounded-lg text-xs text-gray-600 border border-gray-100 space-y-3">
                 <p>{battle.summary}</p>
                 {battle.log?.length > 0 && (
-                  <div className="space-y-3 bg-white rounded-lg p-3 border border-gray-100">
-                    {battle.log.map((turn: any) => (
-                      <div key={turn.turn} className="space-y-2">
-                        <div className="flex items-center gap-2 text-gray-500">
-                          <span className="font-semibold">Tura {turn.turn}</span>
-                          <span>•</span>
-                          <span>HP Atakującego: {turn.attackerHp}</span>
-                          <span>•</span>
-                          <span>HP Obrońcy: {turn.defenderHp}</span>
-                        </div>
-                        <div className="space-y-1 text-gray-700">
-                          {turn.events?.map((event: any, eventIndex: number) => (
-                            <div key={eventIndex}>
-                              <span className="font-medium">{event.description}</span>
-                              {event.damage > 0 && (
-                                <span className="text-red-500"> (−{event.damage} HP, cel: {event.targetHpAfter})</span>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
+                  <div>
+                    <ColorLegend />
+                    <div className="space-y-3 bg-white rounded-lg p-3 border border-gray-100">
+                      {battle.log.map((turn: any) => (
+                        <TurnLogView
+                          key={turn.turn}
+                          turn={turn}
+                          metadata={battle.metadata}
+                          myCharacterId={battle.myCharacterId ?? null}
+                          isFreshResult={false}
+                        />
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>

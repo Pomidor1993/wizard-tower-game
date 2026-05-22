@@ -29,7 +29,8 @@ export type StatusEffectType =
   | "damage_on_move" // X% szansy na Y obrażeń przy każdej akcji
   | "stun"           // X% szansy na utratę akcji na N tur
   | "invisibility"   // X% szansy że przeciwnik nie wybierze tego celu
-  | "heal_chance";   // X% szansy na uleczenie Y pkt życia na początku tury
+  | "heal_chance"   // X% szansy na uleczenie Y pkt życia na początku tury
+  | "stat_boost";      // modyfikator statystyki (buff/debuff)
 
 // ── DEFINICJA EFEKTU (zapisywana w JSON czaru) ────────────────────────────────
 export interface StatusEffectDef {
@@ -68,6 +69,12 @@ export interface StatusEffectDef {
   // heal_chance
   healChance?: number;     // % szansy na uleczenie
   healAmount?: number;     // ile HP przywraca
+
+  stat?: string;             // nazwa statystyki: "power" | "initiative" | "resistance" |
+                           //   "fireMagic" | "waterMagic" | "earthMagic" | "airMagic" |
+                           //   "chaosMagic" | "energyMagic" | "lifeMagic" | "deathMagic"
+  statMode?: "flat" | "percent"; // flat = +N, percent = +N%
+  statAmount?: number;           // wartość (ujemna = debuff)
 }
 
 // ── TYPY CAST EFFECTÓW (jednorazowe efekty przy rzuceniu czaru) ──────────
@@ -186,6 +193,11 @@ export function validateStatusEffectDef(def: StatusEffectDef): string[] {
       if (!def.healChance)  errors.push("heal_chance wymaga 'healChance'");
       if (!def.healAmount)  errors.push("heal_chance wymaga 'healAmount'");
       break;
+    case "stat_boost":
+      if (!def.stat)           errors.push("stat_boost wymaga 'stat'");
+      if (!def.statMode)       errors.push("stat_boost wymaga 'statMode' (flat|percent)");
+      if (def.statAmount == null) errors.push("stat_boost wymaga 'statAmount'");
+  break;
     default:
       errors.push(`Nieznany typ statusu: ${(def as any).type}`);
   }
