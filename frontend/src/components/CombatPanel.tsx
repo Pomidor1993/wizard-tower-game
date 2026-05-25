@@ -65,25 +65,32 @@ function getEventSide(
   // Dla uproszczenia: miniony z summonTargetType=randomAny są w sideBMinionNames/sideAMinionNames
   // ale możemy oznaczyć je jako neutral w allParticipants jeśli dodasz to w serwisie.
   // Tymczasowo: sprawdź allParticipants jeśli dostępne.
-  const allParticipants: Array<{ name: string; side: string; type: string }> =
+  const allParticipants: Array<{ name: string; side: string; type: string; targetType?: string }> =
     metadata.allParticipants ?? [];
 
-  if (allParticipants.length > 0) {
-    const participant = allParticipants.find(p => p.name === attackerName);
-    if (participant) {
-      // Jeśli jest zidentyfikowany jako minion — sprawdź jego stronę
+if (allParticipants.length > 0) {
+  const participant = allParticipants.find(p => p.name === attackerName);
+  if (participant) {
+    // Neutralne (randomAny, all) — zawsze żółte
+    if (participant.side === "neutral") return "neutral";
+
+    if (participant.type === "minion" && participant.targetType) {
+      // randomAlly / allAllies — minion bije sojuszników właściciela
+      // z perspektywy właściciela to sojusznik (zielony), dla wroga to... też sojusznik właściciela (zielony/czerwony normalnie)
+      // Traktujemy go jak fightera swojej strony
       const participantIsAlly =
         (mySide === "sideA" && participant.side === "sideA") ||
         (mySide === "sideB" && participant.side === "sideB");
-      const participantIsEnemy =
-        (mySide === "sideA" && participant.side === "sideB") ||
-        (mySide === "sideB" && participant.side === "sideA");
-
-      if (participantIsAlly) return "ally";
-      if (participantIsEnemy) return "enemy";
-      return "neutral";
+      return participantIsAlly ? "ally" : "enemy";
     }
+
+    // Fighterzy — standardowa logika
+    const participantIsAlly =
+      (mySide === "sideA" && participant.side === "sideA") ||
+      (mySide === "sideB" && participant.side === "sideB");
+    return participantIsAlly ? "ally" : "enemy";
   }
+}
 
   // Fallback: brak w allParticipants — użyj list nazw
   const isAlly  = (mySide === "sideA" && isOnSideA) || (mySide === "sideB" && isOnSideB);

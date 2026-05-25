@@ -10,6 +10,8 @@ import {
   parseCastEffects,
   getEffectiveStatuses,
 } from "../types/status-types.js";
+import { recordSpellbookEntries } from "./spellbook.service.js";
+
 
 const DAILY_BATTLE_LIMIT = 5;
 
@@ -17,15 +19,15 @@ const DAILY_BATTLE_LIMIT = 5;
 // SEKCJA 1 — PULE CZARÓW
 // ═══════════════════════════════════════════════════════════════════════════════
 
-type SpellPool = "chaotic" | "controlled" | "incantation" | "professional" | "master";
+type SpellPool = "chaotic" | "controlled" | "incantation" | "professional" | "master" | "pve";
 
 function getPoolWeights(towerLevel: number): Record<SpellPool, number> {
-  if (towerLevel < 10)  return { chaotic: 100, controlled: 0,  incantation: 0,  professional: 0,  master: 0  };
-  if (towerLevel <= 25) return { chaotic: 75,  controlled: 25, incantation: 0,  professional: 0,  master: 0  };
-  if (towerLevel <= 50) return { chaotic: 40,  controlled: 40, incantation: 20, professional: 0,  master: 0  };
-  if (towerLevel <= 75) return { chaotic: 20,  controlled: 30, incantation: 30, professional: 20, master: 0  };
-  if (towerLevel <= 99) return { chaotic: 10,  controlled: 15, incantation: 30, professional: 25, master: 20 };
-  return                       { chaotic: 0,   controlled: 5,  incantation: 10, professional: 35, master: 50 };
+  if (towerLevel < 10)  return { chaotic: 100, controlled: 0,  incantation: 0,  professional: 0,  master: 0, pve: 0 };
+  if (towerLevel <= 25) return { chaotic: 75,  controlled: 25, incantation: 0,  professional: 0,  master: 0, pve: 0 };
+  if (towerLevel <= 50) return { chaotic: 40,  controlled: 40, incantation: 20, professional: 0,  master: 0, pve: 0 };
+  if (towerLevel <= 75) return { chaotic: 20,  controlled: 30, incantation: 30, professional: 20, master: 0, pve: 0 };
+  if (towerLevel <= 99) return { chaotic: 10,  controlled: 15, incantation: 30, professional: 25, master: 20, pve: 0 };
+  return                       { chaotic: 0,   controlled: 5,  incantation: 10, professional: 35, master: 50, pve: 0 };
 }
 
 function pickPool(towerLevel: number): SpellPool {
@@ -43,7 +45,7 @@ function pickPool(towerLevel: number): SpellPool {
 // SEKCJA 2 — TYPY WALKI
 // ═══════════════════════════════════════════════════════════════════════════════
 
-type MinionTargetType = "randomEnemy" | "randomAlly" | "allEnemies" | "allAllies" | "all" | "randomAny";
+export type MinionTargetType = "randomEnemy" | "randomAlly" | "allEnemies" | "allAllies" | "all" | "randomAny";
 
 interface BattleSpell {
   id: number;
@@ -194,6 +196,7 @@ const POOL_LABELS: Record<SpellPool, string> = {
   incantation:  "wykonuje przemyślaną inkantację",
   professional: "wykonuje profesjonalną inkantację",
   master:       "rzuca mistrzowski czar",
+  pve:          ""
 };
 
 function canUseSpell(spell: BattleSpell, fighter: Fighter, globalStatuses: AppliedStatus[]): boolean {
@@ -854,7 +857,8 @@ function formatSpellDescription(
 ): string {
   let rendered = spell.special?.trim()
     .replace(/\{attacker\}/g, actor)
-    .replace(/\{target\}/g, target);
+    .replace(/\{target\}/g, target)
+    .replace(/\{damage\}/g, dmg.toString());
 
   // Replace static damage values in spell.special with actual calculated damage
   if (rendered && dmg > 0) {
@@ -866,16 +870,16 @@ function formatSpellDescription(
     if (dmg > 0)  return `${actor} przygotował się do walki! Rzuca ${spell.name} i zadaje ${dmg} pkt obrażeń ${target}.`;
     return `${actor} przygotował się do walki! ${spell.name}.`;
   }
-  if (rendered) return `${actor} ${poolLabel} — ${rendered}`;
-  if (dmg > 0)  return `${actor} ${poolLabel} — rzuca ${spell.name} i zadaje ${dmg} pkt obrażeń ${target}.`;
-  return `${actor} ${poolLabel} — ${spell.name}.`;
+if (rendered) return poolLabel ? `${actor} ${poolLabel} — ${rendered}` : rendered;
+if (dmg > 0)  return `${actor}${poolLabel ? ` ${poolLabel} — rzuca` : ""} ${spell.name} i zadaje ${dmg} pkt obrażeń ${target}.`;
+return `${actor}${poolLabel ? ` ${poolLabel} — ` : " "}${spell.name}.`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SEKCJA 10 — BUDOWANIE FIGHTERA
 // ═══════════════════════════════════════════════════════════════════════════════
 
-async function buildFighter(characterId: number): Promise<Fighter> {
+export async function buildFighter(characterId: number): Promise<Fighter> {
   const character = await prisma.character.findUnique({
     where: { id: characterId },
     include: {
@@ -1003,13 +1007,14 @@ interface BattleMetadata {
     name: string;
     side: "sideA" | "sideB";
     type: "fighter" | "minion";
+    targetType?: string; 
   }>;
 }
 
-function simulateBattle(
+export function simulateBattle(
   fightersA: Fighter[],
   fightersB: Fighter[]
-): { winnerId: number | null; log: TurnLog[]; summary: string; metadata: BattleMetadata } {
+): { winnerId: number | null; log: TurnLog[]; summary: string; metadata: BattleMetadata; minionTargetTypeMap: Map<string, string>; castSpellsByFighter: Map<string, number[]> } {
 
   const state: BattleState = {
     sideA: makeSide(fightersA),
@@ -1020,8 +1025,9 @@ function simulateBattle(
   const log: TurnLog[] = [];
 
   // Aktywne kolejki i zużyte ID — per fighter
-  const activeQueues = new Map<number, BattleSpell[]>();
+const activeQueues = new Map<number, BattleSpell[]>();
   const usedIds      = new Map<number, Set<number>>();
+  const globalUsedSpellIds = new Set<number>(); // ← wspólna pula dla całej walki
   for (const f of [...fightersA, ...fightersB]) {
     activeQueues.set(f.id, [...f.activeSpells]);
     usedIds.set(f.id, new Set(f.activeSpells.map(s => s.id)));
@@ -1049,11 +1055,21 @@ function simulateBattle(
     if (queue.length > 0) {
       spell    = queue.shift()!;
       isActive = true;
-    } else {
-      spell = pickRandomSpell(actor, used, ownSide, enemySide, state.globalStatuses);
-      if (spell) used.add(spell.id);
+} else {
+      spell = pickRandomSpell(actor, globalUsedSpellIds, ownSide, enemySide, state.globalStatuses);
+      if (spell) {
+        // ✅ Księga Magii — rejestruj rzucony czar (tylko prawdziwe czary, nie PvE pseudo-czary)
+        if (spell.id > 0) {
+          const existing = castSpellsByFighter.get(actor.name) ?? [];
+          if (!existing.includes(spell.id)) {
+            existing.push(spell.id);
+            castSpellsByFighter.set(actor.name, existing);
+          }
+        }
+        globalUsedSpellIds.add(spell.id);
+        used.add(spell.id);
+      }
     }
-
     // Pięści
     if (!spell) {
       const target = filterVisible(enemySide.fighters.filter(f => f.hp > 0), state.globalStatuses);
@@ -1130,7 +1146,7 @@ function simulateBattle(
           minionName: minion.name,
           damage: 0,
           targetHpAfter: actor.hp,
-          description: `[INTERNAL: ${actor.name} summoned ${minion.name}]`,
+          description: `[INTERNAL: ${actor.name} summoned ${minion.name} targetType=${minion.targetType}]`,
         });
       }
     }
@@ -1187,6 +1203,8 @@ function simulateBattle(
 
   // ── Główna pętla ──────────────────────────────────────────────────────────
   let turn = 0;
+
+const castSpellsByFighter = new Map<string, number[]>();
 
   while (!isBattleOver(state)) {
     turn++;
@@ -1294,11 +1312,11 @@ function simulateBattle(
   // Filter out [INTERNAL: ...] events from all turns (used only for metadata collection)
   // MUST do this AFTER collecting minion data below
   
-  const metadata: BattleMetadata = {
-    sideAFighterIds: state.sideA.fighters.map(f => f.id),
-    sideBFighterIds: state.sideB.fighters.map(f => f.id),
-    sideAFighterNames: state.sideA.fighters.map(f => f.name),
-    sideBFighterNames: state.sideB.fighters.map(f => f.name),
+const metadata: BattleMetadata = {
+  sideAFighterIds: [...state.sideA.fighters, ...state.sideA.deadFighters].map(f => f.id),
+  sideBFighterIds: [...state.sideB.fighters, ...state.sideB.deadFighters].map(f => f.id),
+  sideAFighterNames: [...state.sideA.fighters, ...state.sideA.deadFighters].map(f => f.name),
+  sideBFighterNames: [...state.sideB.fighters, ...state.sideB.deadFighters].map(f => f.name),
     // Zbierz nazwy minionów z logów BEFORE filtering
     sideAMinionNames: [],
     sideBMinionNames: [],
@@ -1310,11 +1328,11 @@ function simulateBattle(
       if (event.type === "minion_summoned" && event.minionName) {
         const attackerName = event.attacker;
         // Sprawdź do której strony należy attacker
-        if (state.sideA.fighters.some(f => f.name === attackerName)) {
+if ([...state.sideA.fighters, ...state.sideA.deadFighters].some(f => f.name === attackerName)) {
           if (!metadata.sideAMinionNames.includes(event.minionName)) {
             metadata.sideAMinionNames.push(event.minionName);
           }
-        } else if (state.sideB.fighters.some(f => f.name === attackerName)) {
+} else if ([...state.sideB.fighters, ...state.sideB.deadFighters].some(f => f.name === attackerName)) {
           if (!metadata.sideBMinionNames.includes(event.minionName)) {
             metadata.sideBMinionNames.push(event.minionName);
           }
@@ -1324,11 +1342,21 @@ function simulateBattle(
   }
 
   // Now filter out [INTERNAL: ...] events from all turns (after metadata collection)
+  // Zbuduj mapę minionName → targetType ze zdarzeń INTERNAL (przed filtrowaniem)
+  const minionTargetTypeMap = new Map<string, string>();
+  for (const turnLog of log) {
+    for (const event of turnLog.events) {
+      if (event.type === "minion_summoned" && event.minionName) {
+        const match = event.description.match(/targetType=(\w+)/);
+        if (match?.[1]) minionTargetTypeMap.set(event.minionName, match[1]);
+      }
+    }
+  }
   for (const turnLog of log) {
     turnLog.events = turnLog.events.filter(e => !e.description.includes("[INTERNAL:"));
   }
 
-  return { winnerId, log, summary, metadata };
+  return { winnerId, log, summary, metadata, minionTargetTypeMap, castSpellsByFighter };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1357,6 +1385,13 @@ export async function challengePlayer(attackerUserId: number, defenderCharacterI
 
   // 1vs1 — każda strona ma jednego fightera
   const result = simulateBattle([attackerFighter], [defenderFighter]);
+
+
+
+const attackerSpellIds = result.castSpellsByFighter.get(attackerFighter.name) ?? [];
+await recordSpellbookEntries(attackerChar.id, attackerSpellIds, "battle_cast");
+const defenderSpellIds = result.castSpellsByFighter.get(defenderFighter.name) ?? [];
+await recordSpellbookEntries(defenderChar.id, defenderSpellIds, "battle_cast");
 
   const attackerWon = result.winnerId === attackerChar.id;
   const defenderWon = result.winnerId === defenderChar.id;
@@ -1387,18 +1422,22 @@ export async function challengePlayer(attackerUserId: number, defenderCharacterI
         side: "sideB",
         type: "fighter" as const,
       })),
-      ...result.metadata.sideAMinionNames.map((name) => ({
-        id: -1,
-        name,
-        side: "sideA",
-        type: "minion" as const,
-      })),
-      ...result.metadata.sideBMinionNames.map((name) => ({
-        id: -1,
-        name,
-        side: "sideB",
-        type: "minion" as const,
-      })),
+...result.metadata.sideAMinionNames.map((name) => {
+const targetType = result.minionTargetTypeMap?.get(name) ?? "randomEnemy";  return {
+    id: -1, name,
+    side: (targetType === "randomAny" || targetType === "all") ? "neutral" : "sideA",
+    type: "minion" as const,
+    targetType,
+  };
+}),
+...result.metadata.sideBMinionNames.map((name) => {
+const targetType = result.minionTargetTypeMap?.get(name) ?? "randomEnemy";  return {
+    id: -1, name,
+    side: (targetType === "randomAny" || targetType === "all") ? "neutral" : "sideB",
+    type: "minion" as const,
+    targetType,
+  };
+}),
     ],
   };
  
@@ -1449,18 +1488,24 @@ export async function challengePlayer(attackerUserId: number, defenderCharacterI
           side: "sideB",
           type: "fighter" as const,
         })),
-        ...result.metadata.sideAMinionNames.map((name) => ({
-          id: -1,
-          name,
-          side: "sideA",
-          type: "minion" as const,
-        })),
-        ...result.metadata.sideBMinionNames.map((name) => ({
-          id: -1,
-          name,
-          side: "sideB",
-          type: "minion" as const,
-        })),
+...result.metadata.sideAMinionNames.map((name) => {
+  const targetType = result.minionTargetTypeMap.get(name) ?? "randomEnemy";
+  return {
+    id: -1, name,
+    side: (targetType === "randomAny" || targetType === "all") ? "neutral" : "sideA",
+    type: "minion" as const,
+    targetType,
+  };
+}),
+...result.metadata.sideBMinionNames.map((name) => {
+  const targetType = result.minionTargetTypeMap.get(name) ?? "randomEnemy";
+  return {
+    id: -1, name,
+    side: (targetType === "randomAny" || targetType === "all") ? "neutral" : "sideB",
+    type: "minion" as const,
+    targetType,
+  };
+}),
       ],
     },
   };

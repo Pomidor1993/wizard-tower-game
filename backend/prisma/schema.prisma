@@ -57,6 +57,7 @@ model Character {
   gold                Int      @default(0)
   skillPoints         Int      @default(50)
   prestige            Int      @default(0)
+  runicStoneShards    Int      @default(0)
   lastResourceCollect DateTime @default(now())
   maxItems            Int      @default(10)
   maxSpells           Int      @default(10)
@@ -75,7 +76,11 @@ model Character {
   battlesAsAttacker Battle[] @relation("BattleAttacker")
   battlesAsDefender Battle[] @relation("BattleDefender")
   battlesAsWinner   Battle[] @relation("BattleWinner")
+  pveEncounters     PveEncounter[]
+  spellbookEntries SpellbookEntry[]
+
 }
+
 
 // ── WIEŻA ────────────────────────────────────────────
 model Tower {
@@ -111,6 +116,7 @@ model Spell {
   damage    Int
   spellPool String @default("chaotic") // "chaotic"|"controlled"|"incantation"|"professional"|"master"
   castEffects String @default("[]")  // JSON array: CastEffectDef[]
+  category String @default("offensive") // "offensive"|"defensive"|"summoner"
 
   // ── NOWY SYSTEM STATUSÓW ──────────────────────────
   // JSON array: StatusEffectDef[]
@@ -146,6 +152,7 @@ model Spell {
   spellSlots  CharacterSpellSlots[]
   characters  CharacterSpell[]
   chaosVault  ChaosVaultItem[]
+  spellbookEntries SpellbookEntry[]
 }
 
 model CharacterSpell {
@@ -287,5 +294,46 @@ model ChaosVaultItem {
   spell       Spell?    @relation(fields: [spellId], references: [id])
   addedAt     DateTime  @default(now())
 
+  @@index([characterId])
+}
+
+// ── SPOTKANIA PVE ──────────────────────────────────────────────────────────────
+model PveEncounter {
+  id                Int       @id @default(autoincrement())
+  characterId       Int
+  character         Character @relation(fields: [characterId], references: [id])
+ 
+  locationLevel     Int                    // 1–5 (poziom lokacji eksploracji)
+  entityId          String                 // ID z minor-entities.ts (np. "air_wisp")
+  entityName        String                 // Wyświetlana nazwa bytu
+  playerWon         Boolean
+  runicShardsEarned Int       @default(0)
+ 
+  battleLog         String                 // JSON — pełny log walki (TurnLog[])
+  summary           String                 // Np. "Powietrzny Błąd wygrywa po 3 turach!"
+ 
+  foughtAt          DateTime  @default(now())
+ 
+  @@index([characterId])
+  @@index([characterId, playerWon])
+}
+
+
+// ── KSIĘGA MAGII ─────────────────────────────────────────────────────────────
+// Śledzi, które czary gracz "odkrył" (widział w akcji/walce/szkole)
+// NIE jest tym samym co posiadanie czaru (CharacterSpell)
+
+model SpellbookEntry {
+  id          Int       @id @default(autoincrement())
+  characterId Int
+  character   Character @relation(fields: [characterId], references: [id])
+  spellId     Int
+  spell       Spell     @relation(fields: [spellId], references: [id])
+
+  // Źródło odkrycia: "study" | "battle_cast" | "school"
+  source      String
+  discoveredAt DateTime @default(now())
+
+  @@unique([characterId, spellId])
   @@index([characterId])
 }

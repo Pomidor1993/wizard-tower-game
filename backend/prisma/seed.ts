@@ -385,7 +385,7 @@ async function main() {
             moveDamage: 1,
             element: "basic",
             target: "all",
-            duration: null,
+            duration: 2,
           },
         ]),
       },

@@ -1,4 +1,5 @@
 import prisma from "../lib/prisma.js";
+import { recordSpellbookEntry } from "./spellbook.service.js";
 
 // ── KONFIGURACJA AKCJI ───────────────────────────────
 const STUDY_CONFIG = [
@@ -179,7 +180,9 @@ if (knownCount < character.maxSpells) {
   discoveredSpellName = chosen.name;
   spellDestination = "chaos_vault";
 }
-    }
+if (discoveredSpellName && chosen) {
+  await recordSpellbookEntry(character.id, chosen.id, "study");
+    }    }
   }
 
   const report = {

@@ -6,13 +6,15 @@ import StudyPanel from "../components/StudyPanel";
 import TowerView from "../components/TowerView";
 import ExplorationPanel from "../components/ExplorationPanel";
 import CombatPanel from "../components/CombatPanel";
+import SpellbookPanel from "../components/SpellbookPanel";
 
-type Page = "overview" | "training" | "equipment" | "tower" | "study" | "exploration" | "combat" | "guild" | "settings";
+type Page = "overview" | "training" | "equipment" | "spellbook" | "tower" | "study" | "exploration" | "combat" | "guild" | "settings";
 
 const NAV_ITEMS: { id: Page; label: string }[] = [
   { id: "overview",    label: "Przegląd konta" },
   { id: "training",    label: "Trening" },
   { id: "equipment",   label: "Ekwipunek" },
+  { id: "spellbook",   label: "Księga Magii" },
   { id: "tower",       label: "Wieża" },
   { id: "study",       label: "Studia" },
   { id: "exploration", label: "Eksploracja" },
@@ -568,6 +570,10 @@ function LeftPanel({ character, effectiveStats, upgradeCosts }: {
           <div className="p-2.5 bg-gray-50 rounded-lg">
             <p className="text-xs text-gray-500 mb-0.5">Złoto</p>
             <p className="font-semibold text-sm text-gray-900">{character.gold}</p>
+          </div>
+          <div className="p-2.5 bg-gray-50 rounded-lg">
+            <p className="text-xs text-gray-500 mb-0.5">Okruchy runiczne</p>
+            <p className="font-semibold text-sm text-gray-900">{character.runicStoneShards}</p>
           </div>
         </div>
         <div className="p-3 bg-gray-900 rounded-lg text-white">
@@ -1215,6 +1221,9 @@ export default function DashboardPage() {
       case "combat":
         return <CombatPanel onRefresh={fetchAll} />;
 
+      case "spellbook":
+        return <SpellbookPanel />;
+
       case "study":
         return (
           <PageLayout
@@ -1233,7 +1242,11 @@ export default function DashboardPage() {
         );
 
       case "exploration":
-        return <ExplorationPanel onRefresh={fetchAll} />;
+        return <ExplorationPanel
+  onRefresh={fetchAll}
+  playerName={character?.name ?? "Ty"}
+  towerLevel={character?.tower?.level ?? 1}  // lub skąd masz poziom wieży
+/>
 
       case "guild":
         return (
