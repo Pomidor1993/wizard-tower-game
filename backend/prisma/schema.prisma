@@ -114,9 +114,14 @@ model Spell {
   element   String // "fire"|"water"|"earth"|"air"|"chaos"|"life"|"death"|"energy"
   rarity    String // "common"|"uncommon"|"rare"|"unique"
   damage    Int
+  minDamage    Int     @default(0)
+  maxDamage    Int     @default(0)
   spellPool String @default("chaotic") // "chaotic"|"controlled"|"incantation"|"professional"|"master"
   castEffects String @default("[]")  // JSON array: CastEffectDef[]
   category String @default("offensive") // "offensive"|"defensive"|"summoner"
+  isBasic   Boolean @default(false)
+  spellBook    Boolean @default(false)
+  basicCost Int     @default(0)
 
   // ── NOWY SYSTEM STATUSÓW ──────────────────────────
   // JSON array: StatusEffectDef[]
@@ -129,14 +134,23 @@ model Spell {
   isDirectional Boolean @default(true)
 
   // Tekst fabularny / opis efektu widoczny w logu walki
-  special      String?
+  special  String?
+  descAlt  String?  // Opis gdy efekt statusu zadziałał (np. "Piorun ogłusza {target} na 2 tury!")
+  endInfo  String?  // Komunikat gdy status wygasa (np. "Lód roztapia się.")
+
 
   // Mechanika przywołań
   summonCount      Int     @default(0)
-  summonHp         Int     @default(0)
-  summonDamage     Int     @default(0)
+  summonMinHp         Int     @default(0)
+  summonMaxHp         Int     @default(0)
+  summonMinDamage     Int     @default(0)
+  summonMaxDamage     Int     @default(0)
+  summonMinInitiative Int     @default(0)
+  summonMaxInitiative Int     @default(0)
+  summonDamage         Int     @default(0)
+  summonInitiative     Int     @default(0) 
+  summonHp             Int     @default(0) 
   summonElement    String?
-  summonInitiative Int     @default(0)
   summonTargetType String? // "randomEnemy"|"randomAlly"|"allEnemies"|"allAllies"|"all"|"randomAny"
 
   // Wymagania statystyk

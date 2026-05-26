@@ -9,6 +9,9 @@ import {
   parseStatusEffects,
   parseCastEffects,
   getEffectiveStatuses,
+  resolveRange,
+  isNegativeStatus,
+  CleanMode,
 } from "../types/status-types.js";
 import { recordSpellbookEntries } from "./spellbook.service.js";
 
@@ -50,13 +53,18 @@ export type MinionTargetType = "randomEnemy" | "randomAlly" | "allEnemies" | "al
 interface BattleSpell {
   id: number;
   name: string;
-  damage: number;
+  // ── Obrażenia bazowe ──────────────────────────────────────────────────────
+  // minDamage/maxDamage — zakres; jeśli równe to stała wartość
+  minDamage: number;
+  maxDamage: number;
   element: string;
   spellPool: SpellPool;
   isDirectional: boolean;
   statusEffectDefs: StatusEffectDef[];
-  castEffectDefs: CastEffectDef[]; 
+  castEffectDefs: CastEffectDef[];
   special: string | null;
+  descAlt:  string | null;
+  endInfo:  string | null;
   reqFireMagic:   number;
   reqWaterMagic:  number;
   reqEarthMagic:  number;
@@ -65,18 +73,22 @@ interface BattleSpell {
   reqLifeMagic:   number;
   reqDeathMagic:  number;
   reqEnergyMagic: number;
-  summonCount:      number;
-  summonHp:         number;
-  summonDamage:     number;
-  summonElement:    string | null;
-  summonInitiative: number;
-  summonTargetType: MinionTargetType | null;
+  summonCount:          number;
+  // ── Minion stats — zakresy ─────────────────────────────────────────────────
+  summonMinHp:          number;
+  summonMaxHp:          number;
+  summonMinDamage:      number;
+  summonMaxDamage:      number;
+  summonMinInitiative:  number;
+  summonMaxInitiative:  number;
+  summonElement:        string | null;
+  summonTargetType:     MinionTargetType | null;
 }
 
 interface Minion {
   id: string;
   name: string;
-  owner: "sideA" | "sideB";             // ← zmienione z attacker/defender na sideA/sideB
+  owner: "sideA" | "sideB";
   hp: number;
   maxHp: number;
   damage: number;
@@ -110,11 +122,10 @@ interface Fighter {
   stunTurnsLeft:   number;
 }
 
-// ── MULTI-READY: BattleSide ──────────────────────────────────────────────────
 interface BattleSide {
-  fighters:     Fighter[];   // żywi gracze/postacie po tej stronie
-  deadFighters: Fighter[];   // martwi — dostępni do wskrzeszenia
-  minions:      Minion[];    // wszystkie żywe miniony tej strony
+  fighters:     Fighter[];
+  deadFighters: Fighter[];
+  minions:      Minion[];
 }
 
 interface BattleState {
@@ -127,9 +138,6 @@ function makeSide(fighters: Fighter[]): BattleSide {
   return { fighters, deadFighters: [], minions: [] };
 }
 
-// ── Pomocniki do stron ───────────────────────────────────────────────────────
-
-// Zwraca stronę do której należy fighter
 function getSideOf(fighter: Fighter, state: BattleState): BattleSide {
   return state.sideA.fighters.includes(fighter) || state.sideA.deadFighters.includes(fighter)
     ? state.sideA
@@ -142,12 +150,10 @@ function getEnemySide(fighter: Fighter, state: BattleState): BattleSide {
     : state.sideA;
 }
 
-// Czy walka skończona
 function isBattleOver(state: BattleState): boolean {
   return state.sideA.fighters.length === 0 || state.sideB.fighters.length === 0;
 }
 
-// Wszyscy żywi uczestnicy (fighterzy + miniony) po obu stronach
 function allLivingFighters(state: BattleState): Fighter[] {
   return [...state.sideA.fighters, ...state.sideB.fighters];
 }
@@ -156,10 +162,10 @@ function allLivingFighters(state: BattleState): Fighter[] {
 interface TurnEvent {
   type:
     | "spell" | "dot_tick" | "heal_tick" | "fists"
-    | "status_applied" | "status_expired"
+    | "status_applied" | "status_expired" | "status_cleaned"
     | "minion_summoned" | "minion_attack" | "minion_death"
-    | "stun" | "miss" | "ice_slip"
-    | "sacrifice" | "dominate" | "resurrect"; 
+    | "stun" | "miss" | "on_move"
+    | "sacrifice" | "dominate" | "resurrect";
   attacker:      string;
   target:        string;
   spellName?:    string;
@@ -212,12 +218,10 @@ function canUseSpell(spell: BattleSpell, fighter: Fighter, globalStatuses: Appli
   );
 }
 
-// Czy czar ma castEffect wymagający martwych sojuszników
 function requiresDeadAlly(spell: BattleSpell): boolean {
   return spell.castEffectDefs.some(e => e.target === "randomDeadAlly");
 }
 
-// Czy czar ma castEffect typu dominate i wymaga przejęcia miniona przeciwnika
 function requiresEnemyMinion(spell: BattleSpell): boolean {
   return spell.castEffectDefs.some(e => e.type === "dominate");
 }
@@ -250,9 +254,7 @@ function pickRandomSpell(
   const isAvailable = (s: BattleSpell): boolean => {
     if (usedSpellIds.has(s.id)) return false;
     if (!canUseSpell(s, fighter, globalStatuses)) return false;
-    // Czar wskrzeszenia dostępny tylko gdy ktoś po naszej stronie jest martwy
     if (requiresDeadAlly(s) && ownSide.deadFighters.length === 0) return false;
-    // Czar dominacji dostępny tylko gdy przeciwnik ma miniony
     if (requiresEnemyMinion(s) && enemySide.minions.filter(m => m.hp > 0).length === 0) return false;
     return true;
   };
@@ -267,7 +269,7 @@ function pickRandomSpell(
   return any[randomInt(0, any.length - 1)]!;
 }
 
-// ── STAT BOOST: odczyt statystyki z uwzględnieniem aktywnych statusów ────────
+// ── STAT BOOST ───────────────────────────────────────────────────────────────
 type FighterStatKey =
   | "power" | "initiative" | "resistance"
   | "fireMagic" | "waterMagic" | "earthMagic" | "airMagic"
@@ -285,16 +287,16 @@ function getEffectiveStat(
   for (const status of getEffectiveStatuses(fighter.appliedStatuses, globalStatuses)) {
     const def = status.effectDef;
     if (def.type !== "stat_boost" || def.stat !== stat) continue;
-    if (def.statMode === "flat")    flatBonus    += def.statAmount ?? 0;
-    if (def.statMode === "percent") percentBonus += def.statAmount ?? 0;
+    // Użyj resolvedEffect (wylosowanego przy nakładaniu) lub fallback do statAmount
+    const amount = status.resolvedEffect ?? def.statAmount ?? 0;
+    if (def.statMode === "flat")    flatBonus    += amount;
+    if (def.statMode === "percent") percentBonus += amount;
   }
 
-  // Najpierw flat, potem procent od bazy
   const modified = (base + flatBonus) * (1 + percentBonus / 100);
   return Math.max(0, Math.round(modified));
 }
 
-// ── RESISTANCE: redukcja obrażeń fizycznych ───────────────────────────────
 function applyResistance(damage: number, element: string, target: Fighter, globalStatuses: AppliedStatus[]): number {
   if (damage <= 0 || element === "basic") return damage;
   const resistance = getEffectiveStat(target, "resistance", globalStatuses);
@@ -302,8 +304,20 @@ function applyResistance(damage: number, element: string, target: Fighter, globa
   return Math.max(1, damage - reduction);
 }
 
+function renderTemplate(
+  template: string,
+  attacker: string,
+  target: string,
+  damage: number
+): string {
+  return template
+    .replace(/\{attacker\}/g, attacker)
+    .replace(/\{target\}/g,   target)
+    .replace(/\{damage\}/g,   damage.toString());
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
-// SEKCJA 4 — ZARZĄDZANIE STATUSAMI (bez zmian logiki, zmienione sygnatury)
+// SEKCJA 4 — ZARZĄDZANIE STATUSAMI
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function resolveStatusTargets(
@@ -320,7 +334,6 @@ function resolveStatusTargets(
   switch (targetType) {
     case "self":        return [caster];
     case "target": {
-      // W multi: losowy żywy przeciwnik (fighter)
       const alive = enemySide.fighters.filter(f => f.hp > 0);
       if (alive.length === 0) return [];
       return [alive[randomInt(0, alive.length - 1)]!];
@@ -350,18 +363,50 @@ function resolveStatusTargets(
   }
 }
 
+// ── Losowanie wartości resolvedEffect przy nakładaniu statusu ─────────────────
+function resolveStatusEffect(def: StatusEffectDef): number | undefined {
+  switch (def.type) {
+    case "stat_boost":
+      return resolveRange(def.minStatAmount, def.maxStatAmount, def.statAmount ?? 0);
+    case "resist":
+    case "vulnerable":
+      return resolveRange(def.minValue, def.maxValue, def.value ?? 0);
+    case "heal_chance":
+      return resolveRange(def.minHealAmount, def.maxHealAmount, def.healAmount ?? 0);
+    case "stun":
+      return resolveRange(def.minStunDuration, def.maxStunDuration, def.stunDuration ?? 1);
+    case "damage_on_move":
+      return resolveRange(def.minMoveDamage, def.maxMoveDamage, def.moveDamage ?? 0);
+    default:
+      return undefined;
+  }
+}
+
 function applyStatusToTarget(
   target: Fighter | Minion,
   def: StatusEffectDef,
-  sourceName: string
+  sourceName: string,
+  endInfo?: string | null
 ): TurnEvent[] {
   const events: TurnEvent[] = [];
+
+  // Specjalny przypadek: clean — nie nakładamy statusu, od razu czyścimy
+  if (def.type === "clean") {
+    events.push(...executeClean(target, def, sourceName));
+    return events;
+  }
+
+  const resolvedEffect = resolveStatusEffect(def);
+
   target.appliedStatuses.push({
     effectDef: def,
     sourceName,
     turnsLeft: def.duration,
     stunTurnsLeft: def.type === "stun" ? 0 : undefined,
+    endInfo,
+    resolvedEffect,
   });
+
   events.push({
     type: "status_applied",
     attacker: sourceName,
@@ -369,28 +414,119 @@ function applyStatusToTarget(
     statusName: def.type,
     damage: 0,
     targetHpAfter: target.hp,
-    description: describeStatusApplied(def, target.name, sourceName),
+    description: describeStatusApplied(def, target.name, sourceName, resolvedEffect),
   });
   return events;
 }
 
-function describeStatusApplied(def: StatusEffectDef, targetName: string, sourceName: string): string {
-  switch (def.type) {
-    case "dot":           return `${targetName} otrzymuje DOT: ${def.damage} pkt ${def.element}/turę (${sourceName}).`;
-    case "resist":        return `${targetName} zyskuje ${def.value}% odporności na ${def.element} — ${descDuration(def.duration)}.`;
-    case "vulnerable":    return `${targetName} jest ${def.value}% podatny na ${def.element} — ${descDuration(def.duration)}.`;
-    case "miss_chance":   return `${targetName} traci celność — ${def.missChance}% szansy na chybienie (${sourceName}).`;
-    case "damage_on_move":return `Pole walki: każde działanie ma ${def.moveChance}% szansy na ${def.moveDamage} pkt obrażeń (${sourceName}).`;
-    case "stun":          return `${targetName} może zostać ogłuszony przez ${sourceName} (${def.stunChance}% / ${def.stunDuration} tur).`;
-    case "invisibility":  return `${targetName} zyskuje ${def.invisChance}% niewidzialności (${sourceName}).`;
-    case "heal_chance":   return `${targetName} jest otoczony uzdrawiającą energią — ${def.healChance}% szansy na +${def.healAmount} HP/turę.`;
-    case "stat_boost": {
-      const sign   = (def.statAmount ?? 0) >= 0 ? "+" : "";
-      const suffix = def.statMode === "percent" ? "%" : " pkt";
-      const verb   = (def.statAmount ?? 0) >= 0 ? "zyskuje" : "traci";
-    return `${targetName} ${verb} ${sign}${def.statAmount}${suffix} do ${def.stat} — ${descDuration(def.duration)}.`;
+// ── CLEAN: czyści statusy z celu ──────────────────────────────────────────────
+function executeClean(
+  target: Fighter | Minion,
+  def: StatusEffectDef,
+  sourceName: string
+): TurnEvent[] {
+  const events: TurnEvent[] = [];
+  const mode: CleanMode = def.cleanMode ?? "all";
+
+  const before = target.appliedStatuses.length;
+  let removed: AppliedStatus[] = [];
+
+  switch (mode) {
+    case "all":
+      removed = [...target.appliedStatuses];
+      target.appliedStatuses = [];
+      break;
+
+    case "negative":
+      removed = target.appliedStatuses.filter(s => isNegativeStatus(s));
+      target.appliedStatuses = target.appliedStatuses.filter(s => !isNegativeStatus(s));
+      break;
+
+    case "types": {
+      const typesToClean = new Set(def.cleanTypes ?? []);
+      removed = target.appliedStatuses.filter(s => typesToClean.has(s.effectDef.type));
+      target.appliedStatuses = target.appliedStatuses.filter(s => !typesToClean.has(s.effectDef.type));
+      break;
+    }
+  }
+
+  if (removed.length === 0) {
+    events.push({
+      type: "status_cleaned",
+      attacker: sourceName,
+      target: target.name,
+      statusName: "clean",
+      damage: 0,
+      targetHpAfter: target.hp,
+      description: `${sourceName} próbuje oczyścić ${target.name} — brak statusów do usunięcia.`,
+    });
+    return events;
+  }
+
+  const removedNames = removed.map(s => s.effectDef.type).join(", ");
+  events.push({
+    type: "status_cleaned",
+    attacker: sourceName,
+    target: target.name,
+    statusName: "clean",
+    damage: 0,
+    targetHpAfter: target.hp,
+    description: `${sourceName} czyści ${target.name} z ${removed.length} efektów (${removedNames}).`,
+  });
+
+  return events;
 }
-    default:              return `${targetName} otrzymuje status z czaru ${sourceName}.`;
+
+function describeStatusApplied(
+  def: StatusEffectDef,
+  targetName: string,
+  sourceName: string,
+  resolvedEffect?: number
+): string {
+  switch (def.type) {
+    case "dot": {
+      const dmgRange = (def.minDamage != null && def.maxDamage != null && def.minDamage !== def.maxDamage)
+        ? `${def.minDamage}–${def.maxDamage}`
+        : String(def.damage ?? def.minDamage ?? 0);
+      return `${targetName} otrzymuje DOT: ${dmgRange} pkt ${def.element}/turę (${sourceName}).`;
+    }
+    case "resist": {
+      const val = resolvedEffect ?? def.value ?? 0;
+      const range = (def.minValue != null && def.maxValue != null && def.minValue !== def.maxValue)
+        ? `${def.minValue}–${def.maxValue}%` : `${val}%`;
+      return `${targetName} zyskuje ${range} odporności na ${def.element} — ${descDuration(def.duration)}.`;
+    }
+    case "vulnerable": {
+      const val = resolvedEffect ?? def.value ?? 0;
+      return `${targetName} jest ${val}% podatny na ${def.element} — ${descDuration(def.duration)}.`;
+    }
+    case "miss_chance":
+      return `${targetName} traci celność — ${def.missChance}% szansy na chybienie (${sourceName}).`;
+    case "damage_on_move": {
+      const dmg = resolvedEffect ?? def.moveDamage ?? def.minMoveDamage ?? 0;
+      return `Pole walki: każde działanie ma ${def.moveChance}% szansy na ${dmg} pkt obrażeń (${sourceName}).`;
+    }
+    case "stun": {
+      const dur = resolvedEffect ?? def.stunDuration ?? def.minStunDuration ?? 1;
+      return `${targetName} może zostać ogłuszony przez ${sourceName} (${def.stunChance}% / ${dur} tur).`;
+    }
+    case "invisibility":
+      return `${targetName} zyskuje ${def.invisChance}% niewidzialności (${sourceName}).`;
+    case "heal_chance": {
+      const heal = resolvedEffect ?? def.healAmount ?? def.minHealAmount ?? 0;
+      return `${targetName} jest otoczony uzdrawiającą energią — ${def.healChance}% szansy na +${heal} HP/turę.`;
+    }
+    case "stat_boost": {
+      const amount = resolvedEffect ?? def.statAmount ?? 0;
+      const sign   = amount >= 0 ? "+" : "";
+      const suffix = def.statMode === "percent" ? "%" : " pkt";
+      const verb   = amount >= 0 ? "zyskuje" : "traci";
+      return `${targetName} ${verb} ${sign}${amount}${suffix} do ${def.stat} — ${descDuration(def.duration)}.`;
+    }
+    case "clean":
+      return `${targetName} zostaje oczyszczony z efektów (${sourceName}).`;
+    default:
+      return `${targetName} otrzymuje status z czaru ${sourceName}.`;
   }
 }
 
@@ -408,7 +544,7 @@ function applySpellStatuses(
   for (const def of spell.statusEffectDefs) {
     const targets = resolveStatusTargets(def.target, def.count, caster, ownSide, enemySide);
     for (const t of targets) {
-      events.push(...applyStatusToTarget(t, def, spell.name));
+      events.push(...applyStatusToTarget(t, def, spell.name, spell.endInfo));
     }
   }
   return events;
@@ -423,6 +559,8 @@ function tickDownStatuses(entity: Fighter | Minion, events: TurnEvent[]): void {
   }
   for (const status of expired) {
     entity.appliedStatuses = entity.appliedStatuses.filter(s => s !== status);
+    const expiredDesc = status.endInfo
+      ?? `Status "${status.effectDef.type}" (${status.sourceName}) wygasł na ${entity.name}.`;
     events.push({
       type: "status_expired",
       attacker: "System",
@@ -430,7 +568,7 @@ function tickDownStatuses(entity: Fighter | Minion, events: TurnEvent[]): void {
       statusName: status.effectDef.type,
       damage: 0,
       targetHpAfter: entity.hp,
-      description: `Status "${status.effectDef.type}" (${status.sourceName}) wygasł na ${entity.name}.`,
+      description: expiredDesc,
     });
   }
 }
@@ -443,7 +581,12 @@ function applyDotTick(entity: Fighter | Minion, globalStatuses: AppliedStatus[])
   const events: TurnEvent[] = [];
   for (const status of getEffectiveStatuses(entity.appliedStatuses, globalStatuses)) {
     if (status.effectDef.type !== "dot") continue;
-    const dmg = status.effectDef.damage ?? 0;
+    // Losuj obrażenia per tick z zakresu (jeśli zdefiniowany)
+    const dmg = resolveRange(
+      status.effectDef.minDamage,
+      status.effectDef.maxDamage,
+      status.effectDef.damage ?? 0
+    );
     if (dmg <= 0) continue;
     entity.hp = Math.max(0, entity.hp - dmg);
     events.push({
@@ -462,8 +605,13 @@ function applyHealChanceTick(entity: Fighter | Minion, globalStatuses: AppliedSt
   const events: TurnEvent[] = [];
   for (const status of getEffectiveStatuses(entity.appliedStatuses, globalStatuses)) {
     if (status.effectDef.type !== "heal_chance") continue;
-    const chance  = status.effectDef.healChance  ?? 0;
-    const amount  = status.effectDef.healAmount  ?? 0;
+    const chance = status.effectDef.healChance ?? 0;
+    // Użyj resolvedEffect (wylosowanego przy nakładaniu) lub losuj z zakresu per tick
+    const amount = status.resolvedEffect ?? resolveRange(
+      status.effectDef.minHealAmount,
+      status.effectDef.maxHealAmount,
+      status.effectDef.healAmount ?? 0
+    );
     if (amount <= 0 || Math.random() * 100 >= chance) continue;
     const healed = Math.min(amount, entity.maxHp - entity.hp);
     if (healed <= 0) continue;
@@ -491,8 +639,15 @@ function applyElementModifiers(
   let total = baseDamage;
   for (const status of getEffectiveStatuses(targetStatuses, globalStatuses)) {
     const def = status.effectDef;
-    if (def.type === "resist"     && def.element === element) total *= (1 - (def.value ?? 0) / 100);
-    if (def.type === "vulnerable" && def.element === element) total *= (1 + (def.value ?? 0) / 100);
+    // Użyj resolvedEffect dla resist/vulnerable (wylosowanego przy nakładaniu)
+    if (def.type === "resist" && def.element === element) {
+      const val = status.resolvedEffect ?? def.value ?? 0;
+      total *= (1 - val / 100);
+    }
+    if (def.type === "vulnerable" && def.element === element) {
+      const val = status.resolvedEffect ?? def.value ?? 0;
+      total *= (1 + val / 100);
+    }
   }
   return Math.ceil(Math.max(0, total));
 }
@@ -519,23 +674,31 @@ function applyDamageOnMove(
   for (const status of getEffectiveStatuses(entity.appliedStatuses, globalStatuses)) {
     if (status.effectDef.type !== "damage_on_move") continue;
     const chance = status.effectDef.moveChance ?? 0;
-    const dmg    = status.effectDef.moveDamage  ?? 0;
+    // Losuj obrażenia z zakresu przy każdej aktywacji
+    const dmg = resolveRange(
+      status.effectDef.minMoveDamage,
+      status.effectDef.maxMoveDamage,
+      status.effectDef.moveDamage ?? status.resolvedEffect ?? 0
+    );
     if (dmg <= 0 || Math.random() * 100 >= chance) continue;
     entity.hp = Math.max(0, entity.hp - dmg);
     events.push({
-      type: "ice_slip",
+      type: "on_move",
       attacker: status.sourceName,
       target: entity.name,
       damage: dmg,
       targetHpAfter: entity.hp,
-      description: `${entity.name} poślizgnął się (${status.sourceName}) i otrzymał ${dmg} pkt obrażeń.`,
+      description: `${entity.name} poślizgnął się na (${status.sourceName}) i otrzymał ${dmg} pkt obrażeń.`,
     });
   }
   return events;
 }
 
-// Zwraca true jeśli fighter jest zestunowany i traci akcję
-function processStunStatuses(fighter: Fighter, events: TurnEvent[]): boolean {
+function processStunStatuses(
+  fighter: Fighter,
+  events: TurnEvent[],
+  spellDescAltMap: Map<string, { descAlt: string | null; endInfo: string | null }>
+): boolean {
   if (fighter.stunTurnsLeft > 0) {
     fighter.stunTurnsLeft -= 1;
     events.push({
@@ -552,15 +715,30 @@ function processStunStatuses(fighter: Fighter, events: TurnEvent[]): boolean {
     if (status.effectDef.type !== "stun") continue;
     const chance = status.effectDef.stunChance ?? 0;
     if (Math.random() * 100 < chance) {
-      const duration = status.effectDef.stunDuration ?? 1;
+      const duration = status.resolvedEffect ?? resolveRange(
+        status.effectDef.minStunDuration,
+        status.effectDef.maxStunDuration,
+        status.effectDef.stunDuration ?? 1
+      );
       fighter.stunTurnsLeft = duration - 1;
+
+      // descAlt ze statusu lub z czaru lub z mapy
+      const statusDescAlt = status.effectDef.descAlt;
+      const spellMeta = spellDescAltMap.get(status.sourceName);
+      const rawDescAlt = statusDescAlt ?? spellMeta?.descAlt ?? null;
+      const stunDescAlt = rawDescAlt
+        ? renderTemplate(rawDescAlt, "?", fighter.name, 0).replace(/\{duration\}/g, duration.toString())
+        : null;
+      const stunDescription = stunDescAlt
+        ?? `${fighter.name} zostaje ogłuszony przez ${status.sourceName} na ${duration} tur!`;
+
       events.push({
         type: "stun",
         attacker: status.sourceName,
         target: fighter.name,
         damage: 0,
         targetHpAfter: fighter.hp,
-        description: `${fighter.name} zostaje ogłuszony przez ${status.sourceName} na ${duration} tur!`,
+        description: stunDescription,
       });
       return true;
     }
@@ -581,11 +759,11 @@ function filterVisible<T extends Fighter | Minion>(
   globalStatuses: AppliedStatus[]
 ): T[] {
   const visible = candidates.filter(c => !isTargetInvisible(c, globalStatuses));
-  return visible.length > 0 ? visible : candidates; // fallback: wszyscy widoczni
+  return visible.length > 0 ? visible : candidates;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// SEKCJA 6 — CAST EFFECTS (jednorazowe przy rzuceniu)
+// SEKCJA 6 — CAST EFFECTS
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function executeCastEffects(
@@ -600,11 +778,9 @@ function executeCastEffects(
   for (const def of spell.castEffectDefs) {
     switch (def.type) {
 
-      // ── SACRIFICE ────────────────────────────────────────────────────────
       case "sacrifice": {
         const selfCost = Math.floor(caster.hp * (def.selfHpPercent ?? 50) / 100);
         caster.hp = Math.max(0, caster.hp - selfCost);
-
         events.push({
           type: "sacrifice",
           attacker: caster.name,
@@ -614,8 +790,6 @@ function executeCastEffects(
           targetHpAfter: caster.hp,
           description: `${caster.name} poświęca ${selfCost} HP (${def.selfHpPercent}% obecnego) rzucając ${spell.name}.`,
         });
-
-        // Wybierz cel leczenia — losowy żywy sojusznik
         const healTargets = resolveStatusTargets(
           def.target as StatusTargetType,
           def.count,
@@ -623,7 +797,6 @@ function executeCastEffects(
           ownSide,
           enemySide
         ).filter(t => t.hp > 0 && t !== caster);
-
         for (const healTarget of healTargets) {
           const healAmount = Math.ceil(healTarget.maxHp * (def.healTargetPercent ?? 100) / 100);
           const actualHeal = Math.min(healAmount, healTarget.maxHp - healTarget.hp);
@@ -639,27 +812,18 @@ function executeCastEffects(
             description: `${healTarget.name} zostaje uleczony o ${actualHeal} HP kosztem poświęcenia ${caster.name}.`,
           });
         }
-
-        // Jeśli caster zginął od poświęcenia — zostanie obsłużony w pętli
-        // przez sprawdzenie hp <= 0 po powrocie z executeAttack
         break;
       }
 
-      // ── RESURRECT ────────────────────────────────────────────────────────
       case "resurrect": {
-        if (ownSide.deadFighters.length === 0) break; // guard — nie powinno się zdarzyć
-
-        // Losuj martwego sojusznika z uwzględnieniem niewidzialności (nie dotyczy martwych — brak filtra)
+        if (ownSide.deadFighters.length === 0) break;
         const deadPool = [...ownSide.deadFighters];
         const target = deadPool[randomInt(0, deadPool.length - 1)]!;
-
         const reviveHp = Math.max(1, Math.ceil(target.maxHp * (def.healPercent ?? 50) / 100));
         target.hp = reviveHp;
         target.stunTurnsLeft = 0;
-        // Przenieś z deadFighters → fighters
         ownSide.deadFighters = ownSide.deadFighters.filter(f => f !== target);
         ownSide.fighters.push(target);
-
         events.push({
           type: "resurrect",
           attacker: caster.name,
@@ -673,27 +837,22 @@ function executeCastEffects(
         break;
       }
 
-      // ── DOMINATE ─────────────────────────────────────────────────────────
       case "dominate": {
         const availableMinions = enemySide.minions.filter(m => m.hp > 0);
         if (availableMinions.length === 0) break;
-
         const visible = filterVisible(availableMinions, state.globalStatuses);
         const eligible = visible.length > 0 ? visible : availableMinions;
         const count = Math.max(1, def.count ?? 1);
         const selected: Minion[] = [];
         const pool = [...eligible];
-
         while (selected.length < count && pool.length > 0) {
           const index = randomInt(0, pool.length - 1);
           selected.push(pool.splice(index, 1)[0]);
         }
-
         for (const target of selected) {
           target.owner = ownSide === state.sideA ? "sideA" : "sideB";
           enemySide.minions = enemySide.minions.filter(m => m !== target);
           ownSide.minions.push(target);
-
           events.push({
             type: "dominate",
             attacker: caster.name,
@@ -702,7 +861,7 @@ function executeCastEffects(
             minionName: target.name,
             damage: 0,
             targetHpAfter: target.hp,
-            description: `${caster.name} przejmuje kontrolę nad ${target.name}! Minion zmienia strony.`,
+            description: `${caster.name} przejmuje kontrolę nad ${target.name}!`,
           });
         }
         break;
@@ -717,18 +876,25 @@ function executeCastEffects(
 // SEKCJA 7 — OBRAŻENIA
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// Losuje bazowe obrażenia czaru z zakresu min/max
+function rollSpellDamage(spell: BattleSpell): number {
+  return resolveRange(spell.minDamage, spell.maxDamage, spell.minDamage);
+}
+
 function calculateDamage(
-  spell: { damage: number; element: string },
+  spell: BattleSpell,
   attacker: Fighter,
   target: Fighter,
   globalStatuses: AppliedStatus[]
 ): number {
-  if (spell.damage === 0) return 0;
-  const base       = spell.damage;
+  const baseDmg = rollSpellDamage(spell);
+  if (baseDmg === 0) return 0;
+
   const elemBonus  = Math.floor(elementBonus(spell.element, attacker, globalStatuses) * 0.5);
   const powerBonus = Math.floor(getEffectiveStat(attacker, "power", globalStatuses) * 0.3);
+
   const withElements = applyElementModifiers(
-    base + elemBonus + powerBonus,
+    baseDmg + elemBonus + powerBonus,
     spell.element,
     target.appliedStatuses,
     globalStatuses
@@ -741,15 +907,20 @@ function calculateDamage(
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function createMinion(spell: BattleSpell, ownerSide: "sideA" | "sideB", index: number): Minion {
+  // Losuj wszystkie statystyki miniona z zakresów
+  const hp         = resolveRange(spell.summonMinHp,         spell.summonMaxHp,         spell.summonMinHp);
+  const damage     = resolveRange(spell.summonMinDamage,     spell.summonMaxDamage,     spell.summonMinDamage);
+  const initiative = resolveRange(spell.summonMinInitiative, spell.summonMaxInitiative, spell.summonMinInitiative);
+
   return {
     id:       `minion_${Date.now()}_${ownerSide}_${index}_${Math.random()}`,
     name:     `${spell.name}${spell.summonCount > 1 ? ` (${index + 1})` : ""}`,
     owner:    ownerSide,
-    hp:       spell.summonHp,
-    maxHp:    spell.summonHp,
-    damage:   spell.summonDamage,
+    hp:       Math.max(1, hp),
+    maxHp:    Math.max(1, hp),
+    damage:   Math.max(0, damage),
     element:  spell.summonElement ?? "chaos",
-    initiative:  spell.summonInitiative,
+    initiative:  Math.max(0, initiative),
     targetType:  spell.summonTargetType ?? "randomEnemy",
     appliedStatuses: [],
   };
@@ -794,7 +965,6 @@ function executeMinionAttacks(
   for (const minion of [...ownSide.minions]) {
     if (minion.hp <= 0) continue;
 
-    // Poślizg przed akcją minionów
     events.push(...applyDamageOnMove(minion, state.globalStatuses));
     if (minion.hp <= 0) {
       events.push(minionDeathEvent(minion));
@@ -803,18 +973,17 @@ function executeMinionAttacks(
 
     const targets = selectMinionTargets(minion, ownSide, enemySide, state.globalStatuses);
     for (const t of targets) {
-      t.hp = Math.max(0, t.hp - minion.damage);
       let minionDmg = minion.damage;
-if ("resistance" in t) {
-  minionDmg = applyResistance(minionDmg, minion.element, t as Fighter, state.globalStatuses);
-}
-t.hp = Math.max(0, t.hp - minionDmg);
+      if ("resistance" in t) {
+        minionDmg = applyResistance(minionDmg, minion.element, t as Fighter, state.globalStatuses);
+      }
+      t.hp = Math.max(0, t.hp - minionDmg);
       events.push({
         type: "minion_attack",
         attacker: minion.name,
         target: t.name,
         minionName: minion.name,
-        damage: minion.damage,
+        damage: minionDmg,
         targetHpAfter: t.hp,
         description: `${minion.name} atakuje ${t.name} — zadaje ${minionDmg} pkt obrażeń! [HP: ${t.hp}/${t.maxHp}]`,
       });
@@ -824,7 +993,6 @@ t.hp = Math.max(0, t.hp - minionDmg);
     }
   }
 
-  // Usuń martwe miniony z obu stron
   ownSide.minions   = ownSide.minions.filter(m => m.hp > 0);
   enemySide.minions = enemySide.minions.filter(m => m.hp > 0);
 
@@ -860,7 +1028,6 @@ function formatSpellDescription(
     .replace(/\{target\}/g, target)
     .replace(/\{damage\}/g, dmg.toString());
 
-  // Replace static damage values in spell.special with actual calculated damage
   if (rendered && dmg > 0) {
     rendered = rendered.replace(/zadaje \d+ pkt obrażeń/g, `zadaje ${dmg} pkt obrażeń`);
   }
@@ -870,9 +1037,9 @@ function formatSpellDescription(
     if (dmg > 0)  return `${actor} przygotował się do walki! Rzuca ${spell.name} i zadaje ${dmg} pkt obrażeń ${target}.`;
     return `${actor} przygotował się do walki! ${spell.name}.`;
   }
-if (rendered) return poolLabel ? `${actor} ${poolLabel} — ${rendered}` : rendered;
-if (dmg > 0)  return `${actor}${poolLabel ? ` ${poolLabel} — rzuca` : ""} ${spell.name} i zadaje ${dmg} pkt obrażeń ${target}.`;
-return `${actor}${poolLabel ? ` ${poolLabel} — ` : " "}${spell.name}.`;
+  if (rendered) return poolLabel ? `${actor} ${poolLabel} — ${rendered}` : rendered;
+  if (dmg > 0)  return `${actor}${poolLabel ? ` ${poolLabel} — rzuca` : ""} ${spell.name} i zadaje ${dmg} pkt obrażeń ${target}.`;
+  return `${actor}${poolLabel ? ` ${poolLabel} — ` : " "}${spell.name}.`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -921,17 +1088,34 @@ export async function buildFighter(characterId: number): Promise<Fighter> {
     }
   }
 
+  // ── Mapowanie czaru z DB → BattleSpell ──────────────────────────────────────
+  // Obsługuje zarówno stare pola (damage, summonHp, ...) jak i nowe zakresy
   function mapSpell(s: any): BattleSpell {
+    // Dla obrażeń czaru: preferuj minDamage/maxDamage, fallback na damage
+    const minDmg = s.minDamage ?? s.damage ?? 0;
+    const maxDmg = s.maxDamage ?? s.damage ?? 0;
+
+    // Dla statystyk minionów: preferuj zakresy, fallback na stałe wartości
+    const sumMonMinHp  = s.summonMinHp  ?? s.summonHp       ?? 0;
+    const sumMonMaxHp  = s.summonMaxHp  ?? s.summonHp       ?? 0;
+    const sumMonMinDmg = s.summonMinDamage ?? s.summonDamage ?? 0;
+    const sumMonMaxDmg = s.summonMaxDamage ?? s.summonDamage ?? 0;
+    const sumMonMinIni = s.summonMinInitiative ?? s.summonInitiative ?? 0;
+    const sumMonMaxIni = s.summonMaxInitiative ?? s.summonInitiative ?? 0;
+
     return {
       id:               s.id,
       name:             s.name,
-      damage:           s.damage,
+      minDamage:        minDmg,
+      maxDamage:        maxDmg,
       element:          s.element,
       spellPool:        s.spellPool as SpellPool,
       isDirectional:    s.isDirectional ?? true,
       statusEffectDefs: parseStatusEffects(s.statusEffects),
       castEffectDefs:   parseCastEffects(s.castEffects),
       special:          s.special,
+      descAlt:          s.descAlt ?? null,
+      endInfo:          s.endInfo ?? null,
       reqFireMagic:     s.reqFireMagic,
       reqWaterMagic:    s.reqWaterMagic,
       reqEarthMagic:    s.reqEarthMagic,
@@ -941,10 +1125,13 @@ export async function buildFighter(characterId: number): Promise<Fighter> {
       reqDeathMagic:    s.reqDeathMagic,
       reqEnergyMagic:   s.reqEnergyMagic,
       summonCount:      s.summonCount,
-      summonHp:         s.summonHp,
-      summonDamage:     s.summonDamage,
+      summonMinHp:      sumMonMinHp,
+      summonMaxHp:      sumMonMaxHp,
+      summonMinDamage:  sumMonMinDmg,
+      summonMaxDamage:  sumMonMaxDmg,
+      summonMinInitiative: sumMonMinIni,
+      summonMaxInitiative: sumMonMaxIni,
       summonElement:    s.summonElement,
-      summonInitiative: s.summonInitiative,
       summonTargetType: s.summonTargetType as MinionTargetType | null,
     };
   }
@@ -954,7 +1141,6 @@ export async function buildFighter(characterId: number): Promise<Fighter> {
   const activeIds    = new Set(activeSpells.map(s => s.id));
   const spellPool    = allSpells.map(mapSpell).filter(s => !activeIds.has(s.id));
   const towerLevel   = character.tower?.level ?? 1;
-  // Base HP 10, plus +2 HP per 1 point of endurance (including equipment bonuses)
   const effectiveEndurance = character.endurance + bonusEndurance;
   const maxHp        = Math.max(1, 10 + effectiveEndurance * 2);
 
@@ -992,30 +1178,28 @@ interface BattleMetadata {
   sideBFighterIds: number[];
   sideAFighterNames: string[];
   sideBFighterNames: string[];
-  // Minions: owner -> list of minion names
   sideAMinionNames: string[];
   sideBMinionNames: string[];
-  // Dla FE: jak kolorowaćparticipantów
-  // Logika: Na FE sprawdź czy participant (po nazwie) należy do:
-  // - SideA (green dla atakującego, red dla atakowanego)
-  // - SideB (red dla atakującego, green dla atakowanego)
-  // - Neutralny jeśli target="randomAny" lub "all" (żółty zawsze)
-  
-  // All participants with their side assignment (for coloring logic)
   allParticipants?: Array<{
     id: number;
     name: string;
     side: "sideA" | "sideB";
     type: "fighter" | "minion";
-    targetType?: string; 
+    targetType?: string;
   }>;
 }
 
 export function simulateBattle(
   fightersA: Fighter[],
   fightersB: Fighter[]
-): { winnerId: number | null; log: TurnLog[]; summary: string; metadata: BattleMetadata; minionTargetTypeMap: Map<string, string>; castSpellsByFighter: Map<string, number[]> } {
-
+): {
+  winnerId: number | null;
+  log: TurnLog[];
+  summary: string;
+  metadata: BattleMetadata;
+  minionTargetTypeMap: Map<string, string>;
+  castSpellsByFighter: Map<string, number[]>;
+} {
   const state: BattleState = {
     sideA: makeSide(fightersA),
     sideB: makeSide(fightersB),
@@ -1024,29 +1208,37 @@ export function simulateBattle(
 
   const log: TurnLog[] = [];
 
-  // Aktywne kolejki i zużyte ID — per fighter
-const activeQueues = new Map<number, BattleSpell[]>();
+  const activeQueues = new Map<number, BattleSpell[]>();
   const usedIds      = new Map<number, Set<number>>();
-  const globalUsedSpellIds = new Set<number>(); // ← wspólna pula dla całej walki
+  const globalUsedSpellIds = new Set<number>();
   for (const f of [...fightersA, ...fightersB]) {
     activeQueues.set(f.id, [...f.activeSpells]);
     usedIds.set(f.id, new Set(f.activeSpells.map(s => s.id)));
   }
 
-  // ── Wykonanie ataku jednego fightera ──────────────────────────────────────
+  // ── spellDescAltMap — do opisu stuna i endInfo ─────────────────────────────
+  const spellDescAltMap = new Map<string, { descAlt: string | null; endInfo: string | null }>();
+  for (const f of [...fightersA, ...fightersB]) {
+    for (const s of [...f.activeSpells, ...f.spellPool]) {
+      if (!spellDescAltMap.has(s.name)) {
+        spellDescAltMap.set(s.name, { descAlt: s.descAlt, endInfo: s.endInfo });
+      }
+    }
+  }
+
+  const castSpellsByFighter = new Map<string, number[]>();
+
+  // ── executeAttack ──────────────────────────────────────────────────────────
   function executeAttack(actor: Fighter): TurnEvent[] {
     const events: TurnEvent[] = [];
     const ownSide   = getSideOf(actor, state);
     const enemySide = getEnemySide(actor, state);
 
-    // Stun check
-    if (processStunStatuses(actor, events)) return events;
+    if (processStunStatuses(actor, events, spellDescAltMap)) return events;
 
-    // Poślizg przed akcją
     events.push(...applyDamageOnMove(actor, state.globalStatuses));
     if (actor.hp <= 0) return events;
 
-    // Wybierz czar
     const queue = activeQueues.get(actor.id)!;
     const used  = usedIds.get(actor.id)!;
     let spell: BattleSpell | null = null;
@@ -1055,10 +1247,9 @@ const activeQueues = new Map<number, BattleSpell[]>();
     if (queue.length > 0) {
       spell    = queue.shift()!;
       isActive = true;
-} else {
+    } else {
       spell = pickRandomSpell(actor, globalUsedSpellIds, ownSide, enemySide, state.globalStatuses);
       if (spell) {
-        // ✅ Księga Magii — rejestruj rzucony czar (tylko prawdziwe czary, nie PvE pseudo-czary)
         if (spell.id > 0) {
           const existing = castSpellsByFighter.get(actor.name) ?? [];
           if (!existing.includes(spell.id)) {
@@ -1070,6 +1261,7 @@ const activeQueues = new Map<number, BattleSpell[]>();
         used.add(spell.id);
       }
     }
+
     // Pięści
     if (!spell) {
       const target = filterVisible(enemySide.fighters.filter(f => f.hp > 0), state.globalStatuses);
@@ -1107,18 +1299,22 @@ const activeQueues = new Map<number, BattleSpell[]>();
       return events;
     }
 
-    // Wybierz cel obrażeń (losowy żywy wróg z uwzględnieniem niewidzialności)
     const aliveEnemies = filterVisible(enemySide.fighters.filter(f => f.hp > 0), state.globalStatuses);
     const primaryTarget = aliveEnemies.length > 0
       ? aliveEnemies[randomInt(0, aliveEnemies.length - 1)]!
       : null;
 
-    // Zadaj obrażenia
+    // Obrażenia bezpośrednie
     let dmg = 0;
-    if (spell.damage > 0 && spell.summonCount === 0 && primaryTarget) {
-        dmg = calculateDamage(spell, actor, primaryTarget, state.globalStatuses);
+    if (spell.minDamage > 0 && spell.summonCount === 0 && primaryTarget) {
+      dmg = calculateDamage(spell, actor, primaryTarget, state.globalStatuses);
       primaryTarget.hp = Math.max(0, primaryTarget.hp - dmg);
     }
+
+    const hasNonStunStatus = spell.statusEffectDefs.some(d => d.type !== "stun");
+    const spellDescription = (spell.descAlt && hasNonStunStatus)
+      ? renderTemplate(spell.descAlt, actor.name, primaryTarget?.name ?? "—", dmg)
+      : formatSpellDescription(spell, actor.name, primaryTarget?.name ?? "—", poolLabel, isActive, dmg);
 
     events.push({
       type: "spell",
@@ -1129,7 +1325,7 @@ const activeQueues = new Map<number, BattleSpell[]>();
       source,
       damage: dmg,
       targetHpAfter: primaryTarget?.hp ?? 0,
-      description: formatSpellDescription(spell, actor.name, primaryTarget?.name ?? "—", poolLabel, isActive, dmg),
+      description: spellDescription,
     });
 
     // Przywołaj miniony
@@ -1138,7 +1334,6 @@ const activeQueues = new Map<number, BattleSpell[]>();
       for (let i = 0; i < spell.summonCount; i++) {
         const minion = createMinion(spell, ownerSide, i);
         ownSide.minions.push(minion);
-        // Internal event for tracking (used for metadata, not displayed)
         events.push({
           type: "minion_summoned",
           attacker: actor.name,
@@ -1151,44 +1346,53 @@ const activeQueues = new Map<number, BattleSpell[]>();
       }
     }
 
-    // Statusy z czaru (tickowane)
+    // Statusy z czaru
     for (const def of spell.statusEffectDefs) {
-      // Treat "all", "allEnemies", and "allAllies" as group effects (single message, not per-target)
       if (def.target === "all" || def.target === "allEnemies" || def.target === "allAllies") {
-        // Apply to targets normally but don't spam individual messages
         const targets = resolveStatusTargets(def.target, def.count, actor, ownSide, enemySide);
         for (const t of targets) {
-          t.appliedStatuses.push({
+          // Każdy cel dostaje własny resolvedEffect (niezależnie losowany)
+          const resolvedEffect = resolveStatusEffect(def);
+          if (def.type === "clean") {
+            // clean nakładany grupowo — wykonaj od razu
+            applyStatusToTarget(t, def, spell.name, spell.endInfo);
+          } else {
+            t.appliedStatuses.push({
+              effectDef:    def,
+              sourceName:   spell.name,
+              turnsLeft:    def.duration,
+              stunTurnsLeft: def.type === "stun" ? 0 : undefined,
+              endInfo:      spell.endInfo ?? null,
+              resolvedEffect,
+            });
+          }
+        }
+        if (def.target === "all" && def.type !== "clean") {
+          state.globalStatuses.push({
             effectDef: def,
             sourceName: spell.name,
             turnsLeft: def.duration,
-            stunTurnsLeft: def.type === "stun" ? 0 : undefined,
+            resolvedEffect: resolveStatusEffect(def),
           });
         }
-        // Add to global statuses if "all"
-        if (def.target === "all") {
-          state.globalStatuses.push({ effectDef: def, sourceName: spell.name, turnsLeft: def.duration });
-        }
-        // No event message needed - effect info already shown in spell description
       } else {
         events.push(...applySpellStatuses({ ...spell, statusEffectDefs: [def] }, actor, ownSide, enemySide));
       }
     }
 
-    // Cast effects (jednorazowe)
+    // Cast effects
     events.push(...executeCastEffects(spell, actor, ownSide, enemySide, state));
 
     return events;
   }
 
-  // ── Przeniesienie martwych fighterów do deadFighters ──────────────────────
+  // ── processDeath ───────────────────────────────────────────────────────────
   function processDeath(side: BattleSide): TurnEvent[] {
     const events: TurnEvent[] = [];
     const justDied = side.fighters.filter(f => f.hp <= 0);
     for (const f of justDied) {
       side.fighters     = side.fighters.filter(x => x !== f);
       side.deadFighters.push(f);
-      // Miniony martwego fightera pozostają na polu (kontynuują walkę)
       events.push({
         type: "status_applied",
         attacker: "System",
@@ -1201,30 +1405,24 @@ const activeQueues = new Map<number, BattleSpell[]>();
     return events;
   }
 
-  // ── Główna pętla ──────────────────────────────────────────────────────────
+  // ── Główna pętla ───────────────────────────────────────────────────────────
   let turn = 0;
-
-const castSpellsByFighter = new Map<string, number[]>();
 
   while (!isBattleOver(state)) {
     turn++;
     const turnEvents: TurnEvent[] = [];
 
-    // Zbierz wszystkich żywych fighterów z obu stron
     const allFighters = allLivingFighters(state);
 
-    // DoT + heal ticki na początku tury (wszyscy fighterzy)
     for (const f of allFighters) {
       turnEvents.push(...applyDotTick(f, state.globalStatuses));
       turnEvents.push(...applyHealChanceTick(f, state.globalStatuses));
     }
 
-    // Przetwórz śmierci od DoT przed atakami
     turnEvents.push(...processDeath(state.sideA));
     turnEvents.push(...processDeath(state.sideB));
     if (isBattleOver(state)) break;
 
-    // Posortuj fighterów wg inicjatywy + losowości
     const sortedFighters = [...allLivingFighters(state)].sort(
       (a, b) =>
         (getEffectiveStat(b, "initiative", state.globalStatuses) + Math.random() * 2) -
@@ -1236,13 +1434,10 @@ const castSpellsByFighter = new Map<string, number[]>();
       if (isBattleOver(state)) break;
 
       turnEvents.push(...executeAttack(actor));
-
-      // Przetwórz śmierci po każdym ataku
       turnEvents.push(...processDeath(state.sideA));
       turnEvents.push(...processDeath(state.sideB));
     }
 
-    // Ataki minionów (najpierw sideA, potem sideB)
     if (!isBattleOver(state)) {
       turnEvents.push(...executeMinionAttacks(state.sideA, state.sideB, state));
       turnEvents.push(...processDeath(state.sideA));
@@ -1254,13 +1449,13 @@ const castSpellsByFighter = new Map<string, number[]>();
       turnEvents.push(...processDeath(state.sideB));
     }
 
-    // Dekrementacja statusów na końcu tury
-    for (const f of [...state.sideA.fighters, ...state.sideB.fighters,
-                      ...state.sideA.minions,  ...state.sideB.minions]) {
+    for (const f of [
+      ...state.sideA.fighters, ...state.sideB.fighters,
+      ...state.sideA.minions,  ...state.sideB.minions,
+    ]) {
       tickDownStatuses(f, turnEvents);
     }
 
-    // Globalne statusy
     const expiredGlobal = state.globalStatuses.filter(
       s => s.turnsLeft !== null && (s.turnsLeft -= 1, s.turnsLeft <= 0)
     );
@@ -1287,13 +1482,9 @@ const castSpellsByFighter = new Map<string, number[]>();
     });
   }
 
-  // ── Wyłonienie zwycięzcy (1vs1 — jeden fighter per strona) ───────────────
+  // ── Wyłonienie zwycięzcy ───────────────────────────────────────────────────
   const aAlive = state.sideA.fighters.length > 0;
   const bAlive = state.sideB.fighters.length > 0;
-
-  // Dla 1vs1 bierzemy pierwszego fightera z każdej strony
-  const fighterA = fightersA[0]!;
-  const fighterB = fightersB[0]!;
 
   let winnerId: number | null;
   let summary: string;
@@ -1309,30 +1500,29 @@ const castSpellsByFighter = new Map<string, number[]>();
     summary  = `Remis po ${turn} turach!`;
   }
 
-  // Filter out [INTERNAL: ...] events from all turns (used only for metadata collection)
-  // MUST do this AFTER collecting minion data below
-  
-const metadata: BattleMetadata = {
-  sideAFighterIds: [...state.sideA.fighters, ...state.sideA.deadFighters].map(f => f.id),
-  sideBFighterIds: [...state.sideB.fighters, ...state.sideB.deadFighters].map(f => f.id),
-  sideAFighterNames: [...state.sideA.fighters, ...state.sideA.deadFighters].map(f => f.name),
-  sideBFighterNames: [...state.sideB.fighters, ...state.sideB.deadFighters].map(f => f.name),
-    // Zbierz nazwy minionów z logów BEFORE filtering
-    sideAMinionNames: [],
-    sideBMinionNames: [],
+  const metadata: BattleMetadata = {
+    sideAFighterIds:   [...state.sideA.fighters, ...state.sideA.deadFighters].map(f => f.id),
+    sideBFighterIds:   [...state.sideB.fighters, ...state.sideB.deadFighters].map(f => f.id),
+    sideAFighterNames: [...state.sideA.fighters, ...state.sideA.deadFighters].map(f => f.name),
+    sideBFighterNames: [...state.sideB.fighters, ...state.sideB.deadFighters].map(f => f.name),
+    sideAMinionNames:  [],
+    sideBMinionNames:  [],
   };
 
-  // Zbierz miniony z eventów "minion_summoned" — przed filtrowaniem [INTERNAL: ...]
+  // Zbierz miniony z INTERNAL eventów przed filtrowaniem
+  const minionTargetTypeMap = new Map<string, string>();
   for (const turnLog of log) {
     for (const event of turnLog.events) {
       if (event.type === "minion_summoned" && event.minionName) {
+        const match = event.description.match(/targetType=(\w+)/);
+        if (match?.[1]) minionTargetTypeMap.set(event.minionName, match[1]);
+
         const attackerName = event.attacker;
-        // Sprawdź do której strony należy attacker
-if ([...state.sideA.fighters, ...state.sideA.deadFighters].some(f => f.name === attackerName)) {
+        if ([...state.sideA.fighters, ...state.sideA.deadFighters].some(f => f.name === attackerName)) {
           if (!metadata.sideAMinionNames.includes(event.minionName)) {
             metadata.sideAMinionNames.push(event.minionName);
           }
-} else if ([...state.sideB.fighters, ...state.sideB.deadFighters].some(f => f.name === attackerName)) {
+        } else if ([...state.sideB.fighters, ...state.sideB.deadFighters].some(f => f.name === attackerName)) {
           if (!metadata.sideBMinionNames.includes(event.minionName)) {
             metadata.sideBMinionNames.push(event.minionName);
           }
@@ -1341,17 +1531,7 @@ if ([...state.sideA.fighters, ...state.sideA.deadFighters].some(f => f.name === 
     }
   }
 
-  // Now filter out [INTERNAL: ...] events from all turns (after metadata collection)
-  // Zbuduj mapę minionName → targetType ze zdarzeń INTERNAL (przed filtrowaniem)
-  const minionTargetTypeMap = new Map<string, string>();
-  for (const turnLog of log) {
-    for (const event of turnLog.events) {
-      if (event.type === "minion_summoned" && event.minionName) {
-        const match = event.description.match(/targetType=(\w+)/);
-        if (match?.[1]) minionTargetTypeMap.set(event.minionName, match[1]);
-      }
-    }
-  }
+  // Usuń INTERNAL eventy z logów
   for (const turnLog of log) {
     turnLog.events = turnLog.events.filter(e => !e.description.includes("[INTERNAL:"));
   }
@@ -1383,15 +1563,12 @@ export async function challengePlayer(attackerUserId: number, defenderCharacterI
   const attackerFighter = await buildFighter(attackerChar.id);
   const defenderFighter = await buildFighter(defenderChar.id);
 
-  // 1vs1 — każda strona ma jednego fightera
   const result = simulateBattle([attackerFighter], [defenderFighter]);
 
-
-
-const attackerSpellIds = result.castSpellsByFighter.get(attackerFighter.name) ?? [];
-await recordSpellbookEntries(attackerChar.id, attackerSpellIds, "battle_cast");
-const defenderSpellIds = result.castSpellsByFighter.get(defenderFighter.name) ?? [];
-await recordSpellbookEntries(defenderChar.id, defenderSpellIds, "battle_cast");
+  const attackerSpellIds = result.castSpellsByFighter.get(attackerFighter.name) ?? [];
+  await recordSpellbookEntries(attackerChar.id, attackerSpellIds, "battle_cast");
+  const defenderSpellIds = result.castSpellsByFighter.get(defenderFighter.name) ?? [];
+  await recordSpellbookEntries(defenderChar.id, defenderSpellIds, "battle_cast");
 
   const attackerWon = result.winnerId === attackerChar.id;
   const defenderWon = result.winnerId === defenderChar.id;
@@ -1402,45 +1579,46 @@ await recordSpellbookEntries(defenderChar.id, defenderSpellIds, "battle_cast");
   if (prestigeDiff < -100) prestigeGain = 6;
 
   const winnerId = result.winnerId ?? attackerChar.id;
-  const fullMetadata = {
-    ...result.metadata,
-    attackerUserId: attackerUserId,
-    attackerId: attackerChar.id,
-    attackerName: attackerChar.name,
-    defenderId: defenderChar.id,
-    defenderName: defenderChar.name,
-    allParticipants: [
+
+  function buildParticipants() {
+    return [
       ...result.metadata.sideAFighterIds.map((id, i) => ({
-        id,
-        name: result.metadata.sideAFighterNames[i],
-        side: "sideA",
-        type: "fighter" as const,
+        id, name: result.metadata.sideAFighterNames[i], side: "sideA", type: "fighter" as const,
       })),
       ...result.metadata.sideBFighterIds.map((id, i) => ({
-        id,
-        name: result.metadata.sideBFighterNames[i],
-        side: "sideB",
-        type: "fighter" as const,
+        id, name: result.metadata.sideBFighterNames[i], side: "sideB", type: "fighter" as const,
       })),
-...result.metadata.sideAMinionNames.map((name) => {
-const targetType = result.minionTargetTypeMap?.get(name) ?? "randomEnemy";  return {
-    id: -1, name,
-    side: (targetType === "randomAny" || targetType === "all") ? "neutral" : "sideA",
-    type: "minion" as const,
-    targetType,
+      ...result.metadata.sideAMinionNames.map(name => {
+        const targetType = result.minionTargetTypeMap?.get(name) ?? "randomEnemy";
+        return {
+          id: -1, name,
+          side: (targetType === "randomAny" || targetType === "all") ? "neutral" : "sideA",
+          type: "minion" as const,
+          targetType,
+        };
+      }),
+      ...result.metadata.sideBMinionNames.map(name => {
+        const targetType = result.minionTargetTypeMap?.get(name) ?? "randomEnemy";
+        return {
+          id: -1, name,
+          side: (targetType === "randomAny" || targetType === "all") ? "neutral" : "sideB",
+          type: "minion" as const,
+          targetType,
+        };
+      }),
+    ];
+  }
+
+  const fullMetadata = {
+    ...result.metadata,
+    attackerUserId,
+    attackerId:    attackerChar.id,
+    attackerName:  attackerChar.name,
+    defenderId:    defenderChar.id,
+    defenderName:  defenderChar.name,
+    allParticipants: buildParticipants(),
   };
-}),
-...result.metadata.sideBMinionNames.map((name) => {
-const targetType = result.minionTargetTypeMap?.get(name) ?? "randomEnemy";  return {
-    id: -1, name,
-    side: (targetType === "randomAny" || targetType === "all") ? "neutral" : "sideB",
-    type: "minion" as const,
-    targetType,
-  };
-}),
-    ],
-  };
- 
+
   const battle = await prisma.battle.create({
     data: {
       attackerId:   attackerChar.id,
@@ -1454,9 +1632,9 @@ const targetType = result.minionTargetTypeMap?.get(name) ?? "randomEnemy";  retu
   });
 
   if (attackerWon) {
-    await prisma.character.update({ where: { id: attackerChar.id },    data: { prestige: { increment: prestigeGain } } });
+    await prisma.character.update({ where: { id: attackerChar.id }, data: { prestige: { increment: prestigeGain } } });
   } else if (defenderWon) {
-    await prisma.character.update({ where: { id: defenderChar.id },    data: { prestige: { increment: prestigeGain } } });
+    await prisma.character.update({ where: { id: defenderChar.id }, data: { prestige: { increment: prestigeGain } } });
   }
 
   return {
@@ -1467,47 +1645,7 @@ const targetType = result.minionTargetTypeMap?.get(name) ?? "randomEnemy";  retu
     prestigeGain: attackerWon ? prestigeGain : 0,
     log:          result.log,
     turns:        result.log.length,
-    metadata: {
-      ...result.metadata,
-      attackerUserId: attackerUserId,
-      attackerId: attackerChar.id,
-      attackerName: attackerChar.name,
-      defenderId: defenderChar.id,
-      defenderName: defenderChar.name,
-      // Add all participant IDs for future multi-player support
-      allParticipants: [
-        ...result.metadata.sideAFighterIds.map((id, i) => ({
-          id,
-          name: result.metadata.sideAFighterNames[i],
-          side: "sideA",
-          type: "fighter" as const,
-        })),
-        ...result.metadata.sideBFighterIds.map((id, i) => ({
-          id,
-          name: result.metadata.sideBFighterNames[i],
-          side: "sideB",
-          type: "fighter" as const,
-        })),
-...result.metadata.sideAMinionNames.map((name) => {
-  const targetType = result.minionTargetTypeMap.get(name) ?? "randomEnemy";
-  return {
-    id: -1, name,
-    side: (targetType === "randomAny" || targetType === "all") ? "neutral" : "sideA",
-    type: "minion" as const,
-    targetType,
-  };
-}),
-...result.metadata.sideBMinionNames.map((name) => {
-  const targetType = result.minionTargetTypeMap.get(name) ?? "randomEnemy";
-  return {
-    id: -1, name,
-    side: (targetType === "randomAny" || targetType === "all") ? "neutral" : "sideB",
-    type: "minion" as const,
-    targetType,
-  };
-}),
-      ],
-    },
+    metadata:     { ...fullMetadata, allParticipants: buildParticipants() },
   };
 }
 
@@ -1526,7 +1664,7 @@ export async function getBattleHistory(userId: number) {
     },
   });
 
-return battles.map(b => {
+  return battles.map(b => {
     let metadata: any = {};
     try {
       metadata = JSON.parse(b.metadata ?? "{}");
@@ -1534,16 +1672,16 @@ return battles.map(b => {
       metadata = {};
     }
     return {
-      id:              b.id,
-      attacker:        b.attacker.name,
-      defender:        b.defender.name,
-      winner:          b.winner.name,
-      summary:         b.summary,
-      prestigeGain:    b.prestigeGain,
-      foughtAt:        b.foughtAt,
-      youWon:          b.winnerId === character.id,
-      myCharacterId:   character.id,             
-      log:             JSON.parse(b.log),
+      id:            b.id,
+      attacker:      b.attacker.name,
+      defender:      b.defender.name,
+      winner:        b.winner.name,
+      summary:       b.summary,
+      prestigeGain:  b.prestigeGain,
+      foughtAt:      b.foughtAt,
+      youWon:        b.winnerId === character.id,
+      myCharacterId: character.id,
+      log:           JSON.parse(b.log),
       metadata,
     };
   });

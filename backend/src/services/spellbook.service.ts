@@ -1,24 +1,12 @@
 // ═══════════════════════════════════════════════════════════════════════════════
-// SPELLBOOK SERVICE — Księga Magii
-//
-// Śledzi czary, które gracz "odkrył" (widział w akcji/walce/szkole).
-// Odkrycie ≠ posiadanie. Gracz może mieć czar w księdze bez posiadania go
-// w bibliotece, i vice versa.
-//
-// Źródła odkrycia:
-//   "study"       — rzucony podczas akcji Studia (startStudyAction / claimStudyAction)
-//   "battle_cast" — rzucony przez gracza podczas walki PvP lub PvE
-//   "school"      — przejrzany w Szkole Magii (jeszcze niezaimplementowane)
+// SPELLBOOK SERVICE — Księga Magii (z obsługą czarów podstawowych)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import prisma from "../lib/prisma.js";
 
-export type SpellbookSource = "study" | "battle_cast" | "school";
+export type SpellbookSource = "study" | "battle_cast" | "school" | "basic_purchase";
 
 // ── REJESTRACJA ODKRYCIA ──────────────────────────────────────────────────────
-// Wywołuj tę funkcję wszędzie tam, gdzie gracz "widzi" czar po raz pierwszy.
-// Funkcja jest idempotentna — wielokrotne wywołanie dla tego samego czaru
-// nie tworzy duplikatów (skipDuplicate).
 
 export async function recordSpellbookEntry(
   characterId: number,
@@ -28,16 +16,13 @@ export async function recordSpellbookEntry(
   try {
     await prisma.spellbookEntry.upsert({
       where: { characterId_spellId: { characterId, spellId } },
-      update: {}, // Nie nadpisujemy — pierwsze odkrycie się liczy
+      update: {},
       create: { characterId, spellId, source },
     });
   } catch (err) {
-    // Nie przerywamy głównej operacji jeśli zapis do księgi się nie uda
     console.error(`[spellbook] Failed to record entry char=${characterId} spell=${spellId}:`, err);
   }
 }
-
-// ── BATCH: rejestracja wielu czarów naraz (np. po walce) ─────────────────────
 
 export async function recordSpellbookEntries(
   characterId: number,
@@ -50,22 +35,21 @@ export async function recordSpellbookEntries(
   );
 }
 
-// ── GET SPELLBOOK — główny endpoint ──────────────────────────────────────────
-// Zwraca wszystkie czary z bazy.
-// Dla odkrytych: pełne dane + metadata odkrycia.
-// Dla nieodkrytych: tylko element, spellPool, rarity (do renderowania placeholdera).
+// ── GET SPELLBOOK ─────────────────────────────────────────────────────────────
 
 export interface SpellbookSpell {
   id: number;
   discovered: boolean;
+  isBasic: boolean;
+  basicCost: number;
 
-  // Zawsze widoczne (do filtrowania i placeholderów)
+  // Zawsze widoczne
   element: string;
   spellPool: string;
   rarity: string;
-  category: string; // "summoner" | "offensive" | "defensive" | "unknown"
+  category: string;
 
-  // Tylko dla discovered === true
+  // Dla discovered === true LUB isBasic === true
   name?: string;
   damage?: number;
   special?: string;
@@ -82,11 +66,11 @@ export interface SpellbookSpell {
   summonCount?: number;
   summonElement?: string | null;
 
-  // Metadata odkrycia (tylko dla discovered)
+  // Metadata odkrycia
   discoveredAt?: Date;
   source?: string;
 
-  // Czy gracz aktualnie posiada ten czar w bibliotece
+  // Czy gracz posiada czar w bibliotece
   owned?: boolean;
 }
 
@@ -111,21 +95,24 @@ export async function getSpellbook(userId: number): Promise<SpellbookSpell[]> {
   const ownedSet = new Set(character.spells.map(s => s.spellId));
 
   return allSpells.map(spell => {
-    const entry     = discoveredMap.get(spell.id);
-    const discovered = !!entry;
-    const category  = detectCategory(spell);
+    const entry      = discoveredMap.get(spell.id);
+    // Czar jest "odkryty" jeśli ma wpis w spellbookEntries LUB jest podstawowy
+    const discovered = !!entry || spell.isBasic;
+    const category   = detectCategory(spell);
 
     if (discovered) {
       return {
-        id:           spell.id,
-        discovered:   true,
-        element:      spell.element,
-        spellPool:    spell.spellPool,
-        rarity:       spell.rarity,
+        id:            spell.id,
+        discovered:    true,
+        isBasic:       spell.isBasic,
+        basicCost:     spell.basicCost,
+        element:       spell.element,
+        spellPool:     spell.spellPool,
+        rarity:        spell.rarity,
         category,
-        name:         spell.name,
-        damage:       spell.damage,
-        special:      spell.special ?? undefined,
+        name:          spell.name,
+        damage:        spell.damage,
+        special:       spell.special ?? undefined,
         isDirectional: spell.isDirectional,
         statusEffects: spell.statusEffects,
         reqFireMagic:  spell.reqFireMagic,
@@ -138,8 +125,8 @@ export async function getSpellbook(userId: number): Promise<SpellbookSpell[]> {
         reqEnergyMagic: spell.reqEnergyMagic,
         summonCount:   spell.summonCount,
         summonElement: spell.summonElement,
-        discoveredAt:  entry.discoveredAt,
-        source:        entry.source,
+        discoveredAt:  entry?.discoveredAt,
+        source:        entry?.source ?? (spell.isBasic ? "basic" : undefined),
         owned:         ownedSet.has(spell.id),
       };
     }
@@ -147,6 +134,8 @@ export async function getSpellbook(userId: number): Promise<SpellbookSpell[]> {
     return {
       id:        spell.id,
       discovered: false,
+      isBasic:   false,
+      basicCost: 0,
       element:   spell.element,
       spellPool: spell.spellPool,
       rarity:    spell.rarity,
@@ -156,47 +145,98 @@ export async function getSpellbook(userId: number): Promise<SpellbookSpell[]> {
   });
 }
 
-// ── STATYSTYKI KSIĘGI ──────────────────────────────────────────────────────────
+// ── ZAKUP CZARU PODSTAWOWEGO ──────────────────────────────────────────────────
+
+export async function learnBasicSpell(userId: number, spellId: number): Promise<{
+  message: string;
+  shardsSpent: number;
+  destination: "library" | "chaos_vault";
+}> {
+  const character = await prisma.character.findUnique({
+    where: { userId },
+    include: { spells: true },
+  });
+  if (!character) throw new Error("Postać nie znaleziona");
+
+  const spell = await prisma.spell.findUnique({ where: { id: spellId } });
+  if (!spell) throw new Error("Czar nie istnieje");
+  if (!spell.isBasic) throw new Error("To nie jest czar podstawowy");
+
+  const alreadyOwned = character.spells.some(s => s.spellId === spellId);
+  if (alreadyOwned) throw new Error("Już posiadasz ten czar w bibliotece");
+
+  if (character.powerShards < spell.basicCost) {
+    throw new Error(
+      `Niewystarczające okruchy mocy. Potrzebujesz ${spell.basicCost}, masz ${character.powerShards}.`
+    );
+  }
+
+  const destination: "library" | "chaos_vault" =
+    character.spells.length < character.maxSpells ? "library" : "chaos_vault";
+
+  await prisma.$transaction(async (tx) => {
+    await tx.character.update({
+      where: { id: character.id },
+      data: { powerShards: { decrement: spell.basicCost } },
+    });
+
+    if (destination === "library") {
+      await tx.characterSpell.create({
+        data: { characterId: character.id, spellId },
+      });
+    } else {
+      await tx.chaosVaultItem.create({
+        data: { characterId: character.id, spellId },
+      });
+    }
+
+    await tx.spellbookEntry.upsert({
+      where: { characterId_spellId: { characterId: character.id, spellId } },
+      update: {},
+      create: { characterId: character.id, spellId, source: "basic_purchase" },
+    });
+  });
+
+  const message = destination === "library"
+    ? `Nauczyłeś się czaru "${spell.name}"! Wydałeś ${spell.basicCost} okruchów mocy.`
+    : `Nauczyłeś się czaru "${spell.name}"! Wydałeś ${spell.basicCost} okruchów mocy. Biblioteka jest pełna — czar trafił do Komnaty Nieładu.`;
+
+  return { message, shardsSpent: spell.basicCost, destination };
+}
+
+// ── STATYSTYKI KSIĘGI ─────────────────────────────────────────────────────────
 
 export async function getSpellbookStats(userId: number) {
   const character = await prisma.character.findUnique({ where: { userId } });
   if (!character) throw new Error("Postać nie znaleziona");
 
-  const [total, discovered] = await Promise.all([
+  const [total, basicCount, discovered] = await Promise.all([
     prisma.spell.count(),
+    prisma.spell.count({ where: { isBasic: true } }),
     prisma.spellbookEntry.count({ where: { characterId: character.id } }),
   ]);
 
-  return { total, discovered, hidden: total - discovered };
+  const discoveredWithBasic = Math.min(total, discovered + basicCount);
+  return { total, discovered: discoveredWithBasic, hidden: total - discoveredWithBasic };
 }
 
 // ── HELPER: kategoria czaru ───────────────────────────────────────────────────
-// Tymczasowa logika dopóki nie doda się kolumny `category` do modelu Spell.
-// Gdy dodasz pole w seed.ts, zmień tę funkcję na: return spell.category ?? "unknown"
 
 function detectCategory(spell: {
   summonCount: number;
   damage: number;
   statusEffects: string;
-  category?: string; // pole z przyszłości
+  category?: string;
 }): string {
-  // Gdy pole category będzie dostępne — użyj go bezpośrednio
   if ("category" in spell && spell.category) return spell.category;
-
-  // Fallback: wykryj automatycznie na podstawie struktury czaru
   if (spell.summonCount > 0) return "summoner";
-
-  // Sprawdź statusEffects pod kątem defensywności
   try {
     const effects = JSON.parse(spell.statusEffects) as Array<{ type: string }>;
     const hasDefensive = effects.some(e =>
       ["resist", "heal_chance", "invisibility"].includes(e.type)
     );
     if (hasDefensive) return "defensive";
-  } catch {
-    // ignore
-  }
-
+  } catch { /* noop */ }
   if (spell.damage > 0) return "offensive";
-  return "offensive"; // Default — efekty statusów ofensywne
+  return "offensive";
 }
