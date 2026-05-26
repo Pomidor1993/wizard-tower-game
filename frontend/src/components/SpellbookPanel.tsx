@@ -6,7 +6,7 @@ import api from "../api/client";
 interface SpellbookSpell {
   id: number;
   discovered: boolean;
-  isBasic: boolean;
+  spellBook: boolean;
   basicCost: number;
   element: string;
   spellPool: string;
@@ -78,17 +78,38 @@ const SOURCE_LABELS: Record<string, string> = {
 
 type MainTab = "basic" | "custom";
 
+interface CharacterStats {
+  fireMagic: number; waterMagic: number; earthMagic: number; airMagic: number;
+  chaosMagic: number; lifeMagic: number; deathMagic: number; energyMagic: number;
+}
+
+function meetsRequirements(spell: SpellbookSpell, stats: CharacterStats | null): boolean {
+  if (!stats) return false;
+  return (
+    (spell.reqFireMagic   ?? 0) <= stats.fireMagic   &&
+    (spell.reqWaterMagic  ?? 0) <= stats.waterMagic  &&
+    (spell.reqEarthMagic  ?? 0) <= stats.earthMagic  &&
+    (spell.reqAirMagic    ?? 0) <= stats.airMagic    &&
+    (spell.reqChaosMagic  ?? 0) <= stats.chaosMagic  &&
+    (spell.reqLifeMagic   ?? 0) <= stats.lifeMagic   &&
+    (spell.reqDeathMagic  ?? 0) <= stats.deathMagic  &&
+    (spell.reqEnergyMagic ?? 0) <= stats.energyMagic
+  );
+}
+
 // ── KARTA ODKRYTEGO CZARU ─────────────────────────────────────────────────────
 
 function DiscoveredCard({
   spell,
   onClick,
   onLearn,
+  canLearn,
   learning,
 }: {
   spell: SpellbookSpell;
   onClick: () => void;
   onLearn?: (e: React.MouseEvent) => void;
+  canLearn?: boolean;
   learning?: boolean;
 }) {
   const elem   = ELEMENT_CONFIG[spell.element]   ?? ELEMENT_CONFIG.basic!;
@@ -134,20 +155,18 @@ function DiscoveredCard({
       </div>
 
       {/* Przycisk "Naucz się" dla czarów podstawowych nieposiadanych */}
-      {spell.isBasic && !spell.owned && onLearn && (
-        <div
-          className="learn-btn-wrapper"
-          onClick={e => e.stopPropagation()}
-        >
-          <button
-            onClick={onLearn}
-            disabled={learning}
-            className="learn-btn"
-          >
-            {learning ? "..." : `✦ Naucz się · ${spell.basicCost} ✦`}
-          </button>
-        </div>
-      )}
+{spell.spellBook && !spell.owned && onLearn && (
+  <div className="learn-btn-wrapper" onClick={e => e.stopPropagation()}>
+    <button
+      onClick={canLearn ? onLearn : undefined}
+      disabled={learning || !canLearn}
+      className={`learn-btn ${!canLearn ? "locked" : ""}`}
+      title={!canLearn ? "Nie spełniasz wymagań" : undefined}
+    >
+      {learning ? "..." : `✦ ${spell.basicCost} ✦`}
+    </button>
+  </div>
+)}
 
       {spell.owned && (
         <div className="owned-indicator">✓ W bibliotece</div>
@@ -199,11 +218,13 @@ function SpellDetailModal({
   spell,
   onClose,
   onLearn,
+  canLearn,
   learning,
 }: {
   spell: SpellbookSpell;
   onClose: () => void;
   onLearn?: () => void;
+  canLearn?: boolean;
   learning?: boolean;
 }) {
   const elem   = ELEMENT_CONFIG[spell.element]   ?? ELEMENT_CONFIG.basic!;
@@ -241,7 +262,7 @@ function SpellDetailModal({
         <div className="modal-bg-glow" />
         <button className="modal-close" onClick={onClose}>×</button>
 
-        {spell.isBasic && (
+        {spell.spellBook && (
           <div className="modal-basic-badge">✦ Czar podstawowy</div>
         )}
 
@@ -310,20 +331,25 @@ function SpellDetailModal({
         )}
 
         {/* Sekcja zakupu dla czarów podstawowych */}
-        {spell.isBasic && !spell.owned && onLearn && (
-          <div className="modal-learn-section">
-            <p className="modal-learn-cost">
-              Koszt nauki: <strong>{spell.basicCost} okruchów mocy</strong>
-            </p>
-            <button
-              onClick={onLearn}
-              disabled={learning}
-              className="modal-learn-btn"
-            >
-              {learning ? "Uczenie się..." : `✦ Naucz się tego czaru`}
-            </button>
-          </div>
-        )}
+{spell.spellBook && !spell.owned && (
+  <div className="modal-learn-section">
+    <p className="modal-learn-cost">
+      Koszt nauki: <strong>{spell.basicCost} okruchów mocy</strong>
+    </p>
+    {!canLearn && (
+      <p className="modal-learn-locked">✕ Nie spełniasz wymagań tego czaru</p>
+    )}
+    {canLearn && onLearn && (
+      <button
+        onClick={onLearn}
+        disabled={learning}
+        className="modal-learn-btn"
+      >
+        {learning ? "Uczenie się..." : `✦ Naucz się tego czaru`}
+      </button>
+    )}
+  </div>
+)}
 
         {spell.owned && (
           <div className="modal-owned-badge">✓ Czar w Twojej bibliotece</div>
@@ -371,6 +397,7 @@ export default function SpellbookPanel() {
   const [filterPool, setFilterPool]       = useState("all");
   const [filterCategory, setFilterCategory] = useState("all");
   const [showOnlyOwned, setShowOnlyOwned] = useState(false);
+  const [charStats, setCharStats] = useState<CharacterStats | null>(null);
 
   const fetchSpellbook = useCallback(async () => {
     try {
@@ -384,6 +411,11 @@ export default function SpellbookPanel() {
   }, []);
 
   useEffect(() => { fetchSpellbook(); }, [fetchSpellbook]);
+  useEffect(() => {
+  api.get("/character/effective-stats")
+    .then(res => setCharStats(res.data.effective))
+    .catch(() => {});
+}, []);
 
   async function handleLearn(spell: SpellbookSpell, e?: React.MouseEvent) {
     e?.stopPropagation();
@@ -405,7 +437,7 @@ export default function SpellbookPanel() {
 
   // Filtruj wg głównej zakładki
   const tabFiltered = useMemo(() =>
-    spells.filter(s => mainTab === "basic" ? s.isBasic : !s.isBasic),
+    spells.filter(s => mainTab === "basic" ? s.spellBook : !s.spellBook),
     [spells, mainTab]
   );
 
@@ -420,8 +452,8 @@ export default function SpellbookPanel() {
     });
   }, [tabFiltered, filterElement, filterPool, filterCategory, showOnlyOwned]);
 
-  const basicSpells  = spells.filter(s => s.isBasic);
-  const customSpells = spells.filter(s => !s.isBasic);
+  const basicSpells  = spells.filter(s => s.spellBook);
+  const customSpells = spells.filter(s => !s.spellBook);
   const basicOwned   = basicSpells.filter(s => s.owned).length;
   const customDiscovered = customSpells.filter(s => s.discovered).length;
 
@@ -429,17 +461,17 @@ export default function SpellbookPanel() {
     <>
       <style>{SPELLBOOK_CSS}</style>
 
-      {selectedSpell?.discovered && (
-        <SpellDetailModal
-          spell={selectedSpell}
-          onClose={() => setSelectedSpell(null)}
-          onLearn={selectedSpell.isBasic && !selectedSpell.owned
-            ? () => handleLearn(selectedSpell)
-            : undefined}
-          learning={learningId === selectedSpell.id}
-        />
-      )}
-
+{selectedSpell?.discovered && (
+  <SpellDetailModal
+    spell={selectedSpell}
+    onClose={() => setSelectedSpell(null)}
+    onLearn={selectedSpell.spellBook && !selectedSpell.owned
+      ? () => handleLearn(selectedSpell)
+      : undefined}
+    canLearn={meetsRequirements(selectedSpell, charStats)}
+    learning={learningId === selectedSpell.id}
+  />
+)}
       <div className="spellbook-root">
 
         {/* ── NAGŁÓWEK ── */}
@@ -565,17 +597,18 @@ export default function SpellbookPanel() {
               </div>
             ) : (
               <div className="spell-grid">
-                {filtered.map(spell =>
-                  spell.discovered ? (
-                    <DiscoveredCard
-                      key={spell.id}
-                      spell={spell}
-                      onClick={() => setSelectedSpell(spell)}
-                      onLearn={spell.isBasic && !spell.owned
-                        ? (e) => handleLearn(spell, e)
-                        : undefined}
-                      learning={learningId === spell.id}
-                    />
+{filtered.map(spell =>
+  spell.discovered ? (
+    <DiscoveredCard
+      key={spell.id}
+      spell={spell}
+      onClick={() => setSelectedSpell(spell)}
+      onLearn={spell.spellBook && !spell.owned
+        ? (e) => handleLearn(spell, e)
+        : undefined}
+      canLearn={meetsRequirements(spell, charStats)}
+      learning={learningId === spell.id}
+    />
                   ) : (
                     <UnknownCard key={spell.id} spell={spell} />
                   )
@@ -1132,6 +1165,20 @@ const SPELLBOOK_CSS = `
     border: 1px solid rgba(22,163,74,0.2); border-radius: 6px;
   }
 
+  .learn-btn.locked {
+  opacity: 0.4;
+  cursor: not-allowed;
+  border-color: rgba(139,104,64,0.3);
+  color: var(--ink-faded);
+}
+
+.modal-learn-locked {
+  font-family: 'Cinzel', serif;
+  font-size: 11px;
+  color: #dc2626;
+  margin: 0 0 8px;
+  opacity: 0.8;
+}
   .modal-discovery {
     display: flex; justify-content: space-between; align-items: center;
     border-top: 1px solid rgba(139,104,64,0.2);

@@ -40,7 +40,7 @@ export async function recordSpellbookEntries(
 export interface SpellbookSpell {
   id: number;
   discovered: boolean;
-  isBasic: boolean;
+  spellBook: boolean;
   basicCost: number;
 
   // Zawsze widoczne
@@ -49,7 +49,7 @@ export interface SpellbookSpell {
   rarity: string;
   category: string;
 
-  // Dla discovered === true LUB isBasic === true
+  // Dla discovered === true LUB spellBook === true
   name?: string;
   damage?: number;
   special?: string;
@@ -97,14 +97,14 @@ export async function getSpellbook(userId: number): Promise<SpellbookSpell[]> {
   return allSpells.map(spell => {
     const entry      = discoveredMap.get(spell.id);
     // Czar jest "odkryty" jeśli ma wpis w spellbookEntries LUB jest podstawowy
-    const discovered = !!entry || spell.isBasic;
+    const discovered = !!entry || spell.spellBook;
     const category   = detectCategory(spell);
 
     if (discovered) {
       return {
         id:            spell.id,
         discovered:    true,
-        isBasic:       spell.isBasic,
+        spellBook:     spell.spellBook,
         basicCost:     spell.basicCost,
         element:       spell.element,
         spellPool:     spell.spellPool,
@@ -126,7 +126,7 @@ export async function getSpellbook(userId: number): Promise<SpellbookSpell[]> {
         summonCount:   spell.summonCount,
         summonElement: spell.summonElement,
         discoveredAt:  entry?.discoveredAt,
-        source:        entry?.source ?? (spell.isBasic ? "basic" : undefined),
+        source:        entry?.source ?? (spell.spellBook ? "basic" : undefined),
         owned:         ownedSet.has(spell.id),
       };
     }
@@ -134,7 +134,7 @@ export async function getSpellbook(userId: number): Promise<SpellbookSpell[]> {
     return {
       id:        spell.id,
       discovered: false,
-      isBasic:   false,
+      spellBook:   false,
       basicCost: 0,
       element:   spell.element,
       spellPool: spell.spellPool,
@@ -160,10 +160,25 @@ export async function learnBasicSpell(userId: number, spellId: number): Promise<
 
   const spell = await prisma.spell.findUnique({ where: { id: spellId } });
   if (!spell) throw new Error("Czar nie istnieje");
-  if (!spell.isBasic) throw new Error("To nie jest czar podstawowy");
+  if (!spell.spellBook) throw new Error("To nie jest czar podstawowy");
 
   const alreadyOwned = character.spells.some(s => s.spellId === spellId);
   if (alreadyOwned) throw new Error("Już posiadasz ten czar w bibliotece");
+
+  const unmet = [
+    spell.reqFireMagic   > 0 && character.fireMagic   < spell.reqFireMagic   && `Ogień ${spell.reqFireMagic}`,
+    spell.reqWaterMagic  > 0 && character.waterMagic  < spell.reqWaterMagic  && `Woda ${spell.reqWaterMagic}`,
+    spell.reqEarthMagic  > 0 && character.earthMagic  < spell.reqEarthMagic  && `Ziemia ${spell.reqEarthMagic}`,
+    spell.reqAirMagic    > 0 && character.airMagic    < spell.reqAirMagic    && `Powietrze ${spell.reqAirMagic}`,
+    spell.reqChaosMagic  > 0 && character.chaosMagic  < spell.reqChaosMagic  && `Chaos ${spell.reqChaosMagic}`,
+    spell.reqLifeMagic   > 0 && character.lifeMagic   < spell.reqLifeMagic   && `Życie ${spell.reqLifeMagic}`,
+    spell.reqDeathMagic  > 0 && character.deathMagic  < spell.reqDeathMagic  && `Śmierć ${spell.reqDeathMagic}`,
+    spell.reqEnergyMagic > 0 && character.energyMagic < spell.reqEnergyMagic && `Energia ${spell.reqEnergyMagic}`,
+  ].filter(Boolean);
+
+  if (unmet.length > 0) {
+    throw new Error(`Nie spełniasz wymagań: ${unmet.join(", ")}`);
+  }
 
   if (character.powerShards < spell.basicCost) {
     throw new Error(
@@ -212,7 +227,7 @@ export async function getSpellbookStats(userId: number) {
 
   const [total, basicCount, discovered] = await Promise.all([
     prisma.spell.count(),
-    prisma.spell.count({ where: { isBasic: true } }),
+    prisma.spell.count({ where: { spellBook: true } }),
     prisma.spellbookEntry.count({ where: { characterId: character.id } }),
   ]);
 

@@ -105,6 +105,7 @@ export interface StatusEffectDef {
   healAmount?: number;     // stara kompatybilność
   minHealAmount?: number;
   maxHealAmount?: number;
+  healMode?: "flat" | "percent";
 
   // ── stat_boost ────────────────────────────────────────────────────────────
   // StatusTypeBoostCategory: która statystyka (np. "power", "fireMagic")
@@ -122,11 +123,9 @@ export interface StatusEffectDef {
   cleanMode?: CleanMode;
   cleanTypes?: StatusEffectType[];
 
-  // Komunikat gdy status wygasa (EndInfo)
-  // Uwaga: endInfo jest też na poziomie czaru w BattleSpell — to pole jest fallbackiem per-status
   endInfo?: string | null;
-
-  // Alternatywny opis gdy status się aktywuje (np. stun się uda) — DescAlt
+  applyInfo?: string | null;
+  tickInfo?: string | null;
   descAlt?: string | null;
 }
 
@@ -157,6 +156,9 @@ export interface AppliedStatus {
   sourceName: string;
   turnsLeft: number | null;
   stunTurnsLeft?: number;
+  applyInfo?: string | null;
+  healMode?: "flat" | "percent" | null;
+  tickInfo?: string | null;
   endInfo?: string | null;
 
   // Wartości losowane przy nałożeniu statusu (dla zakresów min/max)

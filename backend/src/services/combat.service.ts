@@ -306,14 +306,12 @@ function applyResistance(damage: number, element: string, target: Fighter, globa
 
 function renderTemplate(
   template: string,
-  attacker: string,
-  target: string,
-  damage: number
+  data: Record<string, string | number>
 ): string {
-  return template
-    .replace(/\{attacker\}/g, attacker)
-    .replace(/\{target\}/g,   target)
-    .replace(/\{damage\}/g,   damage.toString());
+  return template.replace(/\{(\w+)\}/g, (_, key) => {
+    const val = data[key];
+    return val !== undefined ? String(val) : `{${key}}`;
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -398,15 +396,20 @@ function applyStatusToTarget(
 
   const resolvedEffect = resolveStatusEffect(def);
 
-  target.appliedStatuses.push({
-    effectDef: def,
-    sourceName,
-    turnsLeft: def.duration,
-    stunTurnsLeft: def.type === "stun" ? 0 : undefined,
-    endInfo,
-    resolvedEffect,
-  });
+const appliedStatus: AppliedStatus = {
+  effectDef: def,
+  sourceName,
+  turnsLeft: def.duration,
+  stunTurnsLeft: def.type === "stun" ? 0 : undefined,
+  applyInfo: def.applyInfo ?? null,
+  tickInfo:  def.tickInfo ?? null,
+  endInfo:   def.endInfo ?? endInfo ?? null,
+  resolvedEffect,
+  healMode: def.healMode ?? null,
+};
+target.appliedStatuses.push(appliedStatus);
 
+if (appliedStatus.applyInfo) {
   events.push({
     type: "status_applied",
     attacker: sourceName,
@@ -414,8 +417,9 @@ function applyStatusToTarget(
     statusName: def.type,
     damage: 0,
     targetHpAfter: target.hp,
-    description: describeStatusApplied(def, target.name, sourceName, resolvedEffect),
+    description: renderTemplate(appliedStatus.applyInfo, { target: target.name, source: sourceName }),
   });
+}
   return events;
 }
 
@@ -477,59 +481,6 @@ function executeClean(
   return events;
 }
 
-function describeStatusApplied(
-  def: StatusEffectDef,
-  targetName: string,
-  sourceName: string,
-  resolvedEffect?: number
-): string {
-  switch (def.type) {
-    case "dot": {
-      const dmgRange = (def.minDamage != null && def.maxDamage != null && def.minDamage !== def.maxDamage)
-        ? `${def.minDamage}–${def.maxDamage}`
-        : String(def.damage ?? def.minDamage ?? 0);
-      return `${targetName} otrzymuje DOT: ${dmgRange} pkt ${def.element}/turę (${sourceName}).`;
-    }
-    case "resist": {
-      const val = resolvedEffect ?? def.value ?? 0;
-      const range = (def.minValue != null && def.maxValue != null && def.minValue !== def.maxValue)
-        ? `${def.minValue}–${def.maxValue}%` : `${val}%`;
-      return `${targetName} zyskuje ${range} odporności na ${def.element} — ${descDuration(def.duration)}.`;
-    }
-    case "vulnerable": {
-      const val = resolvedEffect ?? def.value ?? 0;
-      return `${targetName} jest ${val}% podatny na ${def.element} — ${descDuration(def.duration)}.`;
-    }
-    case "miss_chance":
-      return `${targetName} traci celność — ${def.missChance}% szansy na chybienie (${sourceName}).`;
-    case "damage_on_move": {
-      const dmg = resolvedEffect ?? def.moveDamage ?? def.minMoveDamage ?? 0;
-      return `Pole walki: każde działanie ma ${def.moveChance}% szansy na ${dmg} pkt obrażeń (${sourceName}).`;
-    }
-    case "stun": {
-      const dur = resolvedEffect ?? def.stunDuration ?? def.minStunDuration ?? 1;
-      return `${targetName} może zostać ogłuszony przez ${sourceName} (${def.stunChance}% / ${dur} tur).`;
-    }
-    case "invisibility":
-      return `${targetName} zyskuje ${def.invisChance}% niewidzialności (${sourceName}).`;
-    case "heal_chance": {
-      const heal = resolvedEffect ?? def.healAmount ?? def.minHealAmount ?? 0;
-      return `${targetName} jest otoczony uzdrawiającą energią — ${def.healChance}% szansy na +${heal} HP/turę.`;
-    }
-    case "stat_boost": {
-      const amount = resolvedEffect ?? def.statAmount ?? 0;
-      const sign   = amount >= 0 ? "+" : "";
-      const suffix = def.statMode === "percent" ? "%" : " pkt";
-      const verb   = amount >= 0 ? "zyskuje" : "traci";
-      return `${targetName} ${verb} ${sign}${amount}${suffix} do ${def.stat} — ${descDuration(def.duration)}.`;
-    }
-    case "clean":
-      return `${targetName} zostaje oczyszczony z efektów (${sourceName}).`;
-    default:
-      return `${targetName} otrzymuje status z czaru ${sourceName}.`;
-  }
-}
-
 function descDuration(duration: number | null): string {
   return duration === null ? "do końca walki" : `${duration} tur`;
 }
@@ -559,8 +510,9 @@ function tickDownStatuses(entity: Fighter | Minion, events: TurnEvent[]): void {
   }
   for (const status of expired) {
     entity.appliedStatuses = entity.appliedStatuses.filter(s => s !== status);
-    const expiredDesc = status.endInfo
-      ?? `Status "${status.effectDef.type}" (${status.sourceName}) wygasł na ${entity.name}.`;
+const expiredDesc = status.endInfo
+  ? renderTemplate(status.endInfo, { target: entity.name, source: status.sourceName })
+  : `Status "${status.effectDef.type}" (${status.sourceName}) wygasł.`;
     events.push({
       type: "status_expired",
       attacker: "System",
@@ -595,8 +547,9 @@ function applyDotTick(entity: Fighter | Minion, globalStatuses: AppliedStatus[])
       target: entity.name,
       damage: dmg,
       targetHpAfter: entity.hp,
-      description: `${entity.name} otrzymuje ${dmg} pkt obrażeń od ${status.effectDef.element} (${status.sourceName}).`,
-    });
+description: status.tickInfo
+  ? renderTemplate(status.tickInfo, { target: entity.name, damage: dmg, source: status.sourceName })
+  : `${entity.name} otrzymuje ${dmg} pkt obrażeń (${status.sourceName}).`,    });
   }
   return events;
 }
@@ -607,11 +560,15 @@ function applyHealChanceTick(entity: Fighter | Minion, globalStatuses: AppliedSt
     if (status.effectDef.type !== "heal_chance") continue;
     const chance = status.effectDef.healChance ?? 0;
     // Użyj resolvedEffect (wylosowanego przy nakładaniu) lub losuj z zakresu per tick
-    const amount = status.resolvedEffect ?? resolveRange(
-      status.effectDef.minHealAmount,
-      status.effectDef.maxHealAmount,
-      status.effectDef.healAmount ?? 0
-    );
+const baseAmount = status.resolvedEffect ?? resolveRange(
+  status.effectDef.minHealAmount,
+  status.effectDef.maxHealAmount,
+  status.effectDef.healAmount ?? 0
+);
+
+const amount = (status.healMode ?? status.effectDef.healMode) === "percent"
+  ? Math.floor(entity.maxHp * baseAmount / 100)
+  : baseAmount;
     if (amount <= 0 || Math.random() * 100 >= chance) continue;
     const healed = Math.min(amount, entity.maxHp - entity.hp);
     if (healed <= 0) continue;
@@ -623,8 +580,9 @@ function applyHealChanceTick(entity: Fighter | Minion, globalStatuses: AppliedSt
       healAmount: healed,
       damage: 0,
       targetHpAfter: entity.hp,
-      description: `${entity.name} zostaje uleczony o ${healed} HP (${status.sourceName}).`,
-    });
+description: status.tickInfo
+  ? renderTemplate(status.tickInfo, { target: entity.name, damage: healed, source: status.sourceName })
+  : `${entity.name} zostaje uleczony o ${healed} HP (${status.sourceName}).`,    });
   }
   return events;
 }
@@ -688,8 +646,9 @@ function applyDamageOnMove(
       target: entity.name,
       damage: dmg,
       targetHpAfter: entity.hp,
-      description: `${entity.name} poślizgnął się na (${status.sourceName}) i otrzymał ${dmg} pkt obrażeń.`,
-    });
+description: status.tickInfo
+  ? renderTemplate(status.tickInfo, { target: entity.name, damage: dmg, source: status.sourceName })
+  : `${entity.name} otrzymuje ${dmg} pkt obrażeń (${status.sourceName}).`,    });
   }
   return events;
 }
@@ -727,7 +686,8 @@ function processStunStatuses(
       const spellMeta = spellDescAltMap.get(status.sourceName);
       const rawDescAlt = statusDescAlt ?? spellMeta?.descAlt ?? null;
       const stunDescAlt = rawDescAlt
-        ? renderTemplate(rawDescAlt, "?", fighter.name, 0).replace(/\{duration\}/g, duration.toString())
+        ? renderTemplate(rawDescAlt, { attacker: "?", target: fighter.name, damage: 0, duration: String(duration) })
+
         : null;
       const stunDescription = stunDescAlt
         ?? `${fighter.name} zostaje ogłuszony przez ${status.sourceName} na ${duration} tur!`;
@@ -1313,7 +1273,7 @@ export function simulateBattle(
 
     const hasNonStunStatus = spell.statusEffectDefs.some(d => d.type !== "stun");
     const spellDescription = (spell.descAlt && hasNonStunStatus)
-      ? renderTemplate(spell.descAlt, actor.name, primaryTarget?.name ?? "—", dmg)
+      ? renderTemplate(spell.descAlt, { attacker: actor.name, target: primaryTarget?.name ?? "—", damage: dmg })
       : formatSpellDescription(spell, actor.name, primaryTarget?.name ?? "—", poolLabel, isActive, dmg);
 
     events.push({
@@ -1357,14 +1317,16 @@ export function simulateBattle(
             // clean nakładany grupowo — wykonaj od razu
             applyStatusToTarget(t, def, spell.name, spell.endInfo);
           } else {
-            t.appliedStatuses.push({
-              effectDef:    def,
-              sourceName:   spell.name,
-              turnsLeft:    def.duration,
-              stunTurnsLeft: def.type === "stun" ? 0 : undefined,
-              endInfo:      spell.endInfo ?? null,
-              resolvedEffect,
-            });
+t.appliedStatuses.push({
+  effectDef:    def,
+  sourceName:   spell.name,
+  turnsLeft:    def.duration,
+  stunTurnsLeft: def.type === "stun" ? 0 : undefined,
+  applyInfo:    def.applyInfo ?? null,
+  tickInfo:     def.tickInfo ?? null,
+  endInfo:      def.endInfo ?? spell.endInfo ?? null,
+  resolvedEffect,
+});
           }
         }
         if (def.target === "all" && def.type !== "clean") {
@@ -1468,8 +1430,9 @@ export function simulateBattle(
         statusName: s.effectDef.type,
         damage: 0,
         targetHpAfter: 0,
-        description: `Globalny efekt "${s.effectDef.type}" (${s.sourceName}) wygasł.`,
-      });
+description: s.endInfo
+  ? renderTemplate(s.endInfo, { source: s.sourceName })
+  : `Efekt "${s.sourceName}" wygasł.`,      });
     }
 
     log.push({
