@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Item" ADD COLUMN     "bonusElementPower" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "reqElementPower" INTEGER NOT NULL DEFAULT 0;

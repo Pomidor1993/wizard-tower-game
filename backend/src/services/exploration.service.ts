@@ -11,7 +11,7 @@ import {
 } from "../data/minor-entities.js";
 import { buildEntityFighter } from "./pve-engine.js";
 import { recordSpellbookEntries } from "./spellbook.service.js";
-import { simulateBattle, buildFighter } from "./combat.service.js";
+import { simulateBattle, buildFighter, Fighter } from "./combat.service.js";
 
 // ── KONFIGURACJA ──────────────────────────────────────────────────────────────
 
@@ -232,13 +232,29 @@ async function resolveEncounter(characterId: number, locationLevel: number): Pro
   }
 
   // 3. Zbuduj fightera gracza
+  console.log("build player");
   const playerFighter = await buildFighter(characterId);
 
   // 4. Zbuduj fightera bytu
+  console.log("build entity");
   const entityFighter = buildEntityFighter(entity);
 
+console.log("before battle");
+
+
   // 5. Symuluj walkę
-  const battleResult = simulateBattle([playerFighter], [entityFighter]);
+  console.log("before simulate");
+
+  const battleResult = simulateBattle([playerFighter], [entityFighter as unknown as Fighter]);
+
+console.log("after battle");
+console.log("battle log size:", battleResult.log.length);
+
+console.log(
+  "battle json size MB:",
+  JSON.stringify(battleResult.log).length / 1024 / 1024
+);
+
 
 const playerCastSpellIds = battleResult.castSpellsByFighter.get(playerFighter.name) ?? [];
 await recordSpellbookEntries(characterId, playerCastSpellIds, "battle_cast");

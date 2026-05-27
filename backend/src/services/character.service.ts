@@ -8,15 +8,7 @@ const UPGRADEABLE_STATS = [
   "endurance",
   "resistance",
   "initiative",
-
-  "fireMagic",
-  "waterMagic",
-  "earthMagic",
-  "airMagic",
-  "lifeMagic",
-  "deathMagic",
-  "chaosMagic",
-  "energyMagic",
+  "elementPower",
 ] as const;
 
 type UpgradeableStat = typeof UPGRADEABLE_STATS[number];
@@ -66,15 +58,7 @@ export async function upgradeStat(userId: number, stat: string) {
       endurance: true,
       resistance: true,
       initiative: true,
-      fireMagic: true,
-      waterMagic: true,
-      earthMagic: true,
-      airMagic: true,
-      lifeMagic: true,
-      deathMagic: true,
-      chaosMagic: true,
-      energyMagic: true,
-
+      elementPower: true,
     },
   });
 
@@ -86,6 +70,63 @@ export async function upgradeStat(userId: number, stat: string) {
     nextUpgradeCost: calculateUpgradeCost(currentLevel + 1),
     stats: updated,
   };
+}
+
+export async function upgradeElement(
+  userId: number,
+  element: string
+) {
+
+  const character = await prisma.character.findUnique({
+    where: { userId },
+  });
+
+  if (!character) {
+    throw new Error("Postać nie istnieje");
+  }
+
+  const PAIRS: Record<string, [keyof typeof character, keyof typeof character]> = {
+    fireMagic:   ["fireMagic", "waterMagic"],
+    waterMagic:  ["fireMagic", "waterMagic"],
+
+    earthMagic: ["earthMagic", "airMagic"],
+    airMagic:   ["earthMagic", "airMagic"],
+
+    energyMagic: ["energyMagic", "chaosMagic"],
+    chaosMagic:  ["energyMagic", "chaosMagic"],
+
+    lifeMagic:  ["lifeMagic", "deathMagic"],
+    deathMagic: ["lifeMagic", "deathMagic"],
+  };
+
+  const pair = PAIRS[element];
+
+  if (!pair) {
+    throw new Error("Nieprawidłowy żywioł");
+  }
+
+  const [left, right] = pair;
+
+  const currentTotal =
+    Number(character[left]) +
+    Number(character[right]);
+
+  if (currentTotal >= character.elementPower) {
+    throw new Error(
+      "W tej parze rozdano już wszystkie punkty."
+    );
+  }
+
+  await prisma.character.update({
+    where: { userId },
+    data: {
+      [element]: {
+        increment: 1,
+      },
+    },
+  });
+
+  return { success: true };
 }
 
 // ── PODGLĄD KOSZTÓW ──────────────────────────────────
@@ -100,14 +141,7 @@ export async function getUpgradeCosts(userId: number) {
       endurance: true,
       resistance: true,
       initiative: true,
-      fireMagic: true,
-      waterMagic: true,
-      earthMagic: true,
-      airMagic: true,
-      lifeMagic: true,
-      deathMagic: true,
-      chaosMagic: true,
-      energyMagic: true,
+      elementPower: true,
     },
   });
 
@@ -123,4 +157,50 @@ export async function getUpgradeCosts(userId: number) {
   }));
 
   return { skillPoints, costs };
+}
+// Pary żywiołów — suma każdej pary musi być <= elementPower
+const ELEMENT_PAIRS: [string, string][] = [
+  ["fireMagic",  "waterMagic"],
+  ["earthMagic", "airMagic"],
+  ["chaosMagic", "energyMagic"],
+  ["lifeMagic",  "deathMagic"],
+];
+
+export async function distributeElements(
+  userId: number,
+  distribution: Partial<Record<string, number>>
+): Promise<void> {
+  const character = await prisma.character.findUnique({ where: { userId } });
+  if (!character) throw new Error("Postać nie znaleziona");
+
+  const fields = [
+    "fireMagic","waterMagic","earthMagic","airMagic",
+    "lifeMagic","deathMagic","chaosMagic","energyMagic",
+  ];
+
+  // Walidacja — tylko znane pola
+  for (const key of Object.keys(distribution)) {
+    if (!fields.includes(key)) throw new Error(`Nieznany żywioł: ${key}`);
+  }
+
+  // Walidacja — każda wartość >= 0
+  for (const [key, val] of Object.entries(distribution)) {
+    if ((val ?? 0) < 0) throw new Error(`Wartość ${key} nie może być ujemna`);
+  }
+
+  // Walidacja — suma każdej pary <= elementPower
+  for (const [a, b] of ELEMENT_PAIRS) {
+    const valA = distribution[a] ?? (character[a as keyof typeof character] as number);
+    const valB = distribution[b] ?? (character[b as keyof typeof character] as number);
+    if (valA + valB > character.elementPower) {
+      throw new Error(
+        `Suma ${a} + ${b} (${valA + valB}) przekracza Moc Żywiołów (${character.elementPower})`
+      );
+    }
+  }
+
+  await prisma.character.update({
+    where: { id: character.id },
+    data: distribution as any,
+  });
 }

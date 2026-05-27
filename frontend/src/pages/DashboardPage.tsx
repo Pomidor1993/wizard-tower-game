@@ -502,6 +502,7 @@ function ChaosVaultModal({
 
 // ── LEWA KOLUMNA — statystyki postaci ───────────────
 
+
 function StatRow({ cost, onRefresh }: { cost: any; onRefresh: () => void }) {
   const [loading, setLoading] = useState(false);
 
@@ -1102,25 +1103,172 @@ function EquipmentView({ onRefresh, onDataLoaded, character }: {
 
 // ── TRENING ──────────────────────────────────────────
 
-function TrainingView({ upgradeCosts, onRefresh }: { upgradeCosts: any; onRefresh: () => void }) {
+function TrainingView({
+  upgradeCosts,
+  onRefresh,
+  effectiveStats,
+  upgradeElement,
+}: {
+  upgradeCosts: any;
+  onRefresh: () => void;
+  effectiveStats: any;
+  upgradeElement: (element: string) => Promise<void>;
+}) {
+
+  const stats = effectiveStats?.effective ?? {};
+
+  const ELEMENTS = [
+    {
+      left: "Ogień",
+      leftKey: "fireMagic",
+      right: "Woda",
+      rightKey: "waterMagic",
+    },
+    {
+      left: "Ziemia",
+      leftKey: "earthMagic",
+      right: "Powietrze",
+      rightKey: "airMagic",
+    },
+    {
+      left: "Harmonia",
+      leftKey: "energyMagic",
+      right: "Chaos",
+      rightKey: "chaosMagic",
+    },
+    {
+      left: "Życie",
+      leftKey: "lifeMagic",
+      right: "Śmierć",
+      rightKey: "deathMagic",
+    },
+  ];
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+
+      {/* GŁÓWNY TRENING */}
       <Card>
-        <SectionTitle>Trening statystyk</SectionTitle>
-        <p className="text-xs text-gray-500 mb-3">
-          Wydaj punkty umiejętności na rozwinięcie statystyk bazowych.
-        </p>
-        <div className="mb-4 p-3 bg-gray-900 rounded-lg text-white flex justify-between items-center">
-          <p className="text-xs text-gray-400">Dostępne punkty umiejętności</p>
-          <p className="text-xl font-bold">{upgradeCosts.skillPoints}</p>
+
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <SectionTitle>Trening statystyk</SectionTitle>
+
+            <p className="text-xs text-gray-500 mt-1">
+              Rozwijaj podstawowe cechy swojego maga.
+            </p>
+          </div>
+
+          <div className="px-4 py-3 rounded-xl bg-gray-900 text-white text-right min-w-[180px]">
+            <p className="text-xs text-gray-400">
+              Dostępne punkty
+            </p>
+
+            <p className="text-2xl font-bold">
+              {upgradeCosts.skillPoints}
+            </p>
+          </div>
         </div>
-        <div>
+
+        <div className="space-y-2">
           {upgradeCosts.costs.map((cost: any) => (
-            <StatRow key={cost.stat} cost={cost} onRefresh={onRefresh} />
+            <StatRow
+              key={cost.stat}
+              cost={cost}
+              onRefresh={onRefresh}
+            />
           ))}
         </div>
       </Card>
-      <Placeholder title="Wizualizacja postaci w trakcie treningu" />
+
+      {/* ŻYWIOŁY */}
+      <Card>
+
+        <div className="flex items-center justify-between mb-5">
+
+          <div>
+            <SectionTitle>Żywioły</SectionTitle>
+
+            <p className="text-xs text-gray-500 mt-1">
+              Punkty w parze żywiołów muszą sumować się do Mocy Żywiołów.
+            </p>
+          </div>
+
+          <div className="px-4 py-3 rounded-xl bg-indigo-50 border border-indigo-100 text-right min-w-[180px]">
+            <p className="text-xs text-indigo-500">
+              Moc Żywiołów
+            </p>
+
+            <p className="text-2xl font-bold text-indigo-900">
+              {stats.elementPower ?? 0}
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+
+          {ELEMENTS.map(pair => {
+
+            const leftValue = stats[pair.leftKey] ?? 0;
+            const rightValue = stats[pair.rightKey] ?? 0;
+
+            return (
+              <div
+                key={pair.leftKey}
+                className="p-4 rounded-xl border border-gray-100 bg-gray-50"
+              >
+
+                <div className="grid grid-cols-[1fr_auto_1fr] gap-4 items-center">
+
+                  {/* LEWY */}
+                  <div className="text-center">
+                    <p className="text-xs uppercase tracking-wide text-gray-500 mb-1">
+                      {pair.left}
+                    </p>
+
+                    <p className="text-2xl font-bold text-gray-900">
+                      {leftValue}
+                    </p>
+
+                    <button
+                      onClick={() => upgradeElement(pair.leftKey)}
+                      className="mt-2 text-xs px-3 py-1 rounded-lg border border-gray-200 hover:bg-white"
+                    >
+                      +1
+                    </button>
+                  </div>
+
+                  {/* ŚRODEK */}
+                  <div className="text-xs text-gray-400 font-medium">
+                    VS
+                  </div>
+
+                  {/* PRAWY */}
+                  <div className="text-center">
+                    <p className="text-xs uppercase tracking-wide text-gray-500 mb-1">
+                      {pair.right}
+                    </p>
+
+                    <p className="text-2xl font-bold text-gray-900">
+                      {rightValue}
+                    </p>
+
+                    <button
+                      onClick={() => upgradeElement(pair.rightKey)}
+                      className="mt-2 text-xs px-3 py-1 rounded-lg border border-gray-200 hover:bg-white"
+                    >
+                      +1
+                    </button>
+                  </div>
+
+                </div>
+              </div>
+            );
+          })}
+
+        </div>
+      </Card>
+
     </div>
   );
 }
@@ -1177,6 +1325,15 @@ export default function DashboardPage() {
     <LeftPanel character={character} effectiveStats={effectiveStats} upgradeCosts={upgradeCosts} />
   ) : null;
 
+  async function upgradeElement(element: string) {
+
+  await api.post(
+    "/character/upgrade-element",
+    { element }
+  );
+
+  fetchAll();
+}
   function renderContent() {
     switch (page) {
       case "overview":
@@ -1212,10 +1369,21 @@ export default function DashboardPage() {
 
       case "training":
         return (
-          <PageLayout
-            left={leftPanel}
-            right={upgradeCosts ? <TrainingView upgradeCosts={upgradeCosts} onRefresh={fetchAll} /> : null}
-          />
+<PageLayout
+  left={
+    <Placeholder title="Wizualizacja postaci w trakcie treningu" />
+  }
+  right={
+    upgradeCosts ? (
+<TrainingView
+  upgradeCosts={upgradeCosts}
+  onRefresh={fetchAll}
+  effectiveStats={effectiveStats}
+  upgradeElement={upgradeElement}
+/>
+    ) : null
+  }
+/>
         );
 
       case "combat":

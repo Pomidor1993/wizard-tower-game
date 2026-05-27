@@ -52,6 +52,8 @@ export interface PvEFighter {
   resistance: number;
   initiative: number;
   power: number;
+  intelligence: number;
+  elementPower: number;
   fireMagic: number;
   waterMagic: number;
   earthMagic: number;
@@ -66,6 +68,7 @@ export interface PvEFighter {
   minions: never[];
   appliedStatuses: AppliedStatus[];
   stunTurnsLeft: number;
+  isPlayer: boolean;
 }
 
 // ── KONWERSJA ATAKU BYTU → BattleSpell ──────────────────────────────────────
@@ -192,6 +195,8 @@ export function buildEntityFighter(entity: MinorEntityDef): PvEFighter {
     resistance: entity.resistance,
     initiative: entity.initiative,
     power: entity.power,
+    intelligence: entity.intelligence, 
+    elementPower: entity.elementPower,
     fireMagic: entity.fireMagic,
     waterMagic: entity.waterMagic,
     earthMagic: entity.earthMagic,
@@ -206,5 +211,6 @@ export function buildEntityFighter(entity: MinorEntityDef): PvEFighter {
     minions: [],
     appliedStatuses: [],
     stunTurnsLeft: 0,
+    isPlayer: false,
   };
 }

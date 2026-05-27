@@ -37,3 +37,13 @@ app.get("/api/health", (req, res) => {
 app.listen(PORT, () => {
   console.log(`✦ Wizard Tower backend running on http://localhost:${PORT}`);
 });
+
+setInterval(() => {
+  const used = process.memoryUsage();
+
+  console.log({
+    rss: Math.round(used.rss / 1024 / 1024) + " MB",
+    heapTotal: Math.round(used.heapTotal / 1024 / 1024) + " MB",
+    heapUsed: Math.round(used.heapUsed / 1024 / 1024) + " MB",
+  });
+}, 5000);

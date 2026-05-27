@@ -62,6 +62,8 @@ export interface MinorEntityDef {
   resistance: number;
   initiative: number;
   power: number;
+  intelligence: number;
+  elementPower: number;
   fireMagic: number;
   waterMagic: number;
   earthMagic: number;
@@ -124,6 +126,8 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     resistance: 0,
     initiative: 6,
     power: 1,
+    intelligence: 0,
+    elementPower: 0,
     fireMagic: 0, waterMagic: 0, earthMagic: 0, airMagic: 3,
     lifeMagic: 0, deathMagic: 0, chaosMagic: 0, energyMagic: 0,
     attacks: [
@@ -166,7 +170,10 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     hp: 14,
     resistance: 1,
     initiative: 5,
+  
     power: 2,
+    intelligence: 0,
+    elementPower: 0,
     fireMagic: 0, waterMagic: 0, earthMagic: 0, airMagic: 5,
     lifeMagic: 0, deathMagic: 0, chaosMagic: 0, energyMagic: 0,
     attacks: [
@@ -218,6 +225,8 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     resistance: 0,
     initiative: 8,
     power: 2,
+    intelligence: 0,
+    elementPower: 0,
     fireMagic: 0, waterMagic: 0, earthMagic: 0, airMagic: 4,
     lifeMagic: 0, deathMagic: 0, chaosMagic: 0, energyMagic: 2,
     attacks: [
@@ -278,6 +287,8 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     resistance: 3,
     initiative: 4,
     power: 4,
+    intelligence: 0,
+    elementPower: 0,
     fireMagic: 0, waterMagic: 0, earthMagic: 0, airMagic: 8,
     lifeMagic: 0, deathMagic: 0, chaosMagic: 0, energyMagic: 0,
     attacks: [
@@ -334,6 +345,8 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     resistance: 2,
     initiative: 3,
     power: 1,
+    intelligence: 0,
+    elementPower: 0,
     fireMagic: 0, waterMagic: 0, earthMagic: 3, airMagic: 0,
     lifeMagic: 0, deathMagic: 0, chaosMagic: 0, energyMagic: 0,
     attacks: [
@@ -371,6 +384,8 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     resistance: 5,
     initiative: 1,
     power: 3,
+    intelligence: 0,
+    elementPower: 0,
     fireMagic: 0, waterMagic: 0, earthMagic: 5, airMagic: 0,
     lifeMagic: 0, deathMagic: 0, chaosMagic: 0, energyMagic: 0,
     attacks: [
@@ -416,6 +431,8 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     resistance: 4,
     initiative: 2,
     power: 5,
+    intelligence: 0,
+    elementPower: 0,
     fireMagic: 0, waterMagic: 0, earthMagic: 4, airMagic: 0,
     lifeMagic: 2, deathMagic: 0, chaosMagic: 0, energyMagic: 0,
     attacks: [
@@ -468,6 +485,8 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     resistance: 3,
     initiative: 4,
     power: 3,
+    intelligence: 0,
+    elementPower: 0,
     fireMagic: 0, waterMagic: 0, earthMagic: 6, airMagic: 0,
     lifeMagic: 0, deathMagic: 0, chaosMagic: 0, energyMagic: 0,
     attacks: [
@@ -532,6 +551,8 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     resistance: 0,
     initiative: 5,
     power: 1,
+    intelligence: 0,
+    elementPower: 0,
     fireMagic: 0, waterMagic: 3, earthMagic: 0, airMagic: 0,
     lifeMagic: 0, deathMagic: 0, chaosMagic: 0, energyMagic: 0,
     attacks: [
@@ -576,6 +597,8 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     resistance: 1,
     initiative: 5,
     power: 2,
+    intelligence: 0,
+    elementPower: 0,
     fireMagic: 0, waterMagic: 5, earthMagic: 0, airMagic: 0,
     lifeMagic: 2, deathMagic: 0, chaosMagic: 0, energyMagic: 0,
     attacks: [
@@ -636,6 +659,8 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     resistance: 3,
     initiative: 2,
     power: 4,
+    intelligence: 0,
+    elementPower: 0,
     fireMagic: 0, waterMagic: 7, earthMagic: 0, airMagic: 0,
     lifeMagic: 0, deathMagic: 0, chaosMagic: 0, energyMagic: 2,
     attacks: [
@@ -689,6 +714,8 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     resistance: 1,
     initiative: 6,
     power: 2,
+    intelligence: 0,
+    elementPower: 0,
     fireMagic: 0, waterMagic: 4, earthMagic: 0, airMagic: 1,
     lifeMagic: 0, deathMagic: 0, chaosMagic: 0, energyMagic: 0,
     attacks: [
@@ -751,6 +778,8 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     resistance: 0,
     initiative: 7,
     power: 1,
+    intelligence: 0,
+    elementPower: 0,
     fireMagic: 4, waterMagic: 0, earthMagic: 0, airMagic: 0,
     lifeMagic: 0, deathMagic: 0, chaosMagic: 0, energyMagic: 0,
     attacks: [
@@ -795,6 +824,8 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     resistance: 0,
     initiative: 4,
     power: 4,
+    intelligence: 0,
+    elementPower: 0,
     fireMagic: 6, waterMagic: 0, earthMagic: 0, airMagic: 0,
     lifeMagic: 0, deathMagic: 0, chaosMagic: 0, energyMagic: 0,
     attacks: [
@@ -847,6 +878,8 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     resistance: 2,
     initiative: 5,
     power: 5,
+    intelligence: 0,
+    elementPower: 0,
     fireMagic: 7, waterMagic: 0, earthMagic: 0, airMagic: 0,
     lifeMagic: 0, deathMagic: 0, chaosMagic: 0, energyMagic: 0,
     attacks: [
@@ -899,6 +932,8 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     resistance: 1,
     initiative: 6,
     power: 4,
+    intelligence: 0,
+    elementPower: 0,
     fireMagic: 6, waterMagic: 0, earthMagic: 0, airMagic: 2,
     lifeMagic: 3, deathMagic: 0, chaosMagic: 0, energyMagic: 0,
     attacks: [
@@ -962,6 +997,8 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     resistance: 1,
     initiative: 1,
     power: 1,
+    intelligence: 0,
+    elementPower: 0,
     fireMagic: 0, waterMagic: 0, earthMagic: 2, airMagic: 0,
     lifeMagic: 4, deathMagic: 0, chaosMagic: 0, energyMagic: 0,
     attacks: [
@@ -1022,6 +1059,8 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     resistance: 2,
     initiative: 4,
     power: 3,
+    intelligence: 0,
+    elementPower: 0,
     fireMagic: 0, waterMagic: 2, earthMagic: 2, airMagic: 0,
     lifeMagic: 6, deathMagic: 0, chaosMagic: 0, energyMagic: 0,
     attacks: [
@@ -1081,6 +1120,8 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     resistance: 4,
     initiative: 3,
     power: 5,
+    intelligence: 0,
+    elementPower: 0,
     fireMagic: 0, waterMagic: 0, earthMagic: 3, airMagic: 0,
     lifeMagic: 6, deathMagic: 0, chaosMagic: 0, energyMagic: 0,
     attacks: [
@@ -1141,6 +1182,8 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     resistance: 2,
     initiative: 5,
     power: 3,
+    intelligence: 0,
+    elementPower: 0,
     fireMagic: 0, waterMagic: 1, earthMagic: 2, airMagic: 1,
     lifeMagic: 7, deathMagic: 0, chaosMagic: 0, energyMagic: 0,
     attacks: [
@@ -1210,6 +1253,8 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     resistance: 0,
     initiative: 8,
     power: 2,
+    intelligence: 0,
+    elementPower: 0,
     fireMagic: 0, waterMagic: 0, earthMagic: 0, airMagic: 0,
     lifeMagic: 0, deathMagic: 0, chaosMagic: 0, energyMagic: 5,
     attacks: [
@@ -1247,6 +1292,8 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     resistance: 2,
     initiative: 5,
     power: 4,
+    intelligence: 0,
+    elementPower: 0,
     fireMagic: 0, waterMagic: 0, earthMagic: 0, airMagic: 0,
     lifeMagic: 0, deathMagic: 0, chaosMagic: 0, energyMagic: 7,
     attacks: [
@@ -1299,6 +1346,8 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     resistance: 1,
     initiative: 6,
     power: 5,
+    intelligence: 0,
+    elementPower: 0,
     fireMagic: 0, waterMagic: 0, earthMagic: 0, airMagic: 3,
     lifeMagic: 0, deathMagic: 0, chaosMagic: 0, energyMagic: 8,
     attacks: [
@@ -1366,6 +1415,8 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     resistance: 1,
     initiative: 7,
     power: 3,
+    intelligence: 0,
+    elementPower: 0,
     fireMagic: 0, waterMagic: 0, earthMagic: 0, airMagic: 0,
     lifeMagic: 0, deathMagic: 2, chaosMagic: 0, energyMagic: 6,
     attacks: [
@@ -1429,6 +1480,8 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     resistance: 1,
     initiative: 5,
     power: 2,
+    intelligence: 0,
+    elementPower: 0,
     fireMagic: 0, waterMagic: 0, earthMagic: 0, airMagic: 0,
     lifeMagic: 0, deathMagic: 5, chaosMagic: 0, energyMagic: 0,
     attacks: [
@@ -1487,6 +1540,8 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     resistance: 0,
     initiative: 6,
     power: 3,
+    intelligence: 0,
+    elementPower: 0,
     fireMagic: 0, waterMagic: 0, earthMagic: 0, airMagic: 1,
     lifeMagic: 0, deathMagic: 6, chaosMagic: 0, energyMagic: 0,
     attacks: [
@@ -1553,6 +1608,8 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     resistance: 2,
     initiative: 3,
     power: 4,
+    intelligence: 0,
+    elementPower: 0,
     fireMagic: 0, waterMagic: 0, earthMagic: 0, airMagic: 0,
     lifeMagic: 0, deathMagic: 8, chaosMagic: 2, energyMagic: 0,
     attacks: [
@@ -1613,6 +1670,8 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     resistance: 0,
     initiative: 7,
     power: 2,
+    intelligence: 0,
+    elementPower: 0,
     fireMagic: 0, waterMagic: 0, earthMagic: 0, airMagic: 0,
     lifeMagic: 0, deathMagic: 4, chaosMagic: 1, energyMagic: 0,
     attacks: [

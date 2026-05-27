@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import prisma from "../lib/prisma.js";
-import { upgradeStat, getUpgradeCosts } from "../services/character.service.js";
+import { upgradeStat, getUpgradeCosts, upgradeElement } from "../services/character.service.js";
 
 export async function getMyCharacter(req: Request, res: Response) {
   const character = await prisma.character.findUnique({
@@ -43,6 +43,31 @@ export async function getUpgradeCostsEndpoint(req: Request, res: Response) {
   }
 }
 
+export async function upgradeElementEndpoint(
+  req: Request,
+  res: Response
+) {
+
+  try {
+
+    const { element } = req.body;
+
+    const result = await upgradeElement(
+      req.userId!,
+      element
+    );
+
+    res.json(result);
+
+  } catch (e: any) {
+
+    res.status(400).json({
+      error: e.message
+    });
+
+  }
+}
+
 export async function getEffectiveStats(req: Request, res: Response) {
   try {
     const character = await prisma.character.findUnique({
@@ -64,7 +89,7 @@ export async function getEffectiveStats(req: Request, res: Response) {
     // Pobierz bonusy z przedmiotów
     let bonuses = {
       knowledge: 0, intelligence: 0, power: 0,
-      endurance: 0, resistance: 0, initiative: 0,
+      endurance: 0, resistance: 0, initiative: 0, elementPower: 0,
       fireMagic: 0, earthMagic: 0, airMagic: 0,
       waterMagic: 0, chaosMagic: 0, energyMagic: 0, 
       lifeMagic: 0, deathMagic: 0,
@@ -79,6 +104,7 @@ export async function getEffectiveStats(req: Request, res: Response) {
         bonuses.endurance  += item.bonusEndurance;
         bonuses.resistance += item.bonusResistance;
         bonuses.initiative += item.bonusInitiative;
+        bonuses.elementPower += item.bonusElementPower;
         bonuses.fireMagic += item.bonusFireMagic;
         bonuses.waterMagic += item.bonusWaterMagic;
         bonuses.earthMagic += item.bonusEarthMagic;
@@ -99,6 +125,7 @@ export async function getEffectiveStats(req: Request, res: Response) {
         endurance:    character.endurance,
         resistance:   character.resistance,
         initiative:   character.initiative,
+        elementPower: character.elementPower,
         fireMagic:    character.fireMagic,
         waterMagic:   character.waterMagic,
         earthMagic:   character.earthMagic,
@@ -116,6 +143,7 @@ export async function getEffectiveStats(req: Request, res: Response) {
         endurance:    character.endurance    + bonuses.endurance,
         resistance:   character.resistance   + bonuses.resistance,
         initiative:   character.initiative   + bonuses.initiative,
+        elementPower: character.elementPower + bonuses.elementPower,
         fireMagic:    character.fireMagic    + bonuses.fireMagic,
         waterMagic:   character.waterMagic   + bonuses.waterMagic,
         earthMagic:   character.earthMagic   + bonuses.earthMagic,
