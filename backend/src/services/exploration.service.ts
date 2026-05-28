@@ -12,6 +12,7 @@ import {
 import { buildEntityFighter } from "./pve-engine.js";
 import { recordSpellbookEntries } from "./spellbook.service.js";
 import { simulateBattle, buildFighter, Fighter } from "./combat.service.js";
+import { alignmentService } from "./alignment/alignment-service.js";
 
 // ── KONFIGURACJA ──────────────────────────────────────────────────────────────
 
@@ -265,6 +266,8 @@ await recordSpellbookEntries(characterId, playerCastSpellIds, "battle_cast");
 
   // 7. Zapisz encounter w historii (opcjonalnie — tabela PveEncounter)
   await prisma.pveEncounter.create({
+
+    
     data: {
       characterId,
       locationLevel,
@@ -276,6 +279,38 @@ await recordSpellbookEntries(characterId, playerCastSpellIds, "battle_cast");
       summary: battleResult.summary,
     },
   });
+
+  // ── ALIGNMENT TRIGGERS ───────────────────────────
+
+  if (playerWon) {
+
+    const totalKills = await prisma.pveEncounter.count({
+      where: {
+        characterId,
+        playerWon: true,
+      },
+    });
+
+    await alignmentService.handleGameEvent(
+      characterId,
+      "FIRST_ENEMY_KILLED",
+      {
+        enemyCount: totalKills,
+      }
+    );
+
+    await alignmentService.handleGameEvent(
+      characterId,
+      "TEN_ENEMIES_KILLED",
+      {
+        enemyCount: totalKills,
+      }
+    );
+
+if (playerWon && entity.isBoss) {
+  await alignmentService.handleGameEvent(characterId, "FIRST_PVE_BOSS", { isBoss: true });
+}
+  }
 
   return {
     fought: true,

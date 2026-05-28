@@ -3,6 +3,7 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import prisma from "../lib/prisma.js";
+import { alignmentTriggerService } from "./alignment/alignment-trigger.service.js";
 
 export type SpellbookSource = "study" | "battle_cast" | "school" | "basic_purchase";
 
@@ -19,6 +20,18 @@ export async function recordSpellbookEntry(
       update: {},
       create: { characterId, spellId, source },
     });
+
+    const spellCount = await prisma.spellbookEntry.count({
+      where: { characterId }
+    });
+
+    await alignmentTriggerService.checkTrigger(
+      characterId,
+      "SPELLS_100_DISCOVERED",
+      { spellCount }
+    );
+    // ──────
+
   } catch (err) {
     console.error(`[spellbook] Failed to record entry char=${characterId} spell=${spellId}:`, err);
   }
@@ -115,14 +128,9 @@ export async function getSpellbook(userId: number): Promise<SpellbookSpell[]> {
         special:       spell.special ?? undefined,
         isDirectional: spell.isDirectional,
         statusEffects: spell.statusEffects,
-        reqFireMagic:  spell.reqFireMagic,
-        reqWaterMagic: spell.reqWaterMagic,
-        reqEarthMagic: spell.reqEarthMagic,
-        reqAirMagic:   spell.reqAirMagic,
-        reqChaosMagic: spell.reqChaosMagic,
-        reqLifeMagic:  spell.reqLifeMagic,
-        reqDeathMagic: spell.reqDeathMagic,
-        reqEnergyMagic: spell.reqEnergyMagic,
+        reqFireMagic:  spell.reqElementalMagic,
+        reqWaterMagic: spell.reqAstralMagic,
+        reqEarthMagic: spell.reqBloodMagic,
         summonCount:   spell.summonCount,
         summonElement: spell.summonElement,
         discoveredAt:  entry?.discoveredAt,
@@ -166,14 +174,9 @@ export async function learnBasicSpell(userId: number, spellId: number): Promise<
   if (alreadyOwned) throw new Error("Już posiadasz ten czar w bibliotece");
 
   const unmet = [
-    spell.reqFireMagic   > 0 && character.fireMagic   < spell.reqFireMagic   && `Ogień ${spell.reqFireMagic}`,
-    spell.reqWaterMagic  > 0 && character.waterMagic  < spell.reqWaterMagic  && `Woda ${spell.reqWaterMagic}`,
-    spell.reqEarthMagic  > 0 && character.earthMagic  < spell.reqEarthMagic  && `Ziemia ${spell.reqEarthMagic}`,
-    spell.reqAirMagic    > 0 && character.airMagic    < spell.reqAirMagic    && `Powietrze ${spell.reqAirMagic}`,
-    spell.reqChaosMagic  > 0 && character.chaosMagic  < spell.reqChaosMagic  && `Chaos ${spell.reqChaosMagic}`,
-    spell.reqLifeMagic   > 0 && character.lifeMagic   < spell.reqLifeMagic   && `Życie ${spell.reqLifeMagic}`,
-    spell.reqDeathMagic  > 0 && character.deathMagic  < spell.reqDeathMagic  && `Śmierć ${spell.reqDeathMagic}`,
-    spell.reqEnergyMagic > 0 && character.energyMagic < spell.reqEnergyMagic && `Energia ${spell.reqEnergyMagic}`,
+    spell.reqElementalMagic   > 0 && character.elementalMagic   < spell.reqElementalMagic   && `Ogień ${spell.reqElementalMagic}`,
+    spell.reqAstralMagic  > 0 && character.astralMagic  < spell.reqAstralMagic  && `Woda ${spell.reqAstralMagic}`,
+    spell.reqBloodMagic  > 0 && character.bloodMagic  < spell.reqBloodMagic  && `Ziemia ${spell.reqBloodMagic}`,
   ].filter(Boolean);
 
   if (unmet.length > 0) {

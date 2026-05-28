@@ -1,4 +1,5 @@
 import prisma from "../lib/prisma.js";
+import { alignmentTriggerService } from "./alignment/alignment-trigger.service.js";
 import { recordSpellbookEntry } from "./spellbook.service.js";
 
 // ── KONFIGURACJA AKCJI ───────────────────────────────
@@ -212,6 +213,23 @@ message: spellDestination === "library"
       data: { skillPoints: { increment: skillPointsEarned } },
     }),
   ]);
+
+  const studyLevelsDone = await prisma.characterAction.groupBy({
+    by: ["actionLevel"],
+    where: {
+      characterId: character.id,
+      actionType: "study",
+      status: "claimed",
+    },
+  });
+
+  const allLevelsDone = studyLevelsDone.length >= 5;
+
+  await alignmentTriggerService.checkTrigger(
+    character.id,
+    "CRAZY_STUDIES_ALL",
+    { allStudiesDone: allLevelsDone }
+  );
 
   return report;
 }

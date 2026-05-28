@@ -14,6 +14,7 @@ import {
   CleanMode,
 } from "../types/status-types.js";
 import { recordSpellbookEntries } from "./spellbook.service.js";
+import { alignmentTriggerService } from "./alignment/alignment-trigger.service.js";
 
 
 const DAILY_BATTLE_LIMIT = 5;
@@ -48,14 +49,9 @@ function pickPool(towerLevel: number): SpellPool {
 // LOSOWATOR — ±50% od wartości bazowej
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/**
- * Losuje wartość z zakresu [base * 0.5, base * 1.5].
- * Jeśli base === 0, zwraca 0.
- * Wynik jest zaokrąglany do liczby całkowitej, minimum 1 (chyba że base === 0).
- */
 function rollValue(base: number): number {
   if (base === 0) return 0;
-  const variance = Math.random() - 0.5; // -0.5 do +0.5
+  const variance = Math.random() - 0.5;
   return Math.max(1, Math.round(base * (1 + variance)));
 }
 
@@ -68,7 +64,6 @@ export type MinionTargetType = "randomEnemy" | "randomAlly" | "allEnemies" | "al
 interface BattleSpell {
   id: number;
   name: string;
-  // Jedna wartość bazowa — losowator ją modyfikuje przy rzucie
   damage: number;
   element: string;
   spellPool: SpellPool;
@@ -78,20 +73,14 @@ interface BattleSpell {
   special: string | null;
   descAlt:  string | null;
   endInfo:  string | null;
-  reqFireMagic:   number;
-  reqWaterMagic:  number;
-  reqEarthMagic:  number;
-  reqAirMagic:    number;
-  reqChaosMagic:  number;
-  reqLifeMagic:   number;
-  reqDeathMagic:  number;
-  reqEnergyMagic: number;
-  summonCount:     number;
-  // Jedna wartość bazowa dla każdej statystyki miniona — losowator modyfikuje przy tworzeniu
-  summonHp:        number;
-  summonDamage:    number;
+  reqElementalMagic: number;
+  reqAstralMagic:    number;
+  reqBloodMagic:     number;
+  summonCount:      number;
+  summonHp:         number;
+  summonDamage:     number;
   summonInitiative: number;
-  summonElement:   string | null;
+  summonElement:    string | null;
   summonTargetType: MinionTargetType | null;
 }
 
@@ -117,15 +106,9 @@ export interface Fighter {
   initiative: number;
   intelligence: number;
   power: number;
-  elementPower: number;
-  fireMagic:   number;
-  waterMagic:  number;
-  earthMagic:  number;
-  airMagic:    number;
-  chaosMagic:  number;
-  energyMagic: number;
-  lifeMagic:   number;
-  deathMagic:  number;
+  elementalMagic: number;
+  astralMagic:    number;
+  bloodMagic:     number;
   towerLevel:  number;
   activeSpells: BattleSpell[];
   spellPool:    BattleSpell[];
@@ -220,14 +203,9 @@ const POOL_LABELS: Record<SpellPool, string> = {
 
 function canUseSpell(spell: BattleSpell, fighter: Fighter, globalStatuses: AppliedStatus[]): boolean {
   return (
-    getEffectiveStat(fighter, "fireMagic",   globalStatuses) >= spell.reqFireMagic   &&
-    getEffectiveStat(fighter, "waterMagic",  globalStatuses) >= spell.reqWaterMagic  &&
-    getEffectiveStat(fighter, "earthMagic",  globalStatuses) >= spell.reqEarthMagic  &&
-    getEffectiveStat(fighter, "airMagic",    globalStatuses) >= spell.reqAirMagic    &&
-    getEffectiveStat(fighter, "chaosMagic",  globalStatuses) >= spell.reqChaosMagic  &&
-    getEffectiveStat(fighter, "lifeMagic",   globalStatuses) >= spell.reqLifeMagic   &&
-    getEffectiveStat(fighter, "deathMagic",  globalStatuses) >= spell.reqDeathMagic  &&
-    getEffectiveStat(fighter, "energyMagic", globalStatuses) >= spell.reqEnergyMagic
+    getEffectiveStat(fighter, "elementalMagic", globalStatuses) >= spell.reqElementalMagic &&
+    getEffectiveStat(fighter, "astralMagic",    globalStatuses) >= spell.reqAstralMagic    &&
+    getEffectiveStat(fighter, "bloodMagic",     globalStatuses) >= spell.reqBloodMagic
   );
 }
 
@@ -239,35 +217,17 @@ function requiresEnemyMinion(spell: BattleSpell): boolean {
   return spell.castEffectDefs.some(e => e.type === "dominate");
 }
 
+// Każda magia dodaje płaski bonus do obrażeń — po prostu suma wszystkich trzech
+// (możesz to później różnicować per element czaru jeśli zechcesz)
 function elementBonus(
   element: string,
   fighter: Fighter,
   globalStatuses: AppliedStatus[]
 ): number {
-
-  const fire  = getEffectiveStat(fighter, "fireMagic", globalStatuses);
-  const water = getEffectiveStat(fighter, "waterMagic", globalStatuses);
-
-  const earth = getEffectiveStat(fighter, "earthMagic", globalStatuses);
-  const air   = getEffectiveStat(fighter, "airMagic", globalStatuses);
-
-  const life  = getEffectiveStat(fighter, "lifeMagic", globalStatuses);
-  const death = getEffectiveStat(fighter, "deathMagic", globalStatuses);
-
-  const chaos  = getEffectiveStat(fighter, "chaosMagic", globalStatuses);
-  const energy = getEffectiveStat(fighter, "energyMagic", globalStatuses);
-
-  switch (element) {
-    case "fire":   return Math.max(0, fire - water);
-    case "water":  return Math.max(0, water - fire);
-    case "earth":  return Math.max(0, earth - air);
-    case "air":    return Math.max(0, air - earth);
-    case "life":   return Math.max(0, life - death);
-    case "death":  return Math.max(0, death - life);
-    case "chaos":  return Math.max(0, chaos - energy);
-    case "energy": return Math.max(0, energy - chaos);
-    default:       return 0;
-  }
+  const elemental = getEffectiveStat(fighter, "elementalMagic", globalStatuses);
+  const astral    = getEffectiveStat(fighter, "astralMagic",    globalStatuses);
+  const blood     = getEffectiveStat(fighter, "bloodMagic",     globalStatuses);
+  return elemental + astral + blood;
 }
 
 function pickRandomSpell(
@@ -300,8 +260,7 @@ function pickRandomSpell(
 // ── STAT BOOST ───────────────────────────────────────────────────────────────
 type FighterStatKey =
   | "power" | "initiative" | "resistance" | "intelligence"
-  | "fireMagic" | "waterMagic" | "earthMagic" | "airMagic"
-  | "chaosMagic" | "energyMagic" | "lifeMagic" | "deathMagic";
+  | "elementalMagic" | "astralMagic" | "bloodMagic";
 
 function getEffectiveStat(
   fighter: Fighter,
@@ -361,6 +320,7 @@ function scaleEffectValue(
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SEKCJA 4 — ZARZĄDZANIE STATUSAMI
+// (bez zmian — logika statusów nie zależy od systemu żywiołów)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function resolveStatusTargets(
@@ -587,6 +547,7 @@ function tickDownStatuses(entity: Fighter | Minion, events: TurnEvent[]): void {
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SEKCJA 5 — EFEKTY STATUSÓW (ticki)
+// (bez zmian)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function applyDotTick(entity: Fighter | Minion, globalStatuses: AppliedStatus[]): TurnEvent[] {
@@ -778,6 +739,7 @@ function filterVisible<T extends Fighter | Minion>(
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SEKCJA 6 — CAST EFFECTS
+// (bez zmian)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function executeCastEffects(
@@ -890,9 +852,6 @@ function executeCastEffects(
 // SEKCJA 7 — OBRAŻENIA
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/**
- * Losuje obrażenia czaru — bazowa wartość ±50%.
- */
 function rollSpellDamage(spell: BattleSpell): number {
   return rollValue(spell.damage);
 }
@@ -906,7 +865,7 @@ function calculateDamage(
   const baseDmg = rollSpellDamage(spell);
   if (baseDmg === 0) return 0;
 
-  const power    = getEffectiveStat(attacker, "power", globalStatuses);
+  const power     = getEffectiveStat(attacker, "power", globalStatuses);
   const elemMagic = elementBonus(spell.element, attacker, globalStatuses);
 
   const powerBonus = Math.floor(baseDmg * power / 100);
@@ -926,11 +885,9 @@ function calculateDamage(
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SEKCJA 8 — MINIONY
+// (bez zmian)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/**
- * Tworzy miniona — każda statystyka jest losowana ±50% od wartości bazowej czaru.
- */
 function createMinion(spell: BattleSpell, ownerSide: "sideA" | "sideB", index: number): Minion {
   const hp         = rollValue(spell.summonHp);
   const damage     = rollValue(spell.summonDamage);
@@ -1037,6 +994,7 @@ function minionDeathEvent(minion: Minion): TurnEvent {
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SEKCJA 9 — OPIS CZARU W LOGU
+// (bez zmian)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function formatSpellDescription(
@@ -1082,13 +1040,14 @@ export async function buildFighter(characterId: number): Promise<Fighter> {
   });
   if (!character) throw new Error(`Postać ${characterId} nie znaleziona`);
 
-  let bonusEndurance = 0,
-    bonusInitiative = 0,
-    bonusPower = 0,
-    bonusResistance = 0,
-    bonusIntelligence = 0;
-  let bonusFireMagic = 0, bonusWaterMagic = 0, bonusEarthMagic = 0, bonusAirMagic = 0;
-  let bonusChaosMagic = 0, bonusEnergyMagic = 0, bonusLifeMagic = 0, bonusDeathMagic = 0;
+  let bonusEndurance    = 0;
+  let bonusInitiative   = 0;
+  let bonusPower        = 0;
+  let bonusResistance   = 0;
+  let bonusIntelligence = 0;
+  let bonusElementalMagic = 0;
+  let bonusAstralMagic    = 0;
+  let bonusBloodMagic     = 0;
 
   if (character.equipment) {
     const itemIds = [
@@ -1100,51 +1059,40 @@ export async function buildFighter(characterId: number): Promise<Fighter> {
     if (itemIds.length > 0) {
       const items = await prisma.item.findMany({ where: { id: { in: itemIds } } });
       for (const item of items) {
-        bonusEndurance    += item.bonusEndurance;
-        bonusInitiative   += item.bonusInitiative;
-        bonusPower        += item.bonusPower;
-        bonusResistance   += item.bonusResistance;
-        bonusIntelligence += item.bonusIntelligence ?? 0;
-        bonusFireMagic    += item.bonusFireMagic;
-        bonusWaterMagic   += item.bonusWaterMagic;
-        bonusEarthMagic   += item.bonusEarthMagic;
-        bonusAirMagic     += item.bonusAirMagic;
-        bonusChaosMagic   += item.bonusChaosMagic;
-        bonusEnergyMagic  += item.bonusEnergyMagic;
-        bonusLifeMagic    += item.bonusLifeMagic;
-        bonusDeathMagic   += item.bonusDeathMagic;
+        bonusEndurance      += item.bonusEndurance;
+        bonusInitiative     += item.bonusInitiative;
+        bonusPower          += item.bonusPower;
+        bonusResistance     += item.bonusResistance;
+        bonusIntelligence   += item.bonusIntelligence ?? 0;
+        bonusElementalMagic += item.bonusElementalMagic ?? 0;
+        bonusAstralMagic    += item.bonusAstralMagic    ?? 0;
+        bonusBloodMagic     += item.bonusBloodMagic    ?? 0; // uwaga: literówka w schema ("bonusBloodlMagic")
       }
     }
   }
 
-  // ── Mapowanie czaru z DB → BattleSpell ──────────────────────────────────────
   function mapSpell(s: any): BattleSpell {
     return {
-      id:               s.id,
-      name:             s.name,
-      damage:           s.damage ?? 0,
-      element:          s.element,
-      spellPool:        s.spellPool as SpellPool,
-      isDirectional:    s.isDirectional ?? true,
-      statusEffectDefs: parseStatusEffects(s.statusEffects),
-      castEffectDefs:   parseCastEffects(s.castEffects),
-      special:          s.special,
-      descAlt:          s.descAlt ?? null,
-      endInfo:          s.endInfo ?? null,
-      reqFireMagic:     s.reqFireMagic,
-      reqWaterMagic:    s.reqWaterMagic,
-      reqEarthMagic:    s.reqEarthMagic,
-      reqAirMagic:      s.reqAirMagic,
-      reqChaosMagic:    s.reqChaosMagic,
-      reqLifeMagic:     s.reqLifeMagic,
-      reqDeathMagic:    s.reqDeathMagic,
-      reqEnergyMagic:   s.reqEnergyMagic,
-      summonCount:      s.summonCount,
-      summonHp:         s.summonHp        ?? 0,
-      summonDamage:     s.summonDamage    ?? 0,
-      summonInitiative: s.summonInitiative ?? 0,
-      summonElement:    s.summonElement,
-      summonTargetType: s.summonTargetType as MinionTargetType | null,
+      id:                s.id,
+      name:              s.name,
+      damage:            s.damage ?? 0,
+      element:           s.element,
+      spellPool:         s.spellPool as SpellPool,
+      isDirectional:     s.isDirectional ?? true,
+      statusEffectDefs:  parseStatusEffects(s.statusEffects),
+      castEffectDefs:    parseCastEffects(s.castEffects),
+      special:           s.special,
+      descAlt:           s.descAlt ?? null,
+      endInfo:           s.endInfo ?? null,
+      reqElementalMagic: s.reqElementalMagic ?? 0,
+      reqAstralMagic:    s.reqAstralMagic    ?? 0,
+      reqBloodMagic:     s.reqBloodMagic     ?? 0,
+      summonCount:       s.summonCount,
+      summonHp:          s.summonHp          ?? 0,
+      summonDamage:      s.summonDamage      ?? 0,
+      summonInitiative:  s.summonInitiative  ?? 0,
+      summonElement:     s.summonElement,
+      summonTargetType:  s.summonTargetType as MinionTargetType | null,
     };
   }
 
@@ -1157,23 +1105,17 @@ export async function buildFighter(characterId: number): Promise<Fighter> {
   const maxHp        = Math.max(1, 20 + effectiveEndurance * 5);
 
   return {
-    id:           character.id,
-    name:         character.name,
-    hp:           maxHp,
+    id:             character.id,
+    name:           character.name,
+    hp:             maxHp,
     maxHp,
-    resistance:   character.resistance   + bonusResistance,
-    initiative:   character.initiative   + bonusInitiative,
-    intelligence: character.intelligence + bonusIntelligence,
-    power:        character.power        + bonusPower,
-    elementPower: character.elementPower,
-    fireMagic:    character.fireMagic    + bonusFireMagic,
-    waterMagic:   character.waterMagic   + bonusWaterMagic,
-    earthMagic:   character.earthMagic   + bonusEarthMagic,
-    airMagic:     character.airMagic     + bonusAirMagic,
-    chaosMagic:   character.chaosMagic   + bonusChaosMagic,
-    energyMagic:  character.energyMagic  + bonusEnergyMagic,
-    lifeMagic:    character.lifeMagic    + bonusLifeMagic,
-    deathMagic:   character.deathMagic   + bonusDeathMagic,
+    resistance:     character.resistance   + bonusResistance,
+    initiative:     character.initiative   + bonusInitiative,
+    intelligence:   character.intelligence + bonusIntelligence,
+    power:          character.power        + bonusPower,
+    elementalMagic: character.elementalMagic + bonusElementalMagic,
+    astralMagic:    character.astralMagic    + bonusAstralMagic,
+    bloodMagic:     character.bloodMagic     + bonusBloodMagic,
     towerLevel,
     activeSpells,
     spellPool,
@@ -1716,11 +1658,37 @@ export async function challengePlayer(attackerUserId: number, defenderCharacterI
     },
   });
 
-  if (attackerWon) {
-    await prisma.character.update({ where: { id: attackerChar.id }, data: { prestige: { increment: prestigeGain } } });
-  } else if (defenderWon) {
-    await prisma.character.update({ where: { id: defenderChar.id }, data: { prestige: { increment: prestigeGain } } });
+// ── ALIGNMENT TRIGGERS ─────────────────────────────
+const duelCountAttacker = await prisma.battle.count({
+  where: {
+    OR: [
+      { attackerId: attackerChar.id },
+      { defenderId: attackerChar.id }
+    ]
   }
+});
+
+await alignmentTriggerService.checkTrigger(
+  attackerChar.id,
+  "PVP_50_DUELS",
+  { duelCount: duelCountAttacker }
+);
+
+const duelCountDefender = await prisma.battle.count({
+  where: {
+    OR: [
+      { attackerId: defenderChar.id },
+      { defenderId: defenderChar.id }
+    ]
+  }
+});
+
+await alignmentTriggerService.checkTrigger(
+  defenderChar.id,
+  "PVP_50_DUELS",
+  { duelCount: duelCountDefender }
+);
+// ──────────────────────────────────────────────────
 
   return {
     battleId:     battle.id,
@@ -1732,6 +1700,7 @@ export async function challengePlayer(attackerUserId: number, defenderCharacterI
     turns:        result.log.length,
     metadata:     { ...fullMetadata, allParticipants: buildParticipants() },
   };
+
 }
 
 export async function getBattleHistory(userId: number) {

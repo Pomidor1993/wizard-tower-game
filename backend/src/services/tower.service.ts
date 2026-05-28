@@ -1,4 +1,5 @@
 import prisma from "../lib/prisma.js";
+import { alignmentTriggerService } from "./alignment/alignment-trigger.service.js";
 
 // ── KONFIGURACJA BUDYNKÓW ────────────────────────────
 
@@ -167,6 +168,9 @@ export async function collectResources(characterId: number) {
       lastResourceCollect: now,
     },
   });
+
+  await alignmentTriggerService.checkTrigger(characterId, "GOLD_20000");
+  await alignmentTriggerService.checkTrigger(characterId, "SHARDS_10000");
 
   return { shardsCollected, goldCollected };
 }
@@ -396,7 +400,10 @@ export const claimTowerUpgrade = async (userId: number) => {
   if (!character || !character.tower) throw new Error("Wieża nie znaleziona");
   if (!character.tower.isUpgrading) throw new Error("Wieża nie jest w trakcie rozbudowy");
   if (character.tower.upgradeFinishesAt && new Date() < character.tower.upgradeFinishesAt) throw new Error("Rozbudowa jeszcze trwa");
+  const newLevel = character.tower.level + 1;
   await prisma.tower.update({ where: { id: character.tower.id }, data: { level: { increment: 1 }, isUpgrading: false, upgradeFinishesAt: null } });
+  await alignmentTriggerService.checkTrigger(character.id, "TOWER_LEVEL_50", { towerLevel: newLevel });
+  
   return { newLevel: character.tower.level + 1 };
 };
 

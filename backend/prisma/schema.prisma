@@ -35,23 +35,15 @@ model Character {
   chaosVault  ChaosVaultItem[]
 
   // Statystyki bazowe
-  knowledge    Int @default(0)
-  intelligence Int @default(0)
-  power        Int @default(0)
-  endurance    Int @default(0)
-  resistance   Int @default(0)
-  initiative   Int @default(0)
-  elementPower Int @default(0)
-
-  // Magia
-  fireMagic   Int @default(0)
-  waterMagic  Int @default(0)
-  earthMagic  Int @default(0)
-  airMagic    Int @default(0)
-  lifeMagic   Int @default(0)
-  deathMagic  Int @default(0)
-  chaosMagic  Int @default(0)
-  energyMagic Int @default(0)
+  knowledge       Int @default(0)
+  intelligence    Int @default(0)
+  power           Int @default(0)
+  endurance       Int @default(0)
+  resistance      Int @default(0)
+  initiative      Int @default(0)
+  elementalMagic  Int @default(0)
+  astralMagic     Int @default(0)
+  bloodMagic      Int @default(0)
 
   // Zasoby
   powerShards         Int      @default(1)
@@ -79,6 +71,9 @@ model Character {
   battlesAsWinner   Battle[] @relation("BattleWinner")
   pveEncounters     PveEncounter[]
   spellbookEntries SpellbookEntry[]
+  alignmentProfile AlignmentProfile?
+  alignmentTriggers AlignmentTriggerProgress[]
+  alignmentEvents   AlignmentEventQueue[]
 
 }
 
@@ -140,12 +135,6 @@ model Spell {
 
   // Mechanika przywołań
   summonCount      Int     @default(0)
-  summonMinHp         Int     @default(0)
-  summonMaxHp         Int     @default(0)
-  summonMinDamage     Int     @default(0)
-  summonMaxDamage     Int     @default(0)
-  summonMinInitiative Int     @default(0)
-  summonMaxInitiative Int     @default(0)
   summonDamage         Int     @default(0)
   summonInitiative     Int     @default(0) 
   summonHp             Int     @default(0) 
@@ -153,14 +142,10 @@ model Spell {
   summonTargetType String? // "randomEnemy"|"randomAlly"|"allEnemies"|"allAllies"|"all"|"randomAny"
 
   // Wymagania statystyk
-  reqFireMagic   Int @default(0)
-  reqWaterMagic  Int @default(0)
-  reqEarthMagic  Int @default(0)
-  reqAirMagic    Int @default(0)
-  reqChaosMagic  Int @default(0)
-  reqLifeMagic   Int @default(0)
-  reqDeathMagic  Int @default(0)
-  reqEnergyMagic Int @default(0)
+  reqElementalMagic   Int @default(0)
+  reqAstralMagic      Int @default(0)
+  reqBloodMagic       Int @default(0)
+
 
   spellSlots  CharacterSpellSlots[]
   characters  CharacterSpell[]
@@ -189,37 +174,26 @@ model Item {
   weaponType     String?
   element        String?
 
-  reqKnowledge   Int @default(0)
-  reqIntelligence Int @default(0)
-  reqPower        Int @default(0)
-  reqEndurance    Int @default(0)
-  reqResistance   Int @default(0)
-  reqInitiative   Int @default(0)
-  reqElementPower Int @default(0)
-  reqFireMagic    Int @default(0)
-  reqWaterMagic   Int @default(0)
-  reqEarthMagic   Int @default(0)
-  reqAirMagic     Int @default(0)
-  reqChaosMagic   Int @default(0)
-  reqLifeMagic    Int @default(0)
-  reqDeathMagic   Int @default(0)
-  reqEnergyMagic  Int @default(0)
+  reqKnowledge        Int @default(0)
+  reqIntelligence     Int @default(0)
+  reqPower            Int @default(0)
+  reqEndurance        Int @default(0)
+  reqResistance       Int @default(0)
+  reqInitiative       Int @default(0)
+  reqElementalMagic   Int @default(0)
+  reqAstralMagic      Int @default(0)
+  reqBloodMagic       Int @default(0)
 
-  bonusKnowledge   Int @default(0)
-  bonusIntelligence Int @default(0)
-  bonusPower        Int @default(0)
-  bonusEndurance    Int @default(0)
-  bonusResistance   Int @default(0)
-  bonusInitiative   Int @default(0)
-  bonusElementPower Int @default(0)
-  bonusFireMagic    Int @default(0)
-  bonusWaterMagic   Int @default(0)
-  bonusEarthMagic   Int @default(0)
-  bonusAirMagic     Int @default(0)
-  bonusChaosMagic   Int @default(0)
-  bonusLifeMagic    Int @default(0)
-  bonusDeathMagic   Int @default(0)
-  bonusEnergyMagic  Int @default(0)
+
+  bonusKnowledge      Int @default(0)
+  bonusIntelligence   Int @default(0)
+  bonusPower          Int @default(0)
+  bonusEndurance      Int @default(0)
+  bonusResistance     Int @default(0)
+  bonusInitiative     Int @default(0)
+  bonusElementalMagic Int @default(0)
+  bonusAstralMagic    Int @default(0)
+  bonusBloodMagic     Int @default(0)
 
   characters CharacterItem[]
   chaosVault ChaosVaultItem[]
@@ -351,4 +325,66 @@ model SpellbookEntry {
 
   @@unique([characterId, spellId])
   @@index([characterId])
+}
+
+// ── ALIGNMENT / CHARAKTER POSTACI ─────────────────────────────────────────────
+
+model AlignmentProfile {
+  id            Int       @id @default(autoincrement())
+  characterId   Int       @unique
+  character     Character @relation(fields: [characterId], references: [id])
+
+  moralAxis     Int       @default(0) // -100 do +100
+  orderAxis     Int       @default(0) // -100 do +100
+
+  finalClass    String?
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model AlignmentTriggerProgress {
+  id            Int       @id @default(autoincrement())
+
+  characterId   Int
+  character     Character @relation(fields: [characterId], references: [id])
+
+  triggerCode   String
+
+  triggeredAt   DateTime  @default(now())
+
+  @@unique([characterId, triggerCode])
+}
+
+model AlignmentEventQueue {
+  id               Int       @id @default(autoincrement())
+
+  characterId      Int
+  character        Character @relation(fields: [characterId], references: [id])
+
+  eventCode        String
+
+  scheduledAt      DateTime
+
+  completedAt      DateTime?
+
+  selectedOption   Int?
+
+  status           String    @default("pending")
+  // pending | completed | expired
+
+  createdAt        DateTime  @default(now())
+}
+
+model AlignmentEventChoice {
+  id            Int      @id @default(autoincrement())
+
+  eventCode     String
+
+  optionIndex   Int
+  title         String
+  description   String
+
+  moralDelta    Int
+  orderDelta    Int
 }

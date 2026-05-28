@@ -55,6 +55,7 @@ export interface MinorEntityDef {
   id: string;                 // Unikalny identyfikator (snake_case)
   name: string;               // Wyświetlana nazwa
   description: string;        // Krótki opis — pojawi się w raporcie walki
+  isBoss?: boolean;             // Czy jest to silniejszy byt z unikalnym wyglądem (np. mini-boss)
   element: EntityElement;     // Żywioł bytu — decyduje o lokacji
 
   // ── Statystyki ──────────────────────────────────────────────────────────
@@ -1725,6 +1726,74 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     },
     victoryFlavorText: "Fragment duszy łączy się z Twoją magią. Nie chcesz tego.",
     defeatFlavorText: "Fragment Duszy uwalnia się! Dwa okruchy uwolnionej energii.",
+  },
+
+    {
+    id: "dummy_boss",
+    name: "BOSS TESTOWY",
+    description: "Stary BOSS.",
+    isBoss: true,
+    element: "life",
+    hp: 119,
+    resistance: 2,
+    initiative: 5,
+    power: 3,
+    intelligence: 0,
+    elementPower: 0,
+    fireMagic: 0, waterMagic: 1, earthMagic: 2, airMagic: 1,
+    lifeMagic: 7, deathMagic: 0, chaosMagic: 0, energyMagic: 0,
+    attacks: [
+      {
+        name: "Leśne splątanie",
+        description: "{attacker} woła drzewa — korzenie oplatają {target}.",
+        damage: 2,
+        element: "earth",
+        targetType: "target",
+        weight: 35,
+        statusEffect: {
+          type: "stun",
+          stunChance: 40,
+          stunDuration: 1,
+          duration: null,
+          target: "target",
+        },
+      } as EntityStatusAttack,
+      {
+        name: "Mgła puszczy",
+        description: "{attacker} roztacza mgłę — trudno celować.",
+        damage: 0,
+        element: "air",
+        targetType: "allEnemies",
+        weight: 35,
+        statusEffect: {
+          type: "miss_chance",
+          missChance: 30,
+          duration: 3,
+          target: "allEnemies",
+        },
+      } as EntityStatusAttack,
+      {
+        name: "Dotyk natury",
+        description: "{attacker} przywraca sobie energię z natury wokół.",
+        damage: 0,
+        element: "life",
+        targetType: "target",
+        weight: 30,
+        statusEffect: {
+          type: "heal_chance",
+          healChance: 60,
+          healAmount: 4,
+          duration: 4,
+          target: "self",
+        },
+      } as EntityStatusAttack,
+    ],
+    reward: {
+      runicShards: 2,
+      description: "Duch puszczy odpada — leśna energia krystalizuje się w okruchy.",
+    },
+    victoryFlavorText: "Mgła puszczy gęstnieje. Poza nią nie ma nic — oprócz porażki.",
+    defeatFlavorText: "Duch Puszczy odpada! Leśna energia krystalizuje się w dwa okruchy.",
   },
 ];
 

@@ -1,4 +1,5 @@
 import prisma from "../lib/prisma.js";
+import { alignmentTriggerService } from "./alignment/alignment-trigger.service.js";
 
 const RARITY_VALUE: Record<string, number> = {
   common:   10,
@@ -108,6 +109,11 @@ export async function confirmDisintegrate(userId: number, targets: DisintegrateT
     where: { id: character.id },
     data: { powerShards: { increment: preview.totalShards } },
   });
+
+  await alignmentTriggerService.checkTrigger(character.id, "FIRST_ITEM_DESTROYED", {
+    destroyed: preview.items.length > 0
+  });
+  await alignmentTriggerService.checkTrigger(character.id, "SHARDS_10000");
 
   return {
     destroyed: preview.items.length,
