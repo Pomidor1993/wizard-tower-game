@@ -1,4 +1,5 @@
 import prisma from "../../lib/prisma.js";
+
 import { alignmentTriggerService } from "./alignment-trigger.service.js";
 import { alignmentEventService } from "./alignment-event.service.js";
 import { alignmentScoreService } from "./alignment-score.service.js";
@@ -6,63 +7,98 @@ import { alignmentClassificationService } from "./alignment-classification.servi
 
 /**
  * ALIGNMENT SERVICE
- * Centralny orchestrator systemu charakteru postaci
+ * Główny orchestrator systemu charakteru
  */
 
 export const alignmentService = {
 
   // ─────────────────────────────────────────────
-  // 1. ENTRY POINT Z GRY
+  // 1. ENTRY POINT Z SYSTEMÓW GRY
   // ─────────────────────────────────────────────
 
-  async handleGameEvent(characterId: number, triggerCode: string, payload = {}) {
-    const triggered = await alignmentTriggerService.checkTrigger(
-      characterId,
-      triggerCode,
-      payload
-    );
+  async handleGameEvent(
+    characterId: number,
+    triggerCode: string,
+    payload = {}
+  ) {
+
+    const triggered =
+      await alignmentTriggerService.checkTrigger(
+        characterId,
+        triggerCode,
+        payload
+      );
 
     if (!triggered) return;
 
-    await alignmentEventService.scheduleEvent(characterId, triggerCode);
+    await alignmentEventService.scheduleEvent(
+      characterId,
+      triggerCode
+    );
   },
 
   // ─────────────────────────────────────────────
-  // 2. POBIERANIE AKTYWNEGO EVENTU
+  // 2. AKTYWNY EVENT
   // ─────────────────────────────────────────────
 
   async getPendingEvent(characterId: number) {
+
     return prisma.alignmentEventQueue.findFirst({
       where: {
         characterId,
         status: "pending",
-        scheduledAt: { lte: new Date() }
+        scheduledAt: {
+          lte: new Date()
+        }
       },
-      orderBy: { scheduledAt: "asc" }
+
+      orderBy: {
+        scheduledAt: "asc"
+      }
     });
   },
 
   // ─────────────────────────────────────────────
-  // 3. WYBÓR OPCJI PRZEZ GRACZA
+  // 3. WYBÓR OPCJI
   // ─────────────────────────────────────────────
 
-  async chooseEventOption(characterId: number, eventId: number, optionId: number) {
-    const event = await prisma.alignmentEventQueue.findFirst({
-      where: {
-        id: eventId,
-        characterId,
-        status: "pending"
-      }
-    });
+  async chooseEventOption(
+    characterId: number,
+    eventId: number,
+    optionId: number
+  ) {
 
-    if (!event) return null;
+    const event =
+      await prisma.alignmentEventQueue.findFirst({
+        where: {
+          id: eventId,
+          characterId,
+          status: "pending"
+        }
+      });
 
-    const option = await alignmentEventService.getEventOption(optionId);
-    if (!option) return null;
+    if (!event) {
+      throw new Error("Event nie istnieje");
+    }
 
+    const option =
+      await alignmentEventService.getEventOption(
+        optionId
+      );
+
+    if (!option) {
+      throw new Error("Opcja nie istnieje");
+    }
+
+    // ─────────────────────────
     // zapis wyboru
+    // ─────────────────────────
+
     await prisma.alignmentEventQueue.update({
-      where: { id: eventId },
+      where: {
+        id: eventId
+      },
+
       data: {
         selectedOption: optionId,
         status: "completed",
@@ -70,43 +106,74 @@ export const alignmentService = {
       }
     });
 
-    // aktualizacja punktów
+    // ─────────────────────────
+    // dodanie punktów alignment
+    // ─────────────────────────
+
     await alignmentScoreService.applyDelta(
       characterId,
       option.moralDelta,
       option.orderDelta
     );
 
-    // sprawdzenie finalnej klasy
-    await alignmentClassificationService.recalculate(characterId);
+    // ─────────────────────────
+    // przelicz klasy
+    // ─────────────────────────
+
+    await alignmentClassificationService.recalculate(
+      characterId
+    );
 
     return {
       success: true,
-      result: option
+      option
     };
   },
 
   // ─────────────────────────────────────────────
-  // 4. POBIERANIE STANU ALIGNMENT
+  // 4. STAN ALIGNMENT
   // ─────────────────────────────────────────────
 
   async getAlignmentState(characterId: number) {
-    const profile = await prisma.alignmentProfile.findUnique({
-      where: { characterId }
-    });
 
-    return profile;
+    const profile =
+      await prisma.alignmentProfile.findUnique({
+        where: {
+          characterId
+        }
+      });
+
+    const character =
+      await prisma.character.findUnique({
+        where: {
+          id: characterId
+        },
+
+        select: {
+          alignmentPath: true,
+          alignmentClass: true
+        }
+      });
+
+    return {
+      profile,
+      alignmentPath: character?.alignmentPath,
+      alignmentClass: character?.alignmentClass
+    };
   },
 
   // ─────────────────────────────────────────────
-  // 5. DEBUG / ADMIN
+  // 5. DEBUG
   // ─────────────────────────────────────────────
 
-  async forceTrigger(characterId: number, triggerCode: string) {
-    await this.handleGameEvent(characterId, triggerCode);
+  async forceTrigger(
+    characterId: number,
+    triggerCode: string
+  ) {
+
+    await this.handleGameEvent(
+      characterId,
+      triggerCode
+    );
   }
 };
-
-/* ─────────────────────────────────────────────
-   HELPER SECTION (jeśli kiedyś potrzebne)
-   ───────────────────────────────────────────── */

@@ -3,6 +3,7 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import prisma from "../lib/prisma.js";
+import { getCharacterAlignmentBonus } from "./alignment/alignment-bonuses.constants.js";
 import { alignmentTriggerService } from "./alignment/alignment-trigger.service.js";
 
 export type SpellbookSource = "study" | "battle_cast" | "school" | "basic_purchase";
@@ -68,14 +69,9 @@ export interface SpellbookSpell {
   special?: string;
   isDirectional?: boolean;
   statusEffects?: string;
-  reqFireMagic?: number;
-  reqWaterMagic?: number;
-  reqEarthMagic?: number;
-  reqAirMagic?: number;
-  reqChaosMagic?: number;
-  reqLifeMagic?: number;
-  reqDeathMagic?: number;
-  reqEnergyMagic?: number;
+  reqElementalMagic?: number;
+  reqAstralMagic?: number;
+  reqBloodMagic?: number;
   summonCount?: number;
   summonElement?: string | null;
 
@@ -128,9 +124,9 @@ export async function getSpellbook(userId: number): Promise<SpellbookSpell[]> {
         special:       spell.special ?? undefined,
         isDirectional: spell.isDirectional,
         statusEffects: spell.statusEffects,
-        reqFireMagic:  spell.reqElementalMagic,
-        reqWaterMagic: spell.reqAstralMagic,
-        reqEarthMagic: spell.reqBloodMagic,
+        reqElementalMagic:  spell.reqElementalMagic,
+        reqAstralMagic: spell.reqAstralMagic,
+        reqBloodMagic: spell.reqBloodMagic,
         summonCount:   spell.summonCount,
         summonElement: spell.summonElement,
         discoveredAt:  entry?.discoveredAt,
@@ -173,11 +169,14 @@ export async function learnBasicSpell(userId: number, spellId: number): Promise<
   const alreadyOwned = character.spells.some(s => s.spellId === spellId);
   if (alreadyOwned) throw new Error("Już posiadasz ten czar w bibliotece");
 
-  const unmet = [
-    spell.reqElementalMagic   > 0 && character.elementalMagic   < spell.reqElementalMagic   && `Ogień ${spell.reqElementalMagic}`,
-    spell.reqAstralMagic  > 0 && character.astralMagic  < spell.reqAstralMagic  && `Woda ${spell.reqAstralMagic}`,
-    spell.reqBloodMagic  > 0 && character.bloodMagic  < spell.reqBloodMagic  && `Ziemia ${spell.reqBloodMagic}`,
-  ].filter(Boolean);
+const alignmentBonus = await getCharacterAlignmentBonus(character.id);
+const mod = (req: number) => Math.floor(req * (1 + (alignmentBonus?.spellReqModifier ?? 0)));
+
+const unmet = [
+  spell.reqElementalMagic > 0 && character.elementalMagic < mod(spell.reqElementalMagic) && `Ogień ${mod(spell.reqElementalMagic)}`,
+  spell.reqAstralMagic    > 0 && character.astralMagic    < mod(spell.reqAstralMagic)    && `Woda ${mod(spell.reqAstralMagic)}`,
+  spell.reqBloodMagic     > 0 && character.bloodMagic     < mod(spell.reqBloodMagic)     && `Ziemia ${mod(spell.reqBloodMagic)}`,
+].filter(Boolean);
 
   if (unmet.length > 0) {
     throw new Error(`Nie spełniasz wymagań: ${unmet.join(", ")}`);

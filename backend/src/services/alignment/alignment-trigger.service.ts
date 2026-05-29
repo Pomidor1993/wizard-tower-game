@@ -112,11 +112,15 @@ export const alignmentTriggerService = {
         );
 
       // ─────────────────────────────
-      // EXPLORATION
+      // STUDIES
       // ─────────────────────────────
 
-      case "EXPLORATION_200":
-        return payload.explorationCount >= 200;
+      case "CRAZY_STUDIES_ALL":
+        return payload.allStudiesDone === true;
+
+      // ─────────────────────────────
+      // PVP
+      // ─────────────────────────────
 
       case "PVP_50_DUELS":
         return payload.duelCount >= 50;

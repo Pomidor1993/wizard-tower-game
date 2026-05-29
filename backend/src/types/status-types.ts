@@ -17,7 +17,7 @@ export type StatusTargetType =
 // ── ŻYWIOŁY ──────────────────────────────────────────────────────────────────
 export type Element =
   | "fire" | "water" | "earth" | "air"
-  | "chaos" | "energy" | "life" | "death" | "basic";
+  | "chaos" | "harmony" | "life" | "death" | "basic";
 
 // ── TYPY EFEKTÓW STATUSU ─────────────────────────────────────────────────────
 export type StatusEffectType =
@@ -36,9 +36,9 @@ export type StatusEffectType =
 // Używane przez stat_boost oraz resist/vulnerable
 // Statystyki postaci:
 export type FighterStatCategory =
-  | "power" | "initiative" | "resistance"
-  | "fireMagic" | "waterMagic" | "earthMagic" | "airMagic"
-  | "chaosMagic" | "energyMagic" | "lifeMagic" | "deathMagic";
+"intelligence"  | "power" | "initiative" | "resistance" | "elementalMagic" | "astralMagic" | "bloodMagic"
+
+
 
 // ── TRYB CLEAN ────────────────────────────────────────────────────────────────
 // Określa co czyści efekt "clean"
@@ -246,13 +246,13 @@ export function validateStatusEffectDef(def: StatusEffectDef): string[] {
   switch (def.type) {
     case "dot":
       if (def.minDamage == null && def.maxDamage == null && def.damage == null)
-        errors.push("dot wymaga 'damage' lub 'minDamage'/'maxDamage'");
+        errors.push("dot wymaga 'damage''");
       if (!def.element) errors.push("dot wymaga 'element'");
       break;
     case "resist":
     case "vulnerable":
       if (def.minValue == null && def.maxValue == null && def.value == null)
-        errors.push(`${def.type} wymaga 'value' lub 'minValue'/'maxValue'`);
+        errors.push(`${def.type} wymaga 'value'`);
       if (!def.element) errors.push(`${def.type} wymaga 'element'`);
       break;
     case "miss_chance":
@@ -261,12 +261,12 @@ export function validateStatusEffectDef(def: StatusEffectDef): string[] {
     case "damage_on_move":
       if (!def.moveChance) errors.push("damage_on_move wymaga 'moveChance'");
       if (def.minMoveDamage == null && def.maxMoveDamage == null && def.moveDamage == null)
-        errors.push("damage_on_move wymaga 'moveDamage' lub 'minMoveDamage'/'maxMoveDamage'");
+        errors.push("damage_on_move wymaga 'moveDamage'");
       break;
     case "stun":
       if (!def.stunChance) errors.push("stun wymaga 'stunChance'");
       if (def.minStunDuration == null && def.maxStunDuration == null && def.stunDuration == null)
-        errors.push("stun wymaga 'stunDuration' lub 'minStunDuration'/'maxStunDuration'");
+        errors.push("stun wymaga 'stunDuration'");
       break;
     case "invisibility":
       if (!def.invisChance) errors.push("invisibility wymaga 'invisChance'");
@@ -274,13 +274,13 @@ export function validateStatusEffectDef(def: StatusEffectDef): string[] {
     case "heal_chance":
       if (!def.healChance) errors.push("heal_chance wymaga 'healChance'");
       if (def.minHealAmount == null && def.maxHealAmount == null && def.healAmount == null)
-        errors.push("heal_chance wymaga 'healAmount' lub 'minHealAmount'/'maxHealAmount'");
+        errors.push("heal_chance wymaga 'healAmount'");
       break;
     case "stat_boost":
       if (!def.stat)     errors.push("stat_boost wymaga 'stat'");
       if (!def.statMode) errors.push("stat_boost wymaga 'statMode' (flat|percent)");
       if (def.minStatAmount == null && def.maxStatAmount == null && def.statAmount == null)
-        errors.push("stat_boost wymaga 'statAmount' lub 'minStatAmount'/'maxStatAmount'");
+        errors.push("stat_boost wymaga 'statAmount'");
       break;
     case "clean":
       if (!def.cleanMode) errors.push("clean wymaga 'cleanMode' (all|negative|types)");

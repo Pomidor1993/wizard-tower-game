@@ -29,6 +29,9 @@ model Character {
   name      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  alignmentPath String?
+  alignmentClass String?
+  finalClassUnlocked Boolean @default(false)
 
   equipment   CharacterEquipment?
   spellSlots  CharacterSpellSlots[]
@@ -53,7 +56,7 @@ model Character {
   runicStoneShards    Int      @default(0)
   lastResourceCollect DateTime @default(now())
   maxItems            Int      @default(10)
-  maxSpells           Int      @default(10)
+  maxSpells           Int      @default(2)
 
   // Pule akcji
   studyActions       Int      @default(30)
@@ -107,7 +110,7 @@ model TowerBuilding {
 model Spell {
   id        Int    @id @default(autoincrement())
   name      String @unique
-  element   String // "fire"|"water"|"earth"|"air"|"chaos"|"life"|"death"|"energy"
+  element   String // "fire"|"water"|"earth"|"air"|"chaos"|"life"|"death"|"harmony"|"none"
   rarity    String // "common"|"uncommon"|"rare"|"unique"
   damage    Int
   spellPool String @default("chaotic") // "chaotic"|"controlled"|"incantation"|"professional"|"master"
@@ -220,6 +223,7 @@ model CharacterEquipment {
   amuletId   Int?
   mainHandId Int?
   offHandId  Int?
+  offHand2Id Int?
 }
 
 // ── AKTYWNE CZARY POSTACI ────────────────────────────

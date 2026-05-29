@@ -64,15 +64,10 @@ export interface MinorEntityDef {
   initiative: number;
   power: number;
   intelligence: number;
-  elementPower: number;
-  fireMagic: number;
-  waterMagic: number;
-  earthMagic: number;
-  airMagic: number;
-  lifeMagic: number;
-  deathMagic: number;
-  chaosMagic: number;
-  energyMagic: number;
+  elementalMagic: number;
+  astralMagic: number;
+  bloodMagic: number;
+
 
   // ── Ataki ───────────────────────────────────────────────────────────────
   attacks: (EntityAttack | EntityStatusAttack)[];
@@ -128,9 +123,7 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     initiative: 6,
     power: 1,
     intelligence: 0,
-    elementPower: 0,
-    fireMagic: 0, waterMagic: 0, earthMagic: 0, airMagic: 3,
-    lifeMagic: 0, deathMagic: 0, chaosMagic: 0, energyMagic: 0,
+    elementalMagic: 0, astralMagic: 0, bloodMagic: 0,
     attacks: [
       {
         name: "Podmuch",
@@ -174,9 +167,7 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
   
     power: 2,
     intelligence: 0,
-    elementPower: 0,
-    fireMagic: 0, waterMagic: 0, earthMagic: 0, airMagic: 5,
-    lifeMagic: 0, deathMagic: 0, chaosMagic: 0, energyMagic: 0,
+    elementalMagic: 0, astralMagic: 0, bloodMagic: 0,
     attacks: [
       {
         name: "Uderzenie wiatru",
@@ -227,9 +218,7 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     initiative: 8,
     power: 2,
     intelligence: 0,
-    elementPower: 0,
-    fireMagic: 0, waterMagic: 0, earthMagic: 0, airMagic: 4,
-    lifeMagic: 0, deathMagic: 0, chaosMagic: 0, energyMagic: 2,
+    elementalMagic: 0, astralMagic: 0, bloodMagic: 0,
     attacks: [
       {
         name: "Iskra",
@@ -289,9 +278,7 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     initiative: 4,
     power: 4,
     intelligence: 0,
-    elementPower: 0,
-    fireMagic: 0, waterMagic: 0, earthMagic: 0, airMagic: 8,
-    lifeMagic: 0, deathMagic: 0, chaosMagic: 0, energyMagic: 0,
+    elementalMagic: 0, astralMagic: 0, bloodMagic: 0,
     attacks: [
       {
         name: "Cios wiatrem",
@@ -347,9 +334,7 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     initiative: 3,
     power: 1,
     intelligence: 0,
-    elementPower: 0,
-    fireMagic: 0, waterMagic: 0, earthMagic: 3, airMagic: 0,
-    lifeMagic: 0, deathMagic: 0, chaosMagic: 0, energyMagic: 0,
+    elementalMagic: 0, astralMagic: 0, bloodMagic: 0,
     attacks: [
       {
         name: "Rzut kamieniem",
@@ -386,9 +371,7 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     initiative: 1,
     power: 3,
     intelligence: 0,
-    elementPower: 0,
-    fireMagic: 0, waterMagic: 0, earthMagic: 5, airMagic: 0,
-    lifeMagic: 0, deathMagic: 0, chaosMagic: 0, energyMagic: 0,
+    elementalMagic: 0, astralMagic: 0, bloodMagic: 0,
     attacks: [
       {
         name: "Uderzenie pięścią",
@@ -433,9 +416,7 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     initiative: 2,
     power: 5,
     intelligence: 0,
-    elementPower: 0,
-    fireMagic: 0, waterMagic: 0, earthMagic: 4, airMagic: 0,
-    lifeMagic: 2, deathMagic: 0, chaosMagic: 0, energyMagic: 0,
+    elementalMagic: 0, astralMagic: 0, bloodMagic: 0, 
     attacks: [
       {
         name: "Drzewny cios",
@@ -487,9 +468,7 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     initiative: 4,
     power: 3,
     intelligence: 0,
-    elementPower: 0,
-    fireMagic: 0, waterMagic: 0, earthMagic: 6, airMagic: 0,
-    lifeMagic: 0, deathMagic: 0, chaosMagic: 0, energyMagic: 0,
+elementalMagic: 0, astralMagic: 0, bloodMagic: 0,
     attacks: [
       {
         name: "Ukąszenie",
@@ -553,9 +532,7 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     initiative: 5,
     power: 1,
     intelligence: 0,
-    elementPower: 0,
-    fireMagic: 0, waterMagic: 3, earthMagic: 0, airMagic: 0,
-    lifeMagic: 0, deathMagic: 0, chaosMagic: 0, energyMagic: 0,
+    elementalMagic: 0, astralMagic: 0, bloodMagic: 0,
     attacks: [
       {
         name: "Strumień wody",
@@ -599,9 +576,7 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     initiative: 5,
     power: 2,
     intelligence: 0,
-    elementPower: 0,
-    fireMagic: 0, waterMagic: 5, earthMagic: 0, airMagic: 0,
-    lifeMagic: 2, deathMagic: 0, chaosMagic: 0, energyMagic: 0,
+    elementalMagic: 0, astralMagic: 0, bloodMagic: 0,
     attacks: [
       {
         name: "Fala",
@@ -661,9 +636,7 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     initiative: 2,
     power: 4,
     intelligence: 0,
-    elementPower: 0,
-    fireMagic: 0, waterMagic: 7, earthMagic: 0, airMagic: 0,
-    lifeMagic: 0, deathMagic: 0, chaosMagic: 0, energyMagic: 2,
+    elementalMagic: 0, astralMagic: 0, bloodMagic: 0,
     attacks: [
       {
         name: "Uderzenie ogonem",
@@ -716,9 +689,7 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     initiative: 6,
     power: 2,
     intelligence: 0,
-    elementPower: 0,
-    fireMagic: 0, waterMagic: 4, earthMagic: 0, airMagic: 1,
-    lifeMagic: 0, deathMagic: 0, chaosMagic: 0, energyMagic: 0,
+elementalMagic: 0, astralMagic: 0, bloodMagic: 0,
     attacks: [
       {
         name: "Hipnotyczna pieśń",
@@ -780,9 +751,7 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     initiative: 7,
     power: 1,
     intelligence: 0,
-    elementPower: 0,
-    fireMagic: 4, waterMagic: 0, earthMagic: 0, airMagic: 0,
-    lifeMagic: 0, deathMagic: 0, chaosMagic: 0, energyMagic: 0,
+    elementalMagic: 0, astralMagic: 0, bloodMagic: 0,
     attacks: [
       {
         name: "Ognista iskra",
@@ -826,9 +795,7 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     initiative: 4,
     power: 4,
     intelligence: 0,
-    elementPower: 0,
-    fireMagic: 6, waterMagic: 0, earthMagic: 0, airMagic: 0,
-    lifeMagic: 0, deathMagic: 0, chaosMagic: 0, energyMagic: 0,
+elementalMagic: 0, astralMagic: 0, bloodMagic: 0,
     attacks: [
       {
         name: "Ognisty cios",
@@ -880,9 +847,7 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     initiative: 5,
     power: 5,
     intelligence: 0,
-    elementPower: 0,
-    fireMagic: 7, waterMagic: 0, earthMagic: 0, airMagic: 0,
-    lifeMagic: 0, deathMagic: 0, chaosMagic: 0, energyMagic: 0,
+elementalMagic: 0, astralMagic: 0, bloodMagic: 0,
     attacks: [
       {
         name: "Ziew ognia",
@@ -934,9 +899,7 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     initiative: 6,
     power: 4,
     intelligence: 0,
-    elementPower: 0,
-    fireMagic: 6, waterMagic: 0, earthMagic: 0, airMagic: 2,
-    lifeMagic: 3, deathMagic: 0, chaosMagic: 0, energyMagic: 0,
+elementalMagic: 0, astralMagic: 0, bloodMagic: 0,
     attacks: [
       {
         name: "Ogniste pióra",
@@ -999,9 +962,7 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     initiative: 1,
     power: 1,
     intelligence: 0,
-    elementPower: 0,
-    fireMagic: 0, waterMagic: 0, earthMagic: 2, airMagic: 0,
-    lifeMagic: 4, deathMagic: 0, chaosMagic: 0, energyMagic: 0,
+elementalMagic: 0, astralMagic: 0, bloodMagic: 0,
     attacks: [
       {
         name: "Splątanie",
@@ -1061,9 +1022,7 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     initiative: 4,
     power: 3,
     intelligence: 0,
-    elementPower: 0,
-    fireMagic: 0, waterMagic: 2, earthMagic: 2, airMagic: 0,
-    lifeMagic: 6, deathMagic: 0, chaosMagic: 0, energyMagic: 0,
+elementalMagic: 0, astralMagic: 0, bloodMagic: 0,
     attacks: [
       {
         name: "Zew lasu",
@@ -1122,9 +1081,7 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     initiative: 3,
     power: 5,
     intelligence: 0,
-    elementPower: 0,
-    fireMagic: 0, waterMagic: 0, earthMagic: 3, airMagic: 0,
-    lifeMagic: 6, deathMagic: 0, chaosMagic: 0, energyMagic: 0,
+elementalMagic: 0, astralMagic: 0, bloodMagic: 0,
     attacks: [
       {
         name: "Szarża",
@@ -1184,9 +1141,7 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     initiative: 5,
     power: 3,
     intelligence: 0,
-    elementPower: 0,
-    fireMagic: 0, waterMagic: 1, earthMagic: 2, airMagic: 1,
-    lifeMagic: 7, deathMagic: 0, chaosMagic: 0, energyMagic: 0,
+elementalMagic: 0, astralMagic: 0, bloodMagic: 0,
     attacks: [
       {
         name: "Leśne splątanie",
@@ -1255,9 +1210,7 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     initiative: 8,
     power: 2,
     intelligence: 0,
-    elementPower: 0,
-    fireMagic: 0, waterMagic: 0, earthMagic: 0, airMagic: 0,
-    lifeMagic: 0, deathMagic: 0, chaosMagic: 0, energyMagic: 5,
+elementalMagic: 0, astralMagic: 0, bloodMagic: 0,
     attacks: [
       {
         name: "Wyładowanie",
@@ -1294,9 +1247,7 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     initiative: 5,
     power: 4,
     intelligence: 0,
-    elementPower: 0,
-    fireMagic: 0, waterMagic: 0, earthMagic: 0, airMagic: 0,
-    lifeMagic: 0, deathMagic: 0, chaosMagic: 0, energyMagic: 7,
+elementalMagic: 0, astralMagic: 0, bloodMagic: 0,
     attacks: [
       {
         name: "Energetyczny cios",
@@ -1348,9 +1299,7 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     initiative: 6,
     power: 5,
     intelligence: 0,
-    elementPower: 0,
-    fireMagic: 0, waterMagic: 0, earthMagic: 0, airMagic: 3,
-    lifeMagic: 0, deathMagic: 0, chaosMagic: 0, energyMagic: 8,
+elementalMagic: 0, astralMagic: 0, bloodMagic: 0,
     attacks: [
       {
         name: "Burzowe wyładowanie",
@@ -1417,9 +1366,7 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     initiative: 7,
     power: 3,
     intelligence: 0,
-    elementPower: 0,
-    fireMagic: 0, waterMagic: 0, earthMagic: 0, airMagic: 0,
-    lifeMagic: 0, deathMagic: 2, chaosMagic: 0, energyMagic: 6,
+elementalMagic: 0, astralMagic: 0, bloodMagic: 0,
     attacks: [
       {
         name: "Widmowy dotyk",
@@ -1482,9 +1429,7 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     initiative: 5,
     power: 2,
     intelligence: 0,
-    elementPower: 0,
-    fireMagic: 0, waterMagic: 0, earthMagic: 0, airMagic: 0,
-    lifeMagic: 0, deathMagic: 5, chaosMagic: 0, energyMagic: 0,
+elementalMagic: 0, astralMagic: 0, bloodMagic: 0,
     attacks: [
       {
         name: "Dotyk śmierci",
@@ -1542,9 +1487,7 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     initiative: 6,
     power: 3,
     intelligence: 0,
-    elementPower: 0,
-    fireMagic: 0, waterMagic: 0, earthMagic: 0, airMagic: 1,
-    lifeMagic: 0, deathMagic: 6, chaosMagic: 0, energyMagic: 0,
+elementalMagic: 0, astralMagic: 0, bloodMagic: 0,
     attacks: [
       {
         name: "Śmiertelny krzyk",
@@ -1610,9 +1553,7 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     initiative: 3,
     power: 4,
     intelligence: 0,
-    elementPower: 0,
-    fireMagic: 0, waterMagic: 0, earthMagic: 0, airMagic: 0,
-    lifeMagic: 0, deathMagic: 8, chaosMagic: 2, energyMagic: 0,
+elementalMagic: 0, astralMagic: 0, bloodMagic: 0,
     attacks: [
       {
         name: "Nekrotyczny cios",
@@ -1672,9 +1613,7 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     initiative: 7,
     power: 2,
     intelligence: 0,
-    elementPower: 0,
-    fireMagic: 0, waterMagic: 0, earthMagic: 0, airMagic: 0,
-    lifeMagic: 0, deathMagic: 4, chaosMagic: 1, energyMagic: 0,
+elementalMagic: 0, astralMagic: 0, bloodMagic: 0,
     attacks: [
       {
         name: "Duszny ciąg",
@@ -1739,9 +1678,7 @@ export const MINOR_ENTITIES: MinorEntityDef[] = [
     initiative: 5,
     power: 3,
     intelligence: 0,
-    elementPower: 0,
-    fireMagic: 0, waterMagic: 1, earthMagic: 2, airMagic: 1,
-    lifeMagic: 7, deathMagic: 0, chaosMagic: 0, energyMagic: 0,
+elementalMagic: 0, astralMagic: 0, bloodMagic: 0,
     attacks: [
       {
         name: "Leśne splątanie",

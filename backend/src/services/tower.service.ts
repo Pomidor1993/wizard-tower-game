@@ -14,7 +14,9 @@ interface BuildingConfig {
   baseReqKnowledge: number;
   baseReqIntelligence: number;
   baseReqPower?: number;
-  baseReqFire?: number;
+  baseReqElementalMagic?: number;
+  baseReqAstralMagic?: number;
+  baseReqBloodMagic?: number;
   baseDurationSeconds: number;
   scaleMultiplier: number;
   costScaleMultiplier?: number;
@@ -80,7 +82,9 @@ const BUILDING_CONFIG: Record<string, BuildingConfig> = {
     baseCostGold: 100,
     baseReqKnowledge: 20,
     baseReqIntelligence: 0,
-    baseReqFire: 10,
+    baseReqElementalMagic: 10,
+    baseReqAstralMagic: 0,
+    baseReqBloodMagic: 0,
     baseDurationSeconds: 300,
     scaleMultiplier: 1.3,
     costScaleMultiplier: 2.0,
@@ -127,7 +131,9 @@ function getBuildingReqs(type: string, currentLevel: number) {
     reqKnowledge:    currentLevel === 0 ? cfg.baseReqKnowledge : scaleValue(cfg.baseReqKnowledge, lvl, scale),
     reqIntelligence: currentLevel === 0 ? cfg.baseReqIntelligence : scaleValue(cfg.baseReqIntelligence, lvl, scale),
     reqPower:        currentLevel === 0 ? (cfg.baseReqPower ?? 0) : scaleValue(cfg.baseReqPower ?? 0, lvl, scale),
-    reqFire:         currentLevel === 0 ? (cfg.baseReqFire ?? 0) : scaleValue(cfg.baseReqFire ?? 0, lvl, scale),
+    reqElementalMagic:      currentLevel === 0 ? (cfg.baseReqElementalMagic ?? 0) : scaleValue(cfg.baseReqElementalMagic ?? 0, lvl, scale),
+    reqAstralMagic:         currentLevel === 0 ? (cfg.baseReqAstralMagic ?? 0) : scaleValue(cfg.baseReqAstralMagic ?? 0, lvl, scale),
+    reqBloodMagic:          currentLevel === 0 ? (cfg.baseReqBloodMagic ?? 0) : scaleValue(cfg.baseReqBloodMagic ?? 0, lvl, scale),
     durationSeconds: currentLevel === 0 ? cfg.baseDurationSeconds : scaleValue(cfg.baseDurationSeconds, lvl, scale),
   };
 }
@@ -183,7 +189,7 @@ function checkUnmet(reqs: ReturnType<typeof getBuildingReqs>, character: any, to
   if (character.knowledge < reqs.reqKnowledge)     unmet.push(`Wiedza ${reqs.reqKnowledge} (masz ${character.knowledge})`);
   if (reqs.reqIntelligence > 0 && character.intelligence < reqs.reqIntelligence) unmet.push(`Inteligencja ${reqs.reqIntelligence} (masz ${character.intelligence})`);
   if (reqs.reqPower > 0 && character.power < reqs.reqPower)                       unmet.push(`Moc ${reqs.reqPower} (masz ${character.power})`);
-  if (reqs.reqFire > 0 && character.fireMagic < reqs.reqFire)                   unmet.push(`Żywioł ognia ${reqs.reqFire} (masz ${character.fireMagic})`);
+  if (reqs.reqElementalMagic > 0 && character.elementalMagic < reqs.reqElementalMagic) unmet.push(`Magia ognia ${reqs.reqElementalMagic} (masz ${character.elementalMagic})`);
   if (reqs.costShards > 0 && character.powerShards < reqs.costShards)             unmet.push(`Okruchy mocy ${reqs.costShards} (masz ${character.powerShards})`);
   if (reqs.costGold > 0 && character.gold < reqs.costGold)                        unmet.push(`Złoto ${reqs.costGold} (masz ${character.gold})`);
   return unmet;
@@ -407,9 +413,10 @@ export const claimTowerUpgrade = async (userId: number) => {
   return { newLevel: character.tower.level + 1 };
 };
 
-export function getSpellSlotCount(libraryLevel: number): number {
-  // poziom 0 = 0 slotów, 1=1, 2=2, 3=3, 4=4, 5=4 (max 4)
-  return Math.min(libraryLevel, 4);
+export function getSpellSlotCount(libraryLevel: number, extraSlots: number = 0): number {
+  // poziom 0 = 0 slotów, 1=1, 2=2, 3=3, 4=4, 5=5 (max 5)
+  return Math.min(libraryLevel, 5) + extraSlots;
+
 }
 
 export const startPowerCollectorUpgrade   = (userId: number) => startBuildingUpgrade(userId, "power_collector");

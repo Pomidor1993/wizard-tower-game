@@ -1,4 +1,5 @@
 import prisma from "../lib/prisma.js";
+import { getCharacterAlignmentBonus } from "./alignment/alignment-bonuses.constants.js";
 import { getSpellSlotCount } from "./tower.service.js";
 
 
@@ -22,8 +23,8 @@ async function getEffectiveCharacter(userId: number) {
 
   let bonusKnowledge = 0, bonusIntelligence = 0, bonusPower = 0,
   bonusEndurance = 0, bonusResistance = 0, bonusInitiative = 0, 
-  bonusFireMagic = 0, bonusWaterMagic = 0, bonusEarthMagic = 0, bonusAirMagic = 0,
-  bonusChaosMagic = 0, bonusEnergyMagic = 0, bonusLifeMagic = 0, bonusDeathMagic = 0; 
+  bonusElementalMagic = 0, bonusAstralMagic = 0, bonusBloodMagic = 0; 
+
 
 
   if (equippedItemIds.length > 0) {
@@ -37,14 +38,10 @@ async function getEffectiveCharacter(userId: number) {
       bonusEndurance += item.bonusEndurance;
       bonusResistance += item.bonusResistance;
       bonusInitiative += item.bonusInitiative;
-      bonusFireMagic += item.bonusFireMagic;
-      bonusWaterMagic += item.bonusWaterMagic;
-      bonusEarthMagic += item.bonusEarthMagic;
-      bonusAirMagic += item.bonusAirMagic;
-      bonusChaosMagic += item.bonusChaosMagic;
-      bonusEnergyMagic += item.bonusEnergyMagic;
-      bonusLifeMagic += item.bonusLifeMagic;
-      bonusDeathMagic += item.bonusDeathMagic;
+      bonusElementalMagic += item.bonusElementalMagic;
+      bonusAstralMagic += item.bonusAstralMagic;
+      bonusBloodMagic += item.bonusBloodMagic;
+
 
     }
   }
@@ -59,83 +56,60 @@ async function getEffectiveCharacter(userId: number) {
     endurance:    character.endurance      + bonusEndurance,
     resistance:   character.resistance     + bonusResistance,
     initiative:   character.initiative     + bonusInitiative,
-    fireMagic:    character.fireMagic      + bonusFireMagic,
-    waterMagic:   character.waterMagic     + bonusWaterMagic,
-    earthMagic:   character.earthMagic     + bonusEarthMagic,
-    airMagic:     character.airMagic       + bonusAirMagic,
-    chaosMagic:   character.chaosMagic     + bonusChaosMagic,
-    energyMagic:  character.energyMagic    + bonusEnergyMagic,
-    lifeMagic:    character.lifeMagic      + bonusLifeMagic,
-    deathMagic:   character.deathMagic     + bonusDeathMagic,
+    elementalMagic:    character.elementalMagic      + bonusElementalMagic,
+    astralMagic:   character.astralMagic     + bonusAstralMagic,
+    bloodMagic:   character.bloodMagic     + bonusBloodMagic,
   };
 }
 
 // ── WALIDACJA WYMAGAŃ ────────────────────────────────
 
-function checkItemRequirements(item: any, character: any) {
+function checkItemRequirements(item: any, character: any, reqModifier: number = 0) {
+  const mod = (req: number) => Math.floor(req * (1 + reqModifier));
   const errors: string[] = [];
-  if (item.reqKnowledge > 0 && character.knowledge    < item.reqKnowledge)
-    errors.push(`Wiedza ${item.reqKnowledge} (masz ${character.knowledge})`);
-  if (item.reqIntelligence > 0 && character.intelligence < item.reqIntelligence)
-    errors.push(`Inteligencja ${item.reqIntelligence} (masz ${character.intelligence})`);
-  if (item.reqPower     > 0 && character.power        < item.reqPower)
-    errors.push(`Moc ${item.reqPower} (masz ${character.power})`);
-  if (item.reqEndurance > 0 && character.endurance    < item.reqEndurance)
-    errors.push(`Wytrzymałość ${item.reqEndurance} (masz ${character.endurance})`);
-  if (item.reqResistance > 0 && character.resistance   < item.reqResistance)
-    errors.push(`Odporność ${item.reqResistance} (masz ${character.resistance})`);
-  if (item.reqInitiative > 0 && character.initiative   < item.reqInitiative)
-    errors.push(`Inicjatywa ${item.reqInitiative} (masz ${character.initiative})`);
-  if (item.reqFireMagic       > 0 && character.fireMagic  < item.reqFireMagic)
-    errors.push(`Żywioł ognia ${item.reqFireMagic} (masz ${character.fireMagic})`);
-  if (item.reqWaterMagic      > 0 && character.waterMagic < item.reqWaterMagic)
-    errors.push(`Żywioł wody ${item.reqWaterMagic} (masz ${character.waterMagic})`);
-  if (item.reqEarthMagic      > 0 && character.earthMagic < item.reqEarthMagic)
-    errors.push(`Żywioł ziemi ${item.reqEarthMagic} (masz ${character.earthMagic})`);
-  if (item.reqAirMagic        > 0 && character.airMagic   < item.reqAirMagic)
-    errors.push(`Żywioł powietrza ${item.reqAirMagic} (masz ${character.airMagic})`);
-  if (item.reqChaosMagic      > 0 && character.chaosMagic        < item.reqChaosMagic)
-    errors.push(`Chaos ${item.reqChaosMagic} (masz ${character.chaosMagic})`);
-  if (item.reqLifeMagic       > 0 && character.lifeMagic      < item.reqLifeMagic )
-    errors.push(`Życie ${item.reqLifeMagic} (masz ${character.lifeMagic})`);
-  if (item.reqDeathMagic      > 0 && character.deathMagic     < item.reqDeathMagic)
-    errors.push(`Śmierć ${item.reqDeathMagic} (masz ${character.deathMagic})`);
-  if (item.reqEnergyMagic    > 0 && character.energyMagic    < item.reqEnergyMagic)
-    errors.push(`Energia ${item.reqEnergyMagic} (masz ${character.energyMagic})`);
+  if (item.reqKnowledge > 0 && character.knowledge < mod(item.reqKnowledge))
+    errors.push(`Wiedza ${mod(item.reqKnowledge)} (masz ${character.knowledge})`);
+  if (item.reqIntelligence > 0 && character.intelligence < mod(item.reqIntelligence))
+    errors.push(`Inteligencja ${mod(item.reqIntelligence)} (masz ${character.intelligence})`);
+  if (item.reqPower > 0 && character.power < mod(item.reqPower))
+    errors.push(`Moc ${mod(item.reqPower)} (masz ${character.power})`);
+  if (item.reqEndurance > 0 && character.endurance < mod(item.reqEndurance))
+    errors.push(`Wytrzymałość ${mod(item.reqEndurance)} (masz ${character.endurance})`);
+  if (item.reqResistance > 0 && character.resistance < mod(item.reqResistance))
+    errors.push(`Odporność ${mod(item.reqResistance)} (masz ${character.resistance})`);
+  if (item.reqInitiative > 0 && character.initiative < mod(item.reqInitiative))
+    errors.push(`Inicjatywa ${mod(item.reqInitiative)} (masz ${character.initiative})`);
+  if (item.reqElementalMagic > 0 && character.elementalMagic < mod(item.reqElementalMagic))
+    errors.push(`Magia żywiołów ${mod(item.reqElementalMagic)} (masz ${character.elementalMagic})`);
+  if (item.reqAstralMagic > 0 && character.astralMagic < mod(item.reqAstralMagic))
+    errors.push(`Magia astralna ${mod(item.reqAstralMagic)} (masz ${character.astralMagic})`);
+  if (item.reqBloodMagic > 0 && character.bloodMagic < mod(item.reqBloodMagic))
+    errors.push(`Magia krwi ${mod(item.reqBloodMagic)} (masz ${character.bloodMagic})`);
   if (errors.length > 0)
     throw new Error(`Nie spełniasz wymagań: ${errors.join(", ")}`);
 }
 
-function checkSpellRequirements(spell: any, character: any) {
+function checkSpellRequirements(spell: any, character: any, reqModifier: number = 0) {
+  const mod = (req: number) => Math.floor(req * (1 + reqModifier));
   const errors: string[] = [];
-  if (spell.reqKnowledge > 0 && character.knowledge    < spell.reqKnowledge)
-    errors.push(`Wiedza ${spell.reqKnowledge} (masz ${character.knowledge})`);
-  if (spell.reqIntelligence > 0 && character.intelligence < spell.reqIntelligence)
-    errors.push(`Inteligencja ${spell.reqIntelligence} (masz ${character.intelligence})`);
-  if (spell.reqPower     > 0 && character.power        < spell.reqPower)
-    errors.push(`Moc ${spell.reqPower} (masz ${character.power})`);
-  if (spell.reqEndurance > 0 && character.endurance    < spell.reqEndurance)
-    errors.push(`Wytrzymałość ${spell.reqEndurance} (masz ${character.endurance})`);
-  if (spell.reqResistance > 0 && character.resistance   < spell.reqResistance)
-    errors.push(`Odporność ${spell.reqResistance} (masz ${character.resistance})`);
-  if (spell.reqInitiative > 0 && character.initiative   < spell.reqInitiative)
-    errors.push(`Inicjatywa ${spell.reqInitiative} (masz ${character.initiative})`);
-  if (spell.reqLifeMagic      > 0 && character.lifeMagic      < spell.reqLifeMagic)
-    errors.push(`Życie ${spell.reqLifeMagic} (masz ${character.lifeMagic})`);
-  if (spell.reqDeathMagic     > 0 && character.deathMagic     < spell.reqDeathMagic)
-    errors.push(`Śmierć ${spell.reqDeathMagic} (masz ${character.deathMagic})`);
-  if (spell.reqEnergyMagic    > 0 && character.energyMagic    < spell.reqEnergyMagic)
-    errors.push(`Energia ${spell.reqEnergyMagic} (masz ${character.energyMagic})`);
-  if (spell.reqFireMagic  > 0 && character.fireMagic  < spell.reqFireMagic)
-    errors.push(`Żywioł ognia ${spell.reqFireMagic} (masz ${character.fireMagic})`);
-  if (spell.reqWaterMagic > 0 && character.waterMagic < spell.reqWaterMagic)
-    errors.push(`Żywioł wody ${spell.reqWaterMagic} (masz ${character.waterMagic})`);
-  if (spell.reqEarthMagic > 0 && character.earthMagic < spell.reqEarthMagic)
-    errors.push(`Żywioł ziemi ${spell.reqEarthMagic} (masz ${character.earthMagic})`);
-  if (spell.reqAirMagic   > 0 && character.airMagic   < spell.reqAirMagic)
-    errors.push(`Żywioł powietrza ${spell.reqAirMagic} (masz ${character.airMagic})`);
-  if (spell.reqChaosMagic > 0 && character.chaosMagic        < spell.reqChaosMagic)
-    errors.push(`Chaos ${spell.reqChaosMagic} (masz ${character.chaosMagic})`);
+  if (spell.reqKnowledge > 0 && character.knowledge < mod(spell.reqKnowledge))
+    errors.push(`Wiedza ${mod(spell.reqKnowledge)} (masz ${character.knowledge})`);
+  if (spell.reqIntelligence > 0 && character.intelligence < mod(spell.reqIntelligence))
+    errors.push(`Inteligencja ${mod(spell.reqIntelligence)} (masz ${character.intelligence})`);
+  if (spell.reqPower > 0 && character.power < mod(spell.reqPower))
+    errors.push(`Moc ${mod(spell.reqPower)} (masz ${character.power})`);
+  if (spell.reqEndurance > 0 && character.endurance < mod(spell.reqEndurance))
+    errors.push(`Wytrzymałość ${mod(spell.reqEndurance)} (masz ${character.endurance})`);
+  if (spell.reqResistance > 0 && character.resistance < mod(spell.reqResistance))
+    errors.push(`Odporność ${mod(spell.reqResistance)} (masz ${character.resistance})`);
+  if (spell.reqInitiative > 0 && character.initiative < mod(spell.reqInitiative))
+    errors.push(`Inicjatywa ${mod(spell.reqInitiative)} (masz ${character.initiative})`);
+  if (spell.reqElementalMagic > 0 && character.elementalMagic < mod(spell.reqElementalMagic))
+    errors.push(`Magia żywiołów ${mod(spell.reqElementalMagic)} (masz ${character.elementalMagic})`);
+  if (spell.reqAstralMagic > 0 && character.astralMagic < mod(spell.reqAstralMagic))
+    errors.push(`Magia astralna ${mod(spell.reqAstralMagic)} (masz ${character.astralMagic})`);
+  if (spell.reqBloodMagic > 0 && character.bloodMagic < mod(spell.reqBloodMagic))
+    errors.push(`Magia krwi ${mod(spell.reqBloodMagic)} (masz ${character.bloodMagic})`);
   if (errors.length > 0)
     throw new Error(`Nie spełniasz wymagań: ${errors.join(", ")}`);
 }
@@ -195,7 +169,8 @@ export async function equipItem(userId: number, itemId: number) {
   if (!item) throw new Error("Przedmiot nie istnieje");
 
   // Walidacja wymagań z efektywnymi statystykami
-  checkItemRequirements(item, character);
+const alignmentBonus = await getCharacterAlignmentBonus(character.id);
+checkItemRequirements(item, character, alignmentBonus?.spellReqModifier ?? 0);
 
   // Ustal slot
   const slotMap: Record<string, string> = {
@@ -217,22 +192,33 @@ export async function equipItem(userId: number, itemId: number) {
     updateData.offHandId = null;
   }
 
-  if (item.slot === "weapon_one") {
-    // Sprawdź czy w mainHand jest dwuręczna — jeśli tak, wyczyść ją
-    if (character.equipment?.mainHandId) {
-      const mainHandItem = await prisma.item.findUnique({
-        where: { id: character.equipment.mainHandId },
-      });
-      if (mainHandItem?.weaponType === "two_handed") {
-        updateData.mainHandId = itemId;
-        updateData.offHandId = null;
-      } else {
-        // mainHand zajęty jednoręczną — wstaw do offHand
-        updateData.offHandId = itemId;
-        delete updateData.mainHandId;
-      }
+if (item.slot === "weapon_one") {
+  const alignmentBonus = await getCharacterAlignmentBonus(character.id);
+  const hasThirdHand = alignmentBonus?.thirdWeaponHand ?? false;
+
+  if (character.equipment?.mainHandId) {
+    const mainHandItem = await prisma.item.findUnique({
+      where: { id: character.equipment.mainHandId },
+    });
+
+    if (mainHandItem?.weaponType === "two_handed") {
+      updateData.mainHandId = itemId;
+      updateData.offHandId = null;
+    } else if (!character.equipment.offHandId) {
+      // offHand wolny — wstaw tam
+      updateData.offHandId = itemId;
+      delete updateData.mainHandId;
+    } else if (hasThirdHand && !character.equipment.offHand2Id) {
+      // offHand zajęty, ale klasa ma trzecią rękę i offHand2 wolny
+      updateData.offHand2Id = itemId;
+      delete updateData.mainHandId;
+    } else {
+      // wszystkie sloty zajęte — zastąp offHand
+      updateData.offHandId = itemId;
+      delete updateData.mainHandId;
     }
   }
+}
 
   await prisma.characterEquipment.upsert({
     where: { characterId: character.id },
@@ -259,6 +245,7 @@ export async function unequipItem(userId: number, slot: string) {
     amulet:   "amuletId",
     mainHand: "mainHandId",
     offHand:  "offHandId",
+    offHand2: "offHand2Id",
   };
 
   const slotField = slotMap[slot];
@@ -287,8 +274,8 @@ export async function equipSpell(userId: number, spellId: number, slotIndex: num
 
   const libraryLevel = charTower?.tower?.buildings
     .find(b => b.buildingType === "library")?.level ?? 0;
-  const maxSlots = getSpellSlotCount(libraryLevel);
-
+  const alignmentBonus = await getCharacterAlignmentBonus(character.id);
+  const maxSlots = getSpellSlotCount(libraryLevel, alignmentBonus?.extraActiveSpellSlots ?? 0);
   if (maxSlots === 0) throw new Error("Wybuduj Bibliotekę aby aktywować czary bojowe");
   if (slotIndex >= maxSlots) throw new Error(`Biblioteka poziomu ${libraryLevel} daje tylko ${maxSlots} slot(y) aktywnych czarów`);
 
@@ -299,8 +286,8 @@ export async function equipSpell(userId: number, spellId: number, slotIndex: num
   const spell = await prisma.spell.findUnique({ where: { id: spellId } });
   if (!spell) throw new Error("Czar nie istnieje");
 
-  // Walidacja wymagań z efektywnymi statystykami
-  checkSpellRequirements(spell, character);
+  // Walidacja wymagań z efektwnymi statystykami
+checkSpellRequirements(spell, character, alignmentBonus?.spellReqModifier ?? 0);
 
   await prisma.characterSpellSlots.upsert({
     where:  { characterId_slotIndex: { characterId: character.id, slotIndex } },

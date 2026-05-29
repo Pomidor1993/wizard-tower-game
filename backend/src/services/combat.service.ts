@@ -15,6 +15,7 @@ import {
 } from "../types/status-types.js";
 import { recordSpellbookEntries } from "./spellbook.service.js";
 import { alignmentTriggerService } from "./alignment/alignment-trigger.service.js";
+import { getCharacterAlignmentBonus, MagicElement } from "./alignment/alignment-bonuses.constants.js";
 
 
 const DAILY_BATTLE_LIMIT = 5;
@@ -116,6 +117,8 @@ export interface Fighter {
   appliedStatuses: AppliedStatus[];
   stunTurnsLeft:   number;
   isPlayer: boolean;
+  spellReqModifier?: number;
+  bannedSpellElements?: string[];
 }
 
 interface BattleSide {
@@ -202,10 +205,11 @@ const POOL_LABELS: Record<SpellPool, string> = {
 };
 
 function canUseSpell(spell: BattleSpell, fighter: Fighter, globalStatuses: AppliedStatus[]): boolean {
+  const mod = (req: number) => Math.floor(req * (1 + (fighter.spellReqModifier ?? 0)));
   return (
-    getEffectiveStat(fighter, "elementalMagic", globalStatuses) >= spell.reqElementalMagic &&
-    getEffectiveStat(fighter, "astralMagic",    globalStatuses) >= spell.reqAstralMagic    &&
-    getEffectiveStat(fighter, "bloodMagic",     globalStatuses) >= spell.reqBloodMagic
+    getEffectiveStat(fighter, "elementalMagic", globalStatuses) >= mod(spell.reqElementalMagic) &&
+    getEffectiveStat(fighter, "astralMagic",    globalStatuses) >= mod(spell.reqAstralMagic)    &&
+    getEffectiveStat(fighter, "bloodMagic",     globalStatuses) >= mod(spell.reqBloodMagic)
   );
 }
 
@@ -1029,7 +1033,7 @@ function formatSpellDescription(
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export async function buildFighter(characterId: number): Promise<Fighter> {
-  const character = await prisma.character.findUnique({
+  const character = await prisma.character.findUnique({  // ← najpierw character
     where: { id: characterId },
     include: {
       spellSlots: { include: { spell: true }, orderBy: { slotIndex: "asc" } },
@@ -1040,6 +1044,8 @@ export async function buildFighter(characterId: number): Promise<Fighter> {
   });
   if (!character) throw new Error(`Postać ${characterId} nie znaleziona`);
 
+  const alignmentBonus = await getCharacterAlignmentBonus(character.id);  // ← potem bonus
+  const banned = alignmentBonus?.bannedSpellElements ?? [];
   let bonusEndurance    = 0;
   let bonusInitiative   = 0;
   let bonusPower        = 0;
@@ -1071,7 +1077,7 @@ export async function buildFighter(characterId: number): Promise<Fighter> {
     }
   }
 
-  function mapSpell(s: any): BattleSpell {
+function mapSpell(s: any): BattleSpell {  // ← mapSpell bez filtrowania
     return {
       id:                s.id,
       name:              s.name,
@@ -1097,9 +1103,14 @@ export async function buildFighter(characterId: number): Promise<Fighter> {
   }
 
   const allSpells    = await prisma.spell.findMany();
-  const activeSpells = character.spellSlots.map(ss => mapSpell(ss.spell));
+  const activeSpells = character.spellSlots
+    .map(ss => mapSpell(ss.spell))
+    .filter(s => !banned.includes(s.element as MagicElement))
   const activeIds    = new Set(activeSpells.map(s => s.id));
-  const spellPool    = allSpells.map(mapSpell).filter(s => !activeIds.has(s.id));
+  const spellPool    = allSpells
+    .map(mapSpell)
+    .filter(s => !activeIds.has(s.id))
+    .filter(s => !banned.includes(s.element as MagicElement))
   const towerLevel   = character.tower?.level ?? 1;
   const effectiveEndurance = character.endurance + bonusEndurance;
   const maxHp        = Math.max(1, 20 + effectiveEndurance * 5);
@@ -1122,6 +1133,8 @@ export async function buildFighter(characterId: number): Promise<Fighter> {
     minions:         [],
     appliedStatuses: [],
     stunTurnsLeft:   0,
+    bannedSpellElements: banned,
+    spellReqModifier: alignmentBonus?.spellReqModifier ?? 0,
     isPlayer:        true,
   };
 }

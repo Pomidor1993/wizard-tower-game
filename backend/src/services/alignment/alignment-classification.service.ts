@@ -1,5 +1,8 @@
 import prisma from "../../lib/prisma.js";
-
+import {
+  ALIGNMENT_PATHS,
+  PATH_LOCKS
+} from "./alignment.constants.js";
 /**
  * ALIGNMENT CLASSIFICATION SERVICE
  * Zamienia wartości osi moralnych na finalną klasę postaci
@@ -7,6 +10,26 @@ import prisma from "../../lib/prisma.js";
 
 type MoralType = "GOOD" | "NEUTRAL" | "EVIL";
 type OrderType = "LAWFUL" | "NEUTRAL" | "CHAOTIC";
+
+export function classifyAlignmentPath(
+  moralAlignment: string,
+  orderAlignment: string
+) {
+  return ALIGNMENT_PATHS[
+    moralAlignment as keyof typeof ALIGNMENT_PATHS
+  ][
+    orderAlignment as keyof typeof ALIGNMENT_PATHS.GOOD
+  ];
+}
+
+export function isFinalClassAllowed(
+  path: string,
+  finalClass: string
+) {
+  const blocked = PATH_LOCKS[path] ?? [];
+
+  return !blocked.includes(finalClass);
+}
 
 export const alignmentClassificationService = {
 
@@ -41,6 +64,8 @@ export const alignmentClassificationService = {
     };
   },
 
+
+  
   // ─────────────────────────────────────────────
   // AXIS → CATEGORIES
   // ─────────────────────────────────────────────
@@ -74,7 +99,7 @@ export const alignmentClassificationService = {
       NEUTRAL: {
         LAWFUL: "ARBITRZY RUN",
         NEUTRAL: "TKACZE ETERU",
-        CHAOTIC: "ROZDARCI"
+        CHAOTIC: "GADERY"
       },
 
       EVIL: {

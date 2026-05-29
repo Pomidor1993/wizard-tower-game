@@ -28,14 +28,9 @@ interface BattleSpell {
   statusEffectDefs: StatusEffectDef[];
   castEffectDefs: never[];
   special: string | null;
-  reqFireMagic: number;
-  reqWaterMagic: number;
-  reqEarthMagic: number;
-  reqAirMagic: number;
-  reqChaosMagic: number;
-  reqLifeMagic: number;
-  reqDeathMagic: number;
-  reqEnergyMagic: number;
+  reqElementalMagic: number;
+  reqAstralMagic: number;
+  reqBloodMagic: number;
   summonCount: number;
   summonHp: number;
   summonDamage: number;
@@ -53,15 +48,9 @@ export interface PvEFighter {
   initiative: number;
   power: number;
   intelligence: number;
-  elementPower: number;
-  fireMagic: number;
-  waterMagic: number;
-  earthMagic: number;
-  airMagic: number;
-  chaosMagic: number;
-  energyMagic: number;
-  lifeMagic: number;
-  deathMagic: number;
+  elementalMagic: number;
+  astralMagic: number;
+  bloodMagic: number;
   towerLevel: number;
   activeSpells: BattleSpell[];
   spellPool: BattleSpell[];
@@ -114,14 +103,9 @@ function attackToSpell(attack: EntityAttack | EntityStatusAttack): BattleSpell {
     statusEffectDefs,
     castEffectDefs: [],
     special: attack.description,
-    reqFireMagic: 0,
-    reqWaterMagic: 0,
-    reqEarthMagic: 0,
-    reqAirMagic: 0,
-    reqChaosMagic: 0,
-    reqLifeMagic: 0,
-    reqDeathMagic: 0,
-    reqEnergyMagic: 0,
+    reqElementalMagic: 0,
+    reqAstralMagic: 0,
+    reqBloodMagic: 0,
     summonCount: 0,
     summonHp: 0,
     summonDamage: 0,
@@ -196,15 +180,9 @@ export function buildEntityFighter(entity: MinorEntityDef): PvEFighter {
     initiative: entity.initiative,
     power: entity.power,
     intelligence: entity.intelligence, 
-    elementPower: entity.elementPower,
-    fireMagic: entity.fireMagic,
-    waterMagic: entity.waterMagic,
-    earthMagic: entity.earthMagic,
-    airMagic: entity.airMagic,
-    chaosMagic: entity.chaosMagic,
-    energyMagic: entity.energyMagic,
-    lifeMagic: entity.lifeMagic,
-    deathMagic: entity.deathMagic,
+    elementalMagic: entity.elementalMagic,
+    astralMagic: entity.astralMagic,
+    bloodMagic: entity.bloodMagic,
     towerLevel: 1,    // Byt nie ma wieży — zawsze pula "chaotic"
     activeSpells: [], // Byt nie ma przygotowanych czarów — losuje co turę
     spellPool,
