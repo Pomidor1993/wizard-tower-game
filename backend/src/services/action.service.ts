@@ -1,6 +1,7 @@
 import prisma from "../lib/prisma.js";
-import { alignmentTriggerService } from "./alignment/alignment-trigger.service.js";
+import { archetypeTriggerService } from "./archetype/archetype-trigger.service.js";
 import { recordSpellbookEntry } from "./spellbook.service.js";
+import { addExperience } from "./character.service.js";
 
 // ── KONFIGURACJA AKCJI ───────────────────────────────
 const STUDY_CONFIG = [
@@ -148,7 +149,7 @@ export async function claimStudyAction(userId: number, actionId: number) {
   }
 
   const config = STUDY_CONFIG[action.actionLevel - 1];
-  const skillPointsEarned = randomInt(config.minPoints, config.maxPoints);
+  const xpEarned = randomInt(config.minPoints, config.maxPoints);
 
   let discoveredSpellName: string | null = null;
   let spellDestination: string = "none";
@@ -167,52 +168,57 @@ export async function claimStudyAction(userId: number, actionId: number) {
       const chosen = availableSpells[randomInt(0, availableSpells.length - 1)];
       const knownCount = character.spells.length;
 
-if (knownCount < character.maxSpells) {
-  await prisma.characterSpell.create({
-    data: { characterId: character.id, spellId: chosen.id },
-  });
-  discoveredSpellName = chosen.name;
-  spellDestination = "library";
-} else {
-  // Zawsze ląduje w chaos_vault
-  await prisma.chaosVaultItem.create({
-    data: { characterId: character.id, spellId: chosen.id },
-  });
-  discoveredSpellName = chosen.name;
-  spellDestination = "chaos_vault";
-}
-if (discoveredSpellName && chosen) {
-  await recordSpellbookEntry(character.id, chosen.id, "study");
-    }    }
+      if (knownCount < character.maxSpells) {
+        await prisma.characterSpell.create({
+          data: { characterId: character.id, spellId: chosen.id },
+        });
+        discoveredSpellName = chosen.name;
+        spellDestination = "library";
+      } else {
+        await prisma.chaosVaultItem.create({
+          data: { characterId: character.id, spellId: chosen.id },
+        });
+        discoveredSpellName = chosen.name;
+        spellDestination = "chaos_vault";
+      }
+      if (discoveredSpellName && chosen) {
+        await recordSpellbookEntry(character.id, chosen.id, "study");
+      }
+    }
   }
 
+  // Zapis akcji jako odebranej — bez aktualizacji skillPoints, to teraz robi addExperience
+  await prisma.characterAction.update({
+    where: { id: action.id },
+    data: {
+      status: "claimed",
+      skillPointsEarned: xpEarned,
+      spellDiscovered: discoveredSpellName,
+      report: "{}", // dopiszemy report niżej, po przeliczeniu poziomu
+    },
+  });
+
+  const levelResult = await addExperience(character.id, xpEarned);
+
   const report = {
-    skillPointsEarned,
+    experienceEarned: xpEarned,
     discoveredSpell: discoveredSpellName,
     spellDestination,
     overflowSpellName,
-message: spellDestination === "library"
-  ? `Zdobyłeś ${skillPointsEarned} pkt umiejętności i odkryłeś czar: ${discoveredSpellName}!`
-  : spellDestination === "chaos_vault"
-  ? `Zdobyłeś ${skillPointsEarned} pkt umiejętności i odkryłeś czar: ${discoveredSpellName}! Niestety, wszystkie regały w Twojej bibliotece są już zajęte, więc postanowiłeś wrzucić pergamin do Komnaty Nieładu. Rozbuduj bibliotekę, aby uzyskać do niego dostęp!`
-  : `Zdobyłeś ${skillPointsEarned} pkt umiejętności.`,
+    levelUp: levelResult.levelsGained > 0
+      ? { newLevel: levelResult.level, skillPointsGained: levelResult.skillPointsGained }
+      : null,
+    message: spellDestination === "library"
+      ? `Zdobyłeś ${xpEarned} pkt doświadczenia i odkryłeś czar: ${discoveredSpellName}!`
+      : spellDestination === "chaos_vault"
+      ? `Zdobyłeś ${xpEarned} pkt doświadczenia i odkryłeś czar: ${discoveredSpellName}! Niestety, wszystkie regały w Twojej bibliotece są już zajęte, więc postanowiłeś wrzucić pergamin do Komnaty Nieładu. Rozbuduj bibliotekę, aby uzyskać do niego dostęp!`
+      : `Zdobyłeś ${xpEarned} pkt doświadczenia.`,
   };
 
-  await prisma.$transaction([
-    prisma.characterAction.update({
-      where: { id: action.id },
-      data: {
-        status: "claimed",
-        skillPointsEarned,
-        spellDiscovered: discoveredSpellName,
-        report: JSON.stringify(report),
-      },
-    }),
-    prisma.character.update({
-      where: { id: character.id },
-      data: { skillPoints: { increment: skillPointsEarned } },
-    }),
-  ]);
+  await prisma.characterAction.update({
+    where: { id: action.id },
+    data: { report: JSON.stringify(report) },
+  });
 
   const studyLevelsDone = await prisma.characterAction.groupBy({
     by: ["actionLevel"],
@@ -225,13 +231,18 @@ message: spellDestination === "library"
 
   const allLevelsDone = studyLevelsDone.length >= 5;
 
-  await alignmentTriggerService.checkTrigger(
+  await archetypeTriggerService.checkTrigger(
     character.id,
     "CRAZY_STUDIES_ALL",
     { allStudiesDone: allLevelsDone }
   );
 
-  return report;
+  return {
+    ...report,
+    level: levelResult.level,
+    experience: levelResult.experience,
+    xpToNextLevel: levelResult.xpToNextLevel,
+  };
 }
 // ── STATUS AKTYWNYCH AKCJI ───────────────────────────
 export async function getActiveActions(userId: number) {

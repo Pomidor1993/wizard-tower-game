@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "Character" ADD COLUMN     "experience" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "level" INTEGER NOT NULL DEFAULT 1,
+ALTER COLUMN "skillPoints" SET DEFAULT 5;

@@ -12,7 +12,8 @@ import {
 import { buildEntityFighter } from "./pve-engine.js";
 import { recordSpellbookEntries } from "./spellbook.service.js";
 import { simulateBattle, buildFighter, Fighter } from "./combat.service.js";
-import { alignmentService } from "./alignment/alignment-service.js";
+import { archetypeService } from "./archetype/archetype-service.js";
+import { addExperience } from "./character.service.js";
 
 // ── KONFIGURACJA ──────────────────────────────────────────────────────────────
 
@@ -118,10 +119,13 @@ export async function claimExploration(userId: number, actionId: number) {
 
   const config = EXPLORATION_CONFIG[action.actionLevel - 1]!;
   const skillPointsEarned = randomInt(config.minPoints, config.maxPoints);
+  const levelResult = await addExperience(character.id, skillPointsEarned);
 
   const messages: string[] = [];
-  messages.push(`Eksploracja zakończona! Zdobyłeś ${skillPointsEarned} punktów umiejętności.`);
-
+messages.push(`Eksploracja zakończona! Zdobyłeś ${skillPointsEarned} punktów doświadczenia.`);
+if (levelResult.levelsGained > 0) {
+  messages.push(`Awans! Twoja postać osiągnęła poziom ${levelResult.level} i zdobyła ${levelResult.skillPointsGained} pkt rozwoju.`);
+}
   // ── PRZEDMIOT (placeholder — rozbudować osobno) ───────────────────────────
   // Tu możesz dodać losowanie przedmiotu z itemChance, analogicznie do seeda
 
@@ -152,55 +156,60 @@ export async function claimExploration(userId: number, actionId: number) {
   // ── ZAPIS ─────────────────────────────────────────────────────────────────
   const runicShardsEarned = encounterResult?.runicShardsEarned ?? 0;
 
-  await prisma.$transaction([
-    prisma.characterAction.update({
-      where: { id: action.id },
-      data: {
-        status: "claimed",
+await prisma.$transaction([
+  prisma.characterAction.update({
+    where: { id: action.id },
+    data: {
+      status: "claimed",
+      skillPointsEarned,
+      report: JSON.stringify({
         skillPointsEarned,
-        report: JSON.stringify({
-          skillPointsEarned,
-          messages,
-          encounter: encounterResult
-            ? {
-                fought: encounterResult.fought,
-                entityId: encounterResult.entityId,
-                entityName: encounterResult.entityName,
-                playerWon: encounterResult.playerWon,
-                runicShardsEarned: encounterResult.runicShardsEarned,
-                battleLog: encounterResult.battleLog,
-                summary: encounterResult.summary,
-              }
-            : null,
-        }),
-      },
-    }),
-    prisma.character.update({
-      where: { id: character.id },
-      data: {
-        skillPoints: { increment: skillPointsEarned },
-        runicStoneShards: { increment: runicShardsEarned },
-      },
-    }),
-  ]);
+        messages,
+        encounter: encounterResult
+          ? {
+              fought: encounterResult.fought,
+              entityId: encounterResult.entityId,
+              entityName: encounterResult.entityName,
+              playerWon: encounterResult.playerWon,
+              runicShardsEarned: encounterResult.runicShardsEarned,
+              battleLog: encounterResult.battleLog,
+              summary: encounterResult.summary,
+            }
+          : null,
+      }),
+    },
+  }),
+  prisma.character.update({
+    where: { id: character.id },
+    data: {
+      runicStoneShards: { increment: runicShardsEarned },
+    },
+  }),
+]);
 
-  return {
-    messages,
-    skillPointsEarned,
-    encounter: encounterResult
-      ? {
-          fought: encounterResult.fought,
-          entityName: encounterResult.entityName,
-          entityDescription: encounterResult.entity?.description,
-          playerWon: encounterResult.playerWon,
-          runicShardsEarned: encounterResult.runicShardsEarned,
-          battleLog: encounterResult.battleLog,
-          summary: encounterResult.summary,
-          flavorText: encounterResult.playerWon
-            ? encounterResult.entity?.defeatFlavorText
-            : encounterResult.entity?.victoryFlavorText,
-        }
-      : null,
+
+return {
+  messages,
+  experienceEarned: skillPointsEarned,
+  level: levelResult.level,
+  experience: levelResult.experience,
+  xpToNextLevel: levelResult.xpToNextLevel,
+  levelsGained: levelResult.levelsGained,
+  skillPointsGained: levelResult.skillPointsGained,
+  encounter: encounterResult
+    ? {
+        fought: encounterResult.fought,
+        entityName: encounterResult.entityName,
+        entityDescription: encounterResult.entity?.description,
+        playerWon: encounterResult.playerWon,
+        runicShardsEarned: encounterResult.runicShardsEarned,
+        battleLog: encounterResult.battleLog,
+        summary: encounterResult.summary,
+        flavorText: encounterResult.playerWon
+          ? encounterResult.entity?.defeatFlavorText
+          : encounterResult.entity?.victoryFlavorText,
+      }
+    : null,
   };
 }
 
@@ -280,7 +289,7 @@ await recordSpellbookEntries(characterId, playerCastSpellIds, "battle_cast");
     },
   });
 
-  // ── ALIGNMENT TRIGGERS ───────────────────────────
+  // ── ARCHETYPE TRIGGERS ───────────────────────────
 
   if (playerWon) {
 
@@ -291,7 +300,7 @@ await recordSpellbookEntries(characterId, playerCastSpellIds, "battle_cast");
       },
     });
 
-    await alignmentService.handleGameEvent(
+    await archetypeService.handleGameEvent(
       characterId,
       "FIRST_ENEMY_KILLED",
       {
@@ -299,7 +308,7 @@ await recordSpellbookEntries(characterId, playerCastSpellIds, "battle_cast");
       }
     );
 
-    await alignmentService.handleGameEvent(
+    await archetypeService.handleGameEvent(
       characterId,
       "TEN_ENEMIES_KILLED",
       {
@@ -308,7 +317,7 @@ await recordSpellbookEntries(characterId, playerCastSpellIds, "battle_cast");
     );
 
 if (playerWon && entity.isBoss) {
-  await alignmentService.handleGameEvent(characterId, "FIRST_PVE_BOSS", { isBoss: true });
+  await archetypeService.handleGameEvent(characterId, "FIRST_PVE_BOSS", { isBoss: true });
 }
   }
 

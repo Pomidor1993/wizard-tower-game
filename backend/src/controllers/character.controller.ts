@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import prisma from "../lib/prisma.js";
-import { upgradeStat, getUpgradeCosts, upgradeElement } from "../services/character.service.js";
+import { upgradeStat, getUpgradeCosts } from "../services/character.service.js";
 
 export async function getMyCharacter(req: Request, res: Response) {
   const character = await prisma.character.findUnique({
@@ -43,30 +43,6 @@ export async function getUpgradeCostsEndpoint(req: Request, res: Response) {
   }
 }
 
-export async function upgradeElementEndpoint(
-  req: Request,
-  res: Response
-) {
-
-  try {
-
-    const { element } = req.body;
-
-    const result = await upgradeElement(
-      req.userId!,
-      element
-    );
-
-    res.json(result);
-
-  } catch (e: any) {
-
-    res.status(400).json({
-      error: e.message
-    });
-
-  }
-}
 
 export async function getEffectiveStats(req: Request, res: Response) {
   try {
@@ -89,10 +65,8 @@ export async function getEffectiveStats(req: Request, res: Response) {
     // Pobierz bonusy z przedmiotów
     let bonuses = {
       knowledge: 0, intelligence: 0, power: 0,
-      endurance: 0, resistance: 0, initiative: 0, elementPower: 0,
-      fireMagic: 0, earthMagic: 0, airMagic: 0,
-      waterMagic: 0, chaosMagic: 0, energyMagic: 0, 
-      lifeMagic: 0, deathMagic: 0,
+      endurance: 0, resistance: 0, initiative: 0, elementalMagic: 0,
+      astralMagic: 0, bloodMagic: 0,
     };
 
     if (itemIds.length > 0) {
@@ -104,54 +78,37 @@ export async function getEffectiveStats(req: Request, res: Response) {
         bonuses.endurance  += item.bonusEndurance;
         bonuses.resistance += item.bonusResistance;
         bonuses.initiative += item.bonusInitiative;
-        bonuses.elementPower += item.bonusElementPower;
-        bonuses.fireMagic += item.bonusFireMagic;
-        bonuses.waterMagic += item.bonusWaterMagic;
-        bonuses.earthMagic += item.bonusEarthMagic;
-        bonuses.airMagic   += item.bonusAirMagic;
-        bonuses.lifeMagic   += item.bonusLifeMagic;
-        bonuses.deathMagic  += item.bonusDeathMagic;
-        bonuses.chaosMagic  += item.bonusChaosMagic;
-        bonuses.energyMagic += item.bonusEnergyMagic;
+        bonuses.elementalMagic += item.bonusElementalMagic;
+        bonuses.astralMagic += item.bonusAstralMagic;
+        bonuses.bloodMagic += item.bonusBloodMagic;
 
       }
     }
 
     res.json({
       base: {
-        knowledge:    character.knowledge,
-        intelligence: character.intelligence,
-        power:        character.power,
-        endurance:    character.endurance,
-        resistance:   character.resistance,
-        initiative:   character.initiative,
-        elementPower: character.elementPower,
-        fireMagic:    character.fireMagic,
-        waterMagic:   character.waterMagic,
-        earthMagic:   character.earthMagic,
-        airMagic:     character.airMagic,
-        lifeMagic:    character.lifeMagic,
-        deathMagic:   character.deathMagic,
-        chaosMagic:   character.chaosMagic,
-        energyMagic:  character.energyMagic,
+        knowledge:      character.knowledge,
+        intelligence:   character.intelligence,
+        power:          character.power,
+        endurance:      character.endurance,
+        resistance:     character.resistance,
+        initiative:     character.initiative,
+        elementalMagic: character.elementalMagic,
+        astralMagic:    character.astralMagic,
+        bloodMagic:     character.bloodMagic,
+
       },
       bonuses,
       effective: {
-        knowledge:    character.knowledge    + bonuses.knowledge,
-        intelligence: character.intelligence + bonuses.intelligence,
-        power:        character.power        + bonuses.power,
-        endurance:    character.endurance    + bonuses.endurance,
-        resistance:   character.resistance   + bonuses.resistance,
-        initiative:   character.initiative   + bonuses.initiative,
-        elementPower: character.elementPower + bonuses.elementPower,
-        fireMagic:    character.fireMagic    + bonuses.fireMagic,
-        waterMagic:   character.waterMagic   + bonuses.waterMagic,
-        earthMagic:   character.earthMagic   + bonuses.earthMagic,
-        airMagic:     character.airMagic     + bonuses.airMagic,
-        lifeMagic:    character.lifeMagic    + bonuses.lifeMagic,
-        deathMagic:   character.deathMagic   + bonuses.deathMagic,
-        chaosMagic:   character.chaosMagic   + bonuses.chaosMagic,
-        energyMagic:  character.energyMagic  + bonuses.energyMagic,
+        knowledge:      character.knowledge    + bonuses.knowledge,
+        intelligence:   character.intelligence + bonuses.intelligence,
+        power:          character.power        + bonuses.power,
+        endurance:      character.endurance    + bonuses.endurance,
+        resistance:     character.resistance   + bonuses.resistance,
+        initiative:     character.initiative   + bonuses.initiative,
+        elementalMagic: character.elementalMagic + bonuses.elementalMagic,
+        astralMagic:    character.astralMagic    + bonuses.astralMagic,
+        bloodMagic:     character.bloodMagic   + bonuses.bloodMagic,
       },
     });
   } catch (e: any) {

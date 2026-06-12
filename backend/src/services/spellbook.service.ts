@@ -3,8 +3,8 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import prisma from "../lib/prisma.js";
-import { getCharacterAlignmentBonus } from "./alignment/alignment-bonuses.constants.js";
-import { alignmentTriggerService } from "./alignment/alignment-trigger.service.js";
+import { getCharacterArchetypeBonus } from "./archetype/archetype-bonuses.constants.js";
+import { archetypeTriggerService } from "./archetype/archetype-trigger.service.js";
 
 export type SpellbookSource = "study" | "battle_cast" | "school" | "basic_purchase";
 
@@ -26,7 +26,7 @@ export async function recordSpellbookEntry(
       where: { characterId }
     });
 
-    await alignmentTriggerService.checkTrigger(
+    await archetypeTriggerService.checkTrigger(
       characterId,
       "SPELLS_100_DISCOVERED",
       { spellCount }
@@ -169,8 +169,8 @@ export async function learnBasicSpell(userId: number, spellId: number): Promise<
   const alreadyOwned = character.spells.some(s => s.spellId === spellId);
   if (alreadyOwned) throw new Error("Już posiadasz ten czar w bibliotece");
 
-const alignmentBonus = await getCharacterAlignmentBonus(character.id);
-const mod = (req: number) => Math.floor(req * (1 + (alignmentBonus?.spellReqModifier ?? 0)));
+const archetypeBonus = await getCharacterArchetypeBonus(character.id);
+const mod = (req: number) => Math.floor(req * (1 + (archetypeBonus?.spellReqModifier ?? 0)));
 
 const unmet = [
   spell.reqElementalMagic > 0 && character.elementalMagic < mod(spell.reqElementalMagic) && `Ogień ${mod(spell.reqElementalMagic)}`,

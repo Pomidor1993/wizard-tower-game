@@ -14,8 +14,9 @@ import {
   CleanMode,
 } from "../types/status-types.js";
 import { recordSpellbookEntries } from "./spellbook.service.js";
-import { alignmentTriggerService } from "./alignment/alignment-trigger.service.js";
-import { getCharacterAlignmentBonus, MagicElement } from "./alignment/alignment-bonuses.constants.js";
+import { archetypeTriggerService } from "./archetype/archetype-trigger.service.js";
+import { getCharacterArchetypeBonus, MagicElement } from "./archetype/archetype-bonuses.constants.js";
+import { calculateDuelExperience, addExperience } from "./character.service.js";
 
 
 const DAILY_BATTLE_LIMIT = 5;
@@ -101,6 +102,7 @@ interface Minion {
 export interface Fighter {
   id: number;
   name: string;
+  level: number;
   hp: number;
   maxHp: number;
   resistance: number;
@@ -119,6 +121,7 @@ export interface Fighter {
   isPlayer: boolean;
   spellReqModifier?: number;
   bannedSpellElements?: string[];
+  minionCountModifier?: number;
 }
 
 interface BattleSide {
@@ -1044,8 +1047,10 @@ export async function buildFighter(characterId: number): Promise<Fighter> {
   });
   if (!character) throw new Error(`Postać ${characterId} nie znaleziona`);
 
-  const alignmentBonus = await getCharacterAlignmentBonus(character.id);  // ← potem bonus
-  const banned = alignmentBonus?.bannedSpellElements ?? [];
+  const archetypeBonus = await getCharacterArchetypeBonus(character.id);  // ← potem bonus
+  const banned = archetypeBonus?.bannedSpellElements ?? [];
+  const minionCountModifier = archetypeBonus?.minionCountModifier ?? 1;
+
   let bonusEndurance    = 0;
   let bonusInitiative   = 0;
   let bonusPower        = 0;
@@ -1093,7 +1098,7 @@ function mapSpell(s: any): BattleSpell {  // ← mapSpell bez filtrowania
       reqElementalMagic: s.reqElementalMagic ?? 0,
       reqAstralMagic:    s.reqAstralMagic    ?? 0,
       reqBloodMagic:     s.reqBloodMagic     ?? 0,
-      summonCount:       s.summonCount,
+      summonCount: Math.floor(s.summonCount * minionCountModifier),
       summonHp:          s.summonHp          ?? 0,
       summonDamage:      s.summonDamage      ?? 0,
       summonInitiative:  s.summonInitiative  ?? 0,
@@ -1118,6 +1123,7 @@ function mapSpell(s: any): BattleSpell {  // ← mapSpell bez filtrowania
   return {
     id:             character.id,
     name:           character.name,
+    level:          character.level,
     hp:             maxHp,
     maxHp,
     resistance:     character.resistance   + bonusResistance,
@@ -1134,7 +1140,8 @@ function mapSpell(s: any): BattleSpell {  // ← mapSpell bez filtrowania
     appliedStatuses: [],
     stunTurnsLeft:   0,
     bannedSpellElements: banned,
-    spellReqModifier: alignmentBonus?.spellReqModifier ?? 0,
+    spellReqModifier: archetypeBonus?.spellReqModifier ?? 0,
+    minionCountModifier,
     isPlayer:        true,
   };
 }
@@ -1620,6 +1627,30 @@ export async function challengePlayer(attackerUserId: number, defenderCharacterI
 
   const winnerId = result.winnerId ?? attackerChar.id;
 
+let duelExperience: {
+  winnerId: number;
+  xpEarned: number;
+  level: number;
+  levelsGained: number;
+  skillPointsGained: number;
+} | null = null;
+
+if (result.winnerId !== null) {
+  const winnerFighter = result.winnerId === attackerFighter.id ? attackerFighter : defenderFighter;
+  const loserFighter  = result.winnerId === attackerFighter.id ? defenderFighter : attackerFighter;
+
+  const duelXp = calculateDuelExperience(winnerFighter.level, loserFighter.level);
+  const levelResult = await addExperience(result.winnerId, duelXp);
+
+  duelExperience = {
+    winnerId: result.winnerId,
+    xpEarned: duelXp,
+    level: levelResult.level,
+    levelsGained: levelResult.levelsGained,
+    skillPointsGained: levelResult.skillPointsGained,
+  };
+}
+
   function buildParticipants() {
     return [
       ...result.metadata.sideAFighterIds.map((id, i) => ({
@@ -1656,6 +1687,7 @@ export async function challengePlayer(attackerUserId: number, defenderCharacterI
     attackerName:  attackerChar.name,
     defenderId:    defenderChar.id,
     defenderName:  defenderChar.name,
+    duelExperience,
     allParticipants: buildParticipants(),
   };
 
@@ -1671,7 +1703,7 @@ export async function challengePlayer(attackerUserId: number, defenderCharacterI
     },
   });
 
-// ── ALIGNMENT TRIGGERS ─────────────────────────────
+// ── ARCHETYPE TRIGGERS ─────────────────────────────
 const duelCountAttacker = await prisma.battle.count({
   where: {
     OR: [
@@ -1681,7 +1713,7 @@ const duelCountAttacker = await prisma.battle.count({
   }
 });
 
-await alignmentTriggerService.checkTrigger(
+await archetypeTriggerService.checkTrigger(
   attackerChar.id,
   "PVP_50_DUELS",
   { duelCount: duelCountAttacker }
@@ -1696,7 +1728,7 @@ const duelCountDefender = await prisma.battle.count({
   }
 });
 
-await alignmentTriggerService.checkTrigger(
+await archetypeTriggerService.checkTrigger(
   defenderChar.id,
   "PVP_50_DUELS",
   { duelCount: duelCountDefender }
@@ -1709,6 +1741,7 @@ await alignmentTriggerService.checkTrigger(
     draw:         result.winnerId === null,
     summary:      result.summary,
     prestigeGain: attackerWon ? prestigeGain : 0,
+    duelExperience,
     log:          result.log,
     turns:        result.log.length,
     metadata:     { ...fullMetadata, allParticipants: buildParticipants() },

@@ -1,11 +1,11 @@
 import prisma from "../../lib/prisma.js";
 
 /**
- * ALIGNMENT EVENT SERVICE
- * Odpowiada za tworzenie i zarządzanie eventami moralnymi
+ * ARCHETYPE EVENT SERVICE
+ * Odpowiada za tworzenie i zarządzanie eventami archetypowymi
  */
 
-export const alignmentEventService = {
+export const archetypeEventService = {
 
   // ─────────────────────────────────────────────
   // MAIN ENTRY
@@ -20,7 +20,7 @@ export const alignmentEventService = {
 
     const scheduledAt = new Date(Date.now() + delayMs);
 
-    await prisma.alignmentEventQueue.create({
+    await prisma.archetypeEventQueue.create({
       data: {
         characterId,
         eventCode,
@@ -42,13 +42,13 @@ export const alignmentEventService = {
         return "FIRST_BLOOD_CHOICE";
 
       case "TEN_ENEMIES_KILLED":
-        return "WAR_ECHO_DECISION";
+        return "x";
 
       case "FIRST_ITEM_DESTROYED":
         return "DESTRUCTION_CURSE_EVENT";
 
       case "TOWER_LEVEL_5":
-        return "FOUNDATION_OF_POWER_EVENT";
+        return "ARRIVAL_OF_SETTLERS";
 
       case "TOWER_LEVEL_15":
         return "AMBITION_ASCENSION_EVENT";
@@ -96,14 +96,14 @@ export const alignmentEventService = {
   // ─────────────────────────────────────────────
 
   async getEventOptions(eventCode: string) {
-    return prisma.alignmentEventChoice.findMany({
+    return prisma.archetypeEventChoice.findMany({
       where: { eventCode },
       orderBy: { optionIndex: "asc" }
     });
   },
 
   async getEventOption(optionId: number) {
-    return prisma.alignmentEventChoice.findUnique({
+    return prisma.archetypeEventChoice.findUnique({
       where: { id: optionId }
     });
   },

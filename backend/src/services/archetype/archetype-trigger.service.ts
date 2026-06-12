@@ -1,11 +1,11 @@
 import prisma from "../../lib/prisma.js";
 
 /**
- * ALIGNMENT TRIGGER SERVICE
- * Odpowiada za wykrywanie momentów, które generują eventy moralne
+ * ARCHETYPE TRIGGER SERVICE
+ * Odpowiada za wykrywanie momentów, które generują eventy
  */
 
-export const alignmentTriggerService = {
+export const archetypeTriggerService = {
 
   // ─────────────────────────────────────────────
   // MAIN ENTRY
@@ -149,7 +149,7 @@ export const alignmentTriggerService = {
   // ─────────────────────────────────────────────
 
   async wasTriggered(characterId: number, triggerCode: string) {
-    const record = await prisma.alignmentTriggerProgress.findUnique({
+    const record = await prisma.archetypeTriggerProgress.findUnique({
       where: {
         characterId_triggerCode: {
           characterId,
@@ -162,7 +162,7 @@ export const alignmentTriggerService = {
   },
 
   async markTriggered(characterId: number, triggerCode: string) {
-    await prisma.alignmentTriggerProgress.create({
+    await prisma.archetypeTriggerProgress.create({
       data: {
         characterId,
         triggerCode

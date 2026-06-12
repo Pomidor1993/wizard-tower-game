@@ -1,16 +1,16 @@
 import prisma from "../../lib/prisma.js";
 
-import { alignmentTriggerService } from "./alignment-trigger.service.js";
-import { alignmentEventService } from "./alignment-event.service.js";
-import { alignmentScoreService } from "./alignment-score.service.js";
-import { alignmentClassificationService } from "./alignment-classification.service.js";
+import { archetypeTriggerService } from "./archetype-trigger.service.js";
+import { archetypeEventService } from "./archetype-event.service.js";
+import { archetypeScoreService } from "./archetype-score.service.js";
+import { archetypeClassificationService } from "./archetype-classification.service.js";
 
 /**
- * ALIGNMENT SERVICE
+ * ARCHETYPE SERVICE
  * Główny orchestrator systemu charakteru
  */
 
-export const alignmentService = {
+export const archetypeService = {
 
   // ─────────────────────────────────────────────
   // 1. ENTRY POINT Z SYSTEMÓW GRY
@@ -23,7 +23,7 @@ export const alignmentService = {
   ) {
 
     const triggered =
-      await alignmentTriggerService.checkTrigger(
+      await archetypeTriggerService.checkTrigger(
         characterId,
         triggerCode,
         payload
@@ -31,19 +31,22 @@ export const alignmentService = {
 
     if (!triggered) return;
 
-    await alignmentEventService.scheduleEvent(
+    await archetypeEventService.scheduleEvent(
       characterId,
       triggerCode
     );
   },
 
+
+
+  
   // ─────────────────────────────────────────────
   // 2. AKTYWNY EVENT
   // ─────────────────────────────────────────────
 
   async getPendingEvent(characterId: number) {
 
-    return prisma.alignmentEventQueue.findFirst({
+    return prisma.archetypeEventQueue.findFirst({
       where: {
         characterId,
         status: "pending",
@@ -69,7 +72,7 @@ export const alignmentService = {
   ) {
 
     const event =
-      await prisma.alignmentEventQueue.findFirst({
+      await prisma.archetypeEventQueue.findFirst({
         where: {
           id: eventId,
           characterId,
@@ -82,7 +85,7 @@ export const alignmentService = {
     }
 
     const option =
-      await alignmentEventService.getEventOption(
+      await archetypeEventService.getEventOption(
         optionId
       );
 
@@ -94,7 +97,7 @@ export const alignmentService = {
     // zapis wyboru
     // ─────────────────────────
 
-    await prisma.alignmentEventQueue.update({
+    await prisma.archetypeEventQueue.update({
       where: {
         id: eventId
       },
@@ -104,25 +107,90 @@ export const alignmentService = {
         status: "completed",
         completedAt: new Date()
       }
-    });
+    }
+  );
+    await prisma.archetypeProfile.update({
+    where: { characterId },
 
+    data: {
+      currentEventCode: option.nextEventCode
+  }
+});
     // ─────────────────────────
-    // dodanie punktów alignment
+    // dodanie punktów archetype
     // ─────────────────────────
 
-    await alignmentScoreService.applyDelta(
-      characterId,
-      option.moralDelta,
-      option.orderDelta
+await archetypeScoreService.applyDelta(
+  characterId,
+  {
+    guardian: option.guardianDelta,
+    ruler: option.rulerDelta,
+    researcher: option.researcherDelta,
+    prophet: option.prophetDelta,
+    reaper: option.reaperDelta
+  }
+);
+
+await prisma.archetypeProfile.update({
+  where: { characterId },
+  data: {
+    chapterProgress: {
+      increment: 1
+    }
+  }
+});
+
+const profile =
+  await prisma.archetypeProfile.findUnique({
+    where: { characterId }
+  });
+
+if (!profile) {
+  throw new Error("Profile nie istnieje");
+}
+
+if (
+  profile.chapter === 1 &&
+  profile.chapterProgress >= 5 &&
+  !profile.initialPath
+) {
+
+  const initialPath =
+    archetypeClassificationService.calculateInitialPath(
+      profile
     );
 
-    // ─────────────────────────
-    // przelicz klasy
-    // ─────────────────────────
+  await prisma.archetypeProfile.update({
+    where: { characterId },
+    data: {
+      initialPath,
+      chapter: 2,
+      chapterProgress: 0
+    }
+  });
+}
 
-    await alignmentClassificationService.recalculate(
-      characterId
+if (
+  profile.chapter === 2 &&
+  profile.chapterProgress >= 10 &&
+  !profile.finalClass
+) {
+
+  const finalClass =
+    archetypeClassificationService.calculateFinalClass(
+      profile.initialPath as any,
+      profile
     );
+
+  await prisma.archetypeProfile.update({
+    where: { characterId },
+    data: {
+      finalClass,
+      chapter: 3,
+      chapterProgress: 0
+    }
+  });
+}
 
     return {
       success: true,
@@ -131,35 +199,38 @@ export const alignmentService = {
   },
 
   // ─────────────────────────────────────────────
-  // 4. STAN ALIGNMENT
+  // 4. STAN ARCHETYPE
   // ─────────────────────────────────────────────
 
-  async getAlignmentState(characterId: number) {
+  async getArchetypeState(characterId: number) {
 
     const profile =
-      await prisma.alignmentProfile.findUnique({
+      await prisma.archetypeProfile.findUnique({
         where: {
           characterId
         }
       });
 
-    const character =
-      await prisma.character.findUnique({
-        where: {
-          id: characterId
-        },
+const character =
+  await prisma.character.findUnique({
+    where: {
+      id: characterId
+    },
 
-        select: {
-          alignmentPath: true,
-          alignmentClass: true
-        }
-      });
+    include: {
+      archetypeProfile: true
+    }
+  });
 
-    return {
-      profile,
-      alignmentPath: character?.alignmentPath,
-      alignmentClass: character?.alignmentClass
-    };
+return {
+
+  profile,
+
+  initialPath:
+character?.archetypeProfile?.initialPath,
+
+  finalClass:
+character?.archetypeProfile?.finalClass};
   },
 
   // ─────────────────────────────────────────────

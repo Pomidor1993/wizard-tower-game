@@ -1,5 +1,5 @@
 import prisma from "../lib/prisma.js";
-import { getCharacterAlignmentBonus } from "./alignment/alignment-bonuses.constants.js";
+import { getCharacterArchetypeBonus } from "./archetype/archetype-bonuses.constants.js";
 import { getSpellSlotCount } from "./tower.service.js";
 
 
@@ -169,8 +169,8 @@ export async function equipItem(userId: number, itemId: number) {
   if (!item) throw new Error("Przedmiot nie istnieje");
 
   // Walidacja wymagań z efektywnymi statystykami
-const alignmentBonus = await getCharacterAlignmentBonus(character.id);
-checkItemRequirements(item, character, alignmentBonus?.spellReqModifier ?? 0);
+const archetypeBonus = await getCharacterArchetypeBonus(character.id);
+checkItemRequirements(item, character, archetypeBonus?.spellReqModifier ?? 0);
 
   // Ustal slot
   const slotMap: Record<string, string> = {
@@ -193,8 +193,8 @@ checkItemRequirements(item, character, alignmentBonus?.spellReqModifier ?? 0);
   }
 
 if (item.slot === "weapon_one") {
-  const alignmentBonus = await getCharacterAlignmentBonus(character.id);
-  const hasThirdHand = alignmentBonus?.thirdWeaponHand ?? false;
+  const archetypeBonus = await getCharacterArchetypeBonus(character.id);
+  const hasThirdHand = archetypeBonus?.thirdWeaponHand ?? false;
 
   if (character.equipment?.mainHandId) {
     const mainHandItem = await prisma.item.findUnique({
@@ -274,8 +274,8 @@ export async function equipSpell(userId: number, spellId: number, slotIndex: num
 
   const libraryLevel = charTower?.tower?.buildings
     .find(b => b.buildingType === "library")?.level ?? 0;
-  const alignmentBonus = await getCharacterAlignmentBonus(character.id);
-  const maxSlots = getSpellSlotCount(libraryLevel, alignmentBonus?.extraActiveSpellSlots ?? 0);
+  const archetypeBonus = await getCharacterArchetypeBonus(character.id);
+  const maxSlots = getSpellSlotCount(libraryLevel, archetypeBonus?.extraActiveSpellSlots ?? 0);
   if (maxSlots === 0) throw new Error("Wybuduj Bibliotekę aby aktywować czary bojowe");
   if (slotIndex >= maxSlots) throw new Error(`Biblioteka poziomu ${libraryLevel} daje tylko ${maxSlots} slot(y) aktywnych czarów`);
 
@@ -287,7 +287,7 @@ export async function equipSpell(userId: number, spellId: number, slotIndex: num
   if (!spell) throw new Error("Czar nie istnieje");
 
   // Walidacja wymagań z efektwnymi statystykami
-checkSpellRequirements(spell, character, alignmentBonus?.spellReqModifier ?? 0);
+checkSpellRequirements(spell, character, archetypeBonus?.spellReqModifier ?? 0);
 
   await prisma.characterSpellSlots.upsert({
     where:  { characterId_slotIndex: { characterId: character.id, slotIndex } },

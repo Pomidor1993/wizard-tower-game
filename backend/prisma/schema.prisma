@@ -29,9 +29,8 @@ model Character {
   name      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  alignmentPath String?
-  alignmentClass String?
-  finalClassUnlocked Boolean @default(false)
+  level      Int @default(1)
+  experience Int @default(0)
 
   equipment   CharacterEquipment?
   spellSlots  CharacterSpellSlots[]
@@ -51,7 +50,7 @@ model Character {
   // Zasoby
   powerShards         Int      @default(1)
   gold                Int      @default(0)
-  skillPoints         Int      @default(50)
+  skillPoints         Int      @default(5)
   prestige            Int      @default(0)
   runicStoneShards    Int      @default(0)
   lastResourceCollect DateTime @default(now())
@@ -74,9 +73,9 @@ model Character {
   battlesAsWinner   Battle[] @relation("BattleWinner")
   pveEncounters     PveEncounter[]
   spellbookEntries SpellbookEntry[]
-  alignmentProfile AlignmentProfile?
-  alignmentTriggers AlignmentTriggerProgress[]
-  alignmentEvents   AlignmentEventQueue[]
+  archetypeProfile ArchetypeProfile?
+  archetypeTriggers ArchetypeTriggerProgress[]
+  archetypeEvents   ArchetypeEventQueue[]
 
 }
 
@@ -331,23 +330,34 @@ model SpellbookEntry {
   @@index([characterId])
 }
 
-// ── ALIGNMENT / CHARAKTER POSTACI ─────────────────────────────────────────────
+// ── ARCHETYP / CHARAKTER POSTACI ─────────────────────────────────────────────
 
-model AlignmentProfile {
-  id            Int       @id @default(autoincrement())
-  characterId   Int       @unique
-  character     Character @relation(fields: [characterId], references: [id])
+model ArchetypeProfile {
 
-  moralAxis     Int       @default(0) // -100 do +100
-  orderAxis     Int       @default(0) // -100 do +100
+  id          Int       @id @default(autoincrement())
 
-  finalClass    String?
+  characterId Int       @unique
+  character   Character @relation(fields: [characterId], references: [id])
 
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  guardianPoints   Int @default(0)
+  rulerPoints      Int @default(0)
+  researcherPoints Int @default(0)
+  prophetPoints    Int @default(0)
+  reaperPoints     Int @default(0)
+  chapter          Int @default(1)
+  chapterProgress  Int @default(0)
+
+  initialPath String?
+  currentEventCode String?
+  finalClass  String?
+  
+
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
-model AlignmentTriggerProgress {
+model ArchetypeTriggerProgress {
   id            Int       @id @default(autoincrement())
 
   characterId   Int
@@ -360,7 +370,7 @@ model AlignmentTriggerProgress {
   @@unique([characterId, triggerCode])
 }
 
-model AlignmentEventQueue {
+model ArchetypeEventQueue {
   id               Int       @id @default(autoincrement())
 
   characterId      Int
@@ -380,15 +390,21 @@ model AlignmentEventQueue {
   createdAt        DateTime  @default(now())
 }
 
-model AlignmentEventChoice {
-  id            Int      @id @default(autoincrement())
+model ArchetypeEventChoice {
 
-  eventCode     String
+  id Int @id @default(autoincrement())
 
-  optionIndex   Int
-  title         String
-  description   String
+  eventCode String
 
-  moralDelta    Int
-  orderDelta    Int
+  optionIndex Int
+
+  title String
+  description String
+  nextEventCode String?
+
+  guardianDelta   Int @default(0)
+  rulerDelta      Int @default(0)
+  researcherDelta Int @default(0)
+  prophetDelta    Int @default(0)
+  reaperDelta     Int @default(0)
 }
