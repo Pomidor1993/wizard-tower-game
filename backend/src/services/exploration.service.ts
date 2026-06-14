@@ -1,7 +1,3 @@
-// ═══════════════════════════════════════════════════════════════════════════════
-// EXPLORATION SERVICE — akcja eksploracji z mechaniką spotkań PvE
-// ═══════════════════════════════════════════════════════════════════════════════
-
 import prisma from "../lib/prisma.js";
 import { calculateRegenActions } from "./action.service.js";
 import {
@@ -10,26 +6,74 @@ import {
   getRandomEntityForElement,
 } from "../data/minor-entities.js";
 import { buildEntityFighter } from "./pve-engine.js";
-import { recordSpellbookEntries } from "./spellbook.service.js";
 import { simulateBattle, buildFighter, Fighter } from "./combat.service.js";
 import { archetypeService } from "./archetype/archetype-service.js";
 import { addExperience } from "./character.service.js";
+import { addItemToChaosVaultWithMessage } from "./chaos_vault.service.js";
+import { getOrCreateTutorial, advanceTutorialStep } from "./tutorial/tutorial.service.js";
+import { TUTORIAL_STEPS, TUTORIAL_ENEMIES, TUTORIAL_ITEM_POOL, TUTORIAL_MESSAGES } from "./tutorial/tutorial.constants.js";
 
 // ── KONFIGURACJA ──────────────────────────────────────────────────────────────
 
 const EXPLORATION_CONFIG = [
-  { level: 1, durationSeconds: 5, minPoints: 10, maxPoints: 20 },
-  { level: 2, durationSeconds: 240, minPoints: 20, maxPoints: 40 },
-  { level: 3, durationSeconds: 360, minPoints: 40, maxPoints: 60 },
-  { level: 4, durationSeconds: 480, minPoints: 60, maxPoints: 80 },
-  { level: 5, durationSeconds: 600, minPoints: 70, maxPoints: 90 },
+  { level: 1, durationSeconds: 5,   minPoints: 10, maxPoints: 20, itemChance: 0.30 },
+  { level: 2, durationSeconds: 240, minPoints: 20, maxPoints: 40, itemChance: 0.40 },
+  { level: 3, durationSeconds: 360, minPoints: 40, maxPoints: 60, itemChance: 0.50 },
+  { level: 4, durationSeconds: 480, minPoints: 60, maxPoints: 80, itemChance: 0.60 },
+  { level: 5, durationSeconds: 600, minPoints: 70, maxPoints: 90, itemChance: 0.70 },
 ];
 
+const RARITY_WEIGHTS_BY_LOCATION: Record<number, Record<string, number>> = {
+  1: { common: 95, uncommon: 4,  rare: 1,  unique: 0 },
+  2: { common: 86, uncommon: 9,  rare: 4,  unique: 1 },
+  3: { common: 78, uncommon: 14, rare: 6,  unique: 2 },
+  4: { common: 69, uncommon: 20, rare: 8,  unique: 3 },
+  5: { common: 60, uncommon: 25, rare: 10, unique: 5 },
+};
+
 const EXPLORATION_ACTION_MAX = 15;
-const EXPLORATION_REGEN_SECONDS = 60 * 60; // 1 godzina
+const EXPLORATION_REGEN_SECONDS = 60 * 60;
 
 function randomInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function randomChance(chance: number): boolean {
+  return Math.random() < chance;
+}
+
+function pickItemRarity(locationLevel: number): string {
+  const weights = RARITY_WEIGHTS_BY_LOCATION[locationLevel] ?? RARITY_WEIGHTS_BY_LOCATION[1];
+  const total = Object.values(weights).reduce((a, b) => a + b, 0);
+  let roll = Math.random() * total;
+  for (const [rarity, weight] of Object.entries(weights)) {
+    roll -= weight;
+    if (roll <= 0) return rarity;
+  }
+  return "common";
+}
+
+// ── TYPY ──────────────────────────────────────────────────────────────────────
+
+interface DroppedItemResult {
+  chaosVaultItemId: number;
+  itemId: number;
+  name: string;
+  rarity: string;
+  slot: string;
+  message: string;
+  overCapacity: boolean;
+}
+
+interface EncounterResult {
+  fought: boolean;
+  entityId: string | null;
+  entityName: string | null;
+  entity: ReturnType<typeof getRandomEntityForElement> | null;
+  playerWon: boolean;
+  runicShardsEarned: number;
+  battleLog: object[] | null;
+  summary: string | null;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -43,7 +87,11 @@ export async function startExploration(userId: number, level: number) {
   const character = await prisma.character.findUnique({ where: { userId } });
   if (!character) throw new Error("Postać nie znaleziona");
 
-  // Regeneracja akcji
+  const tutorial = await getOrCreateTutorial(character.id);
+  if (tutorial.step === TUTORIAL_STEPS.INTRO && level !== 1) {
+    throw new Error("Samouczek: pierwsza eksploracja musi być na poziomie 1");
+  }
+
   const { newActions, newLastRegen } = calculateRegenActions(
     character.explorationActions,
     character.lastExploreRegen,
@@ -53,7 +101,6 @@ export async function startExploration(userId: number, level: number) {
 
   if (newActions <= 0) throw new Error("Brak dostępnych akcji eksploracji. Poczekaj na odnowienie.");
 
-  // Sprawdź aktywną akcję
   const activeAction = await prisma.characterAction.findFirst({
     where: { characterId: character.id, status: "in_progress" },
   });
@@ -93,6 +140,45 @@ export async function startExploration(userId: number, level: number) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// SCENARIUSZ SAMOUCZKOWY
+// ═══════════════════════════════════════════════════════════════════════════════
+
+async function resolveTutorialEncounter(
+  characterId: number
+): Promise<{ summary: string; droppedItem: DroppedItemResult | null }> {
+  const enemy = TUTORIAL_ENEMIES[randomInt(0, TUTORIAL_ENEMIES.length - 1)];
+  const itemName = TUTORIAL_ITEM_POOL[randomInt(0, TUTORIAL_ITEM_POOL.length - 1)];
+
+  const item = await prisma.item.findFirst({ where: { name: itemName } });
+
+  let droppedItem: DroppedItemResult | null = null;
+  let dropText = "";
+
+  if (item) {
+    const result = await addItemToChaosVaultWithMessage(characterId, item.id, item.name);
+    droppedItem = {
+      chaosVaultItemId: result.chaosVaultItemId,
+      itemId: item.id,
+      name: item.name,
+      rarity: item.rarity,
+      slot: item.slot,
+      message: result.message,
+      overCapacity: result.overCapacity,
+    };
+    dropText = ` Z nieba spada ${item.name}, przygniatając ${enemy} na miejscu! ${result.message}`;
+  } else {
+    dropText = ` Coś spada z nieba i przygniata ${enemy} na miejscu!`;
+  }
+
+  const summary =
+    `Napotykasz: ${enemy}! Nie masz nawet czasu się przestraszyć — w odruchu ` +
+    `desperacji zaczynasz chaotycznie machać rękoma, mamrocząc pierwsze zaklęcie, ` +
+    `jakie przychodzi Ci do głowy.${dropText}`;
+
+  return { summary, droppedItem };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // ODEBRANIE WYNIKU EKSPLORACJI
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -100,7 +186,6 @@ export async function claimExploration(userId: number, actionId: number) {
   const character = await prisma.character.findUnique({
     where: { userId },
     include: {
-      spells: true,
       tower: { include: { buildings: true } },
     },
   });
@@ -122,33 +207,86 @@ export async function claimExploration(userId: number, actionId: number) {
   const levelResult = await addExperience(character.id, skillPointsEarned);
 
   const messages: string[] = [];
-messages.push(`Eksploracja zakończona! Zdobyłeś ${skillPointsEarned} punktów doświadczenia.`);
-if (levelResult.levelsGained > 0) {
-  messages.push(`Awans! Twoja postać osiągnęła poziom ${levelResult.level} i zdobyła ${levelResult.skillPointsGained} pkt rozwoju.`);
-}
-  // ── PRZEDMIOT (placeholder — rozbudować osobno) ───────────────────────────
-  // Tu możesz dodać losowanie przedmiotu z itemChance, analogicznie do seeda
+  messages.push(`Eksploracja zakończona! Zdobyłeś ${skillPointsEarned} punktów doświadczenia.`);
+  if (levelResult.levelsGained > 0) {
+    messages.push(`Awans! Twoja postać osiągnęła poziom ${levelResult.level} i zdobyła ${levelResult.skillPointsGained} pkt rozwoju.`);
+  }
 
-  // ── SPOTKANIE ─────────────────────────────────────────────────────────────
+  let droppedItem: DroppedItemResult | null = null;
   let encounterResult: EncounterResult | null = null;
+  let tutorialMessage: string | null = null;
 
-  if (rollEncounter(action.actionLevel)) {
-    encounterResult = await resolveEncounter(character.id, action.actionLevel);
+  const tutorial = await getOrCreateTutorial(character.id);
 
-    if (encounterResult.fought) {
-      if (encounterResult.playerWon) {
-        messages.push(
-          `Podczas eksploracji napotkałeś: ${encounterResult.entityName}! ` +
-          `Po krótkiej, ale zaciekłej walce — pokonałeś go! ` +
-          `${encounterResult.entity?.reward.description ?? ""} ` +
-          `(+${encounterResult.runicShardsEarned} okruchów kamienia runicznego)`
-        );
-      } else {
-        messages.push(
-          `Podczas eksploracji napotkałeś: ${encounterResult.entityName}! ` +
-          `Walczyłeś dzielnie, ale tym razem wróg wziął górę. ` +
-          `${encounterResult.entity?.victoryFlavorText ?? ""}`
-        );
+  // ── SAMOUCZEK: pierwsza eksploracja ──────────────────────────────────────
+  if (tutorial.step === TUTORIAL_STEPS.INTRO) {
+    const { summary, droppedItem: tutorialDrop } = await resolveTutorialEncounter(character.id);
+
+    messages.push(summary);
+    messages.push(TUTORIAL_MESSAGES.STUDY_UNLOCKED);
+
+    if (tutorialDrop) droppedItem = tutorialDrop;
+
+    tutorialMessage = TUTORIAL_MESSAGES.STUDY_UNLOCKED;
+
+    await advanceTutorialStep(character.id, TUTORIAL_STEPS.INTRO, TUTORIAL_STEPS.EXPLORATION_DONE);
+
+    encounterResult = {
+      fought: true,
+      entityId: "tutorial",
+      entityName: "tutorial_encounter",
+      entity: null,
+      playerWon: true,
+      runicShardsEarned: 0,
+      battleLog: [],
+      summary,
+    };
+
+  } else {
+    // ── NORMALNY PRZEBIEG ───────────────────────────────────────────────────
+
+    // Przedmiot
+    if (randomChance(config.itemChance)) {
+      const rarity = pickItemRarity(action.actionLevel);
+      let pool = await prisma.item.findMany({ where: { rarity } });
+      if (pool.length === 0) pool = await prisma.item.findMany();
+
+      if (pool.length > 0) {
+        const chosen = pool[randomInt(0, pool.length - 1)];
+        const result = await addItemToChaosVaultWithMessage(character.id, chosen.id, chosen.name);
+
+        droppedItem = {
+          chaosVaultItemId: result.chaosVaultItemId,
+          itemId: chosen.id,
+          name: chosen.name,
+          rarity: chosen.rarity,
+          slot: chosen.slot,
+          message: result.message,
+          overCapacity: result.overCapacity,
+        };
+        messages.push(result.message);
+      }
+    }
+
+    // Spotkanie
+    if (rollEncounter(action.actionLevel)) {
+      encounterResult = await resolveEncounter(character.id, action.actionLevel);
+
+      if (encounterResult.fought) {
+        if (encounterResult.playerWon) {
+          messages.push(
+            `Podczas eksploracji napotkałeś: ${encounterResult.entityName}! ` +
+            `Po krótkiej, ale zaciekłej walce — pokonałeś go! ` +
+            `${encounterResult.entity?.reward.description ?? ""} ` +
+            `(+${encounterResult.runicShardsEarned} okruchów kamienia runicznego)`
+          );
+        } else {
+          messages.push(
+            `Podczas eksploracji napotkałeś: ${encounterResult.entityName}! ` +
+            `Walczyłeś dzielnie, ale tym razem wróg wziął górę. ` +
+            `${encounterResult.entity?.victoryFlavorText ?? ""}`
+          );
+        }
       }
     }
   }
@@ -156,60 +294,63 @@ if (levelResult.levelsGained > 0) {
   // ── ZAPIS ─────────────────────────────────────────────────────────────────
   const runicShardsEarned = encounterResult?.runicShardsEarned ?? 0;
 
-await prisma.$transaction([
-  prisma.characterAction.update({
-    where: { id: action.id },
-    data: {
-      status: "claimed",
-      skillPointsEarned,
-      report: JSON.stringify({
+  await prisma.$transaction([
+    prisma.characterAction.update({
+      where: { id: action.id },
+      data: {
+        status: "claimed",
         skillPointsEarned,
-        messages,
-        encounter: encounterResult
-          ? {
-              fought: encounterResult.fought,
-              entityId: encounterResult.entityId,
-              entityName: encounterResult.entityName,
-              playerWon: encounterResult.playerWon,
-              runicShardsEarned: encounterResult.runicShardsEarned,
-              battleLog: encounterResult.battleLog,
-              summary: encounterResult.summary,
-            }
-          : null,
-      }),
-    },
-  }),
-  prisma.character.update({
-    where: { id: character.id },
-    data: {
-      runicStoneShards: { increment: runicShardsEarned },
-    },
-  }),
-]);
+        report: JSON.stringify({
+          skillPointsEarned,
+          messages,
+          droppedItem,
+          tutorialMessage,
+          encounter: encounterResult
+            ? {
+                fought: encounterResult.fought,
+                entityId: encounterResult.entityId,
+                entityName: encounterResult.entityName,
+                playerWon: encounterResult.playerWon,
+                runicShardsEarned: encounterResult.runicShardsEarned,
+                battleLog: encounterResult.battleLog,
+                summary: encounterResult.summary,
+              }
+            : null,
+        }),
+      },
+    }),
+    prisma.character.update({
+      where: { id: character.id },
+      data: {
+        runicStoneShards: { increment: runicShardsEarned },
+      },
+    }),
+  ]);
 
-
-return {
-  messages,
-  experienceEarned: skillPointsEarned,
-  level: levelResult.level,
-  experience: levelResult.experience,
-  xpToNextLevel: levelResult.xpToNextLevel,
-  levelsGained: levelResult.levelsGained,
-  skillPointsGained: levelResult.skillPointsGained,
-  encounter: encounterResult
-    ? {
-        fought: encounterResult.fought,
-        entityName: encounterResult.entityName,
-        entityDescription: encounterResult.entity?.description,
-        playerWon: encounterResult.playerWon,
-        runicShardsEarned: encounterResult.runicShardsEarned,
-        battleLog: encounterResult.battleLog,
-        summary: encounterResult.summary,
-        flavorText: encounterResult.playerWon
-          ? encounterResult.entity?.defeatFlavorText
-          : encounterResult.entity?.victoryFlavorText,
-      }
-    : null,
+  return {
+    messages,
+    experienceEarned: skillPointsEarned,
+    level: levelResult.level,
+    experience: levelResult.experience,
+    xpToNextLevel: levelResult.xpToNextLevel,
+    levelsGained: levelResult.levelsGained,
+    skillPointsGained: levelResult.skillPointsGained,
+    droppedItem,
+    tutorialMessage,
+    encounter: encounterResult
+      ? {
+          fought: encounterResult.fought,
+          entityName: encounterResult.entityName,
+          entityDescription: encounterResult.entity?.description,
+          playerWon: encounterResult.playerWon,
+          runicShardsEarned: encounterResult.runicShardsEarned,
+          battleLog: encounterResult.battleLog,
+          summary: encounterResult.summary,
+          flavorText: encounterResult.playerWon
+            ? encounterResult.entity?.defeatFlavorText
+            : encounterResult.entity?.victoryFlavorText,
+        }
+      : null,
   };
 }
 
@@ -217,66 +358,31 @@ return {
 // MECHANIKA SPOTKANIA
 // ═══════════════════════════════════════════════════════════════════════════════
 
-interface EncounterResult {
-  fought: boolean;
-  entityId: string | null;
-  entityName: string | null;
-  entity: ReturnType<typeof getRandomEntityForElement> | null;
-  playerWon: boolean;
-  runicShardsEarned: number;
-  battleLog: object[] | null;
-  summary: string | null;
-}
-
 async function resolveEncounter(characterId: number, locationLevel: number): Promise<EncounterResult> {
-  // 1. Losuj żywioł dla lokacji
   const element = rollElementForLocation(locationLevel);
-  if (!element) {
-    return noEncounter();
-  }
+  if (!element) return noEncounter();
 
-  // 2. Losuj konkretny byt z puli żywiołu
   const entity = getRandomEntityForElement(element);
-  if (!entity) {
-    return noEncounter();
-  }
+  if (!entity) return noEncounter();
 
-  // 3. Zbuduj fightera gracza
-  console.log("build player");
   const playerFighter = await buildFighter(characterId);
+  const initialPowerShards = playerFighter.powerShards;
 
-  // 4. Zbuduj fightera bytu
-  console.log("build entity");
   const entityFighter = buildEntityFighter(entity);
-
-console.log("before battle");
-
-
-  // 5. Symuluj walkę
-  console.log("before simulate");
-
   const battleResult = simulateBattle([playerFighter], [entityFighter as unknown as Fighter]);
 
-console.log("after battle");
-console.log("battle log size:", battleResult.log.length);
-
-console.log(
-  "battle json size MB:",
-  JSON.stringify(battleResult.log).length / 1024 / 1024
-);
-
-
-const playerCastSpellIds = battleResult.castSpellsByFighter.get(playerFighter.name) ?? [];
-await recordSpellbookEntries(characterId, playerCastSpellIds, "battle_cast");
-
-  // 6. Ustal wynik
   const playerWon = battleResult.winnerId === playerFighter.id;
   const runicShardsEarned = playerWon ? entity.reward.runicShards : 0;
 
-  // 7. Zapisz encounter w historii (opcjonalnie — tabela PveEncounter)
-  await prisma.pveEncounter.create({
+  const shardsSpent = initialPowerShards - playerFighter.powerShards;
+  if (shardsSpent > 0) {
+    await prisma.character.update({
+      where: { id: characterId },
+      data: { powerShards: { decrement: shardsSpent } },
+    });
+  }
 
-    
+  await prisma.pveEncounter.create({
     data: {
       characterId,
       locationLevel,
@@ -289,36 +395,17 @@ await recordSpellbookEntries(characterId, playerCastSpellIds, "battle_cast");
     },
   });
 
-  // ── ARCHETYPE TRIGGERS ───────────────────────────
-
   if (playerWon) {
-
     const totalKills = await prisma.pveEncounter.count({
-      where: {
-        characterId,
-        playerWon: true,
-      },
+      where: { characterId, playerWon: true },
     });
 
-    await archetypeService.handleGameEvent(
-      characterId,
-      "FIRST_ENEMY_KILLED",
-      {
-        enemyCount: totalKills,
-      }
-    );
+    await archetypeService.handleGameEvent(characterId, "FIRST_ENEMY_KILLED", { enemyCount: totalKills });
+    await archetypeService.handleGameEvent(characterId, "TEN_ENEMIES_KILLED", { enemyCount: totalKills });
 
-    await archetypeService.handleGameEvent(
-      characterId,
-      "TEN_ENEMIES_KILLED",
-      {
-        enemyCount: totalKills,
-      }
-    );
-
-if (playerWon && entity.isBoss) {
-  await archetypeService.handleGameEvent(characterId, "FIRST_PVE_BOSS", { isBoss: true });
-}
+    if (entity.isBoss) {
+      await archetypeService.handleGameEvent(characterId, "FIRST_PVE_BOSS", { isBoss: true });
+    }
   }
 
   return {

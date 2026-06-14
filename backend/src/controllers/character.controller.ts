@@ -1,12 +1,19 @@
 import { Request, Response } from "express";
 import prisma from "../lib/prisma.js";
 import { upgradeStat, getUpgradeCosts } from "../services/character.service.js";
+import { calculateXpForNextLevel } from "../services/character.service.js";
+import { collectResources } from "../services/tower.service.js";
 
 export async function getMyCharacter(req: Request, res: Response) {
+    const existing = await prisma.character.findUnique({ where: { userId: req.userId } });
+  if (!existing) { res.status(404).json({ error: "Postać nie znaleziona" }); return; }
+
+  await collectResources(existing.id);
   const character = await prisma.character.findUnique({
     where: { userId: req.userId },
     include: {
       tower: { include: { buildings: true } },
+      archetypeProfile: true,
     },
   });
 
@@ -15,7 +22,10 @@ export async function getMyCharacter(req: Request, res: Response) {
     return;
   }
 
-  res.json(character);
+  res.json({
+    ...character,
+    xpToNextLevel: calculateXpForNextLevel(character.level),
+  });
 }
 
 export async function upgradeStatEndpoint(req: Request, res: Response) {

@@ -1,19 +1,4 @@
-
 import prisma from "../../lib/prisma.js";
-
-
-// archetype-bonuses.service.ts
-export async function getCharacterArchetypeBonus(
-  characterId: number
-): Promise<ArchetypeBonusConfig | null> {
-  const profile = await prisma.archetypeProfile.findUnique({
-    where: { characterId }
-  });
-
-  if (!profile?.finalClass) return null;
-
-  return FINAL_ARCHETYPE_EFFECTS[profile.finalClass] ?? null;
-}
 
 export type MagicElement =
   | "fire"
@@ -36,17 +21,16 @@ export type SpellArchetypeFlag =
   | "reaper";
 
 export interface ArchetypeBonusConfig {
-
   // bonusy do zadawanych obrażeń
   damageBonus?: Partial<Record<MagicElement, number>>;
 
   // bonusy do odporności
   resistanceBonus?: Partial<Record<MagicElement, number>>;
 
-  // dostęp do spell pool
+  // dostęp do spell pool / księgi
   allowedSpellFlags?: SpellArchetypeFlag[];
 
-  // Dodatkowe sloty czarów aktywnych ponad domyślny limit (domyślnie 0)
+  // Dodatkowe sloty czarów aktywnych ponad domyślny limit
   extraActiveSpellSlots?: number;
 
   // Czy klasa ma trzeci slot broni (offhand2)
@@ -66,33 +50,26 @@ export interface ArchetypeBonusConfig {
 
   // TODO Modyfikator szansy na otrzymanie obrażeń
   damageChanceModifier?: number;
-
 }
 
-export const ARCHETYPE_BONUSES: Record<string, ArchetypeBonusConfig> = {
+// ─────────────────────────────────────────────
+// ŚCIEŻKI POŚREDNIE (chapter 1-2, profile.initialPath)
+// ─────────────────────────────────────────────
+export const INITIAL_PATH_BONUSES: Record<string, ArchetypeBonusConfig> = {
 
-  // ─────────────────────────────────────────
-  // ŚCIEŻKI POŚREDNIE
-  // ─────────────────────────────────────────
-
-  "POSZUKIWACZE": {
-
+  SEEKER: {
     damageBonus: {
       life: 25,
       chaos: 25,
-
       harmony: -50,
     },
-
     resistanceBonus: {
       chaos: 50,
     },
-
     allowedSpellFlags: ["seeker"],
   },
 
-  "AKOLICI": {
-
+  ACOLYTE: {
     damageBonus: {
       water: 20,
       air: 20,
@@ -100,21 +77,17 @@ export const ARCHETYPE_BONUSES: Record<string, ArchetypeBonusConfig> = {
       fire: 20,
       life: 20,
       harmony: 20,
-
       death: -40,
       chaos: -40,
     },
-
     resistanceBonus: {
       death: 25,
       chaos: 25,
     },
-
     allowedSpellFlags: ["acolyte"],
   },
 
-  "OPACI": {
-
+  ABBOT: {
     damageBonus: {
       fire: 10,
       water: 10,
@@ -125,7 +98,6 @@ export const ARCHETYPE_BONUSES: Record<string, ArchetypeBonusConfig> = {
       chaos: 10,
       harmony: 10,
     },
-
     resistanceBonus: {
       fire: 10,
       water: 10,
@@ -136,78 +108,61 @@ export const ARCHETYPE_BONUSES: Record<string, ArchetypeBonusConfig> = {
       chaos: 10,
       harmony: 10,
     },
-
     allowedSpellFlags: ["abbot"],
   },
-
- 
 };
 
 // ─────────────────────────────────────────────
-// KLASY FINALNE
+// KLASY FINALNE (chapter 3+, profile.finalClass)
 // ─────────────────────────────────────────────
+export const FINAL_CLASS_BONUSES: Record<string, ArchetypeBonusConfig> = {
 
-export const FINAL_ARCHETYPE_EFFECTS: Record<string, ArchetypeBonusConfig> = {
-
-  // ── GOOD ─────────────────────────────
-
-  "WŁADCY": {
+  RULER: {
     damageBonus: {
       life: 50,
       water: 50,
       harmony: 50,
-
       death: -50,
       fire: -50,
       chaos: -50,
     },
-
     resistanceBonus: {
       death: 50,
       chaos: 50,
     },
-
     allowedSpellFlags: ["seeker", "ruler"],
   },
 
-  "BADACZE": {
+  RESEARCHER: {
     damageBonus: {
       water: 50,
       earth: 50,
       air: 50,
       fire: 50,
-
       death: -75,
     },
-
     resistanceBonus: {
       water: 20,
       earth: 20,
       air: 20,
       fire: 20,
     },
-
-    allowedSpellFlags: ["seeker", "ruler"],
+    allowedSpellFlags: ["seeker", "acolyte", "abbot", "researcher"],
   },
 
-  "STRAŻNICY": {
+  GUARDIAN: {
     damageBonus: {
       life: 75,
       chaos: 75,
-
       harmony: -75,
     },
-
     resistanceBonus: {
       chaos: 75,
     },
-
-    allowedSpellFlags: ["seeker", "guardian"],
+    allowedSpellFlags: ["acolyte", "guardian"],
   },
 
-  // ── NEUTRAL ─────────────────────────────
-
-  "WYZNAWCY": {
+  PROPHET: {
     damageBonus: {
       water: 40,
       air: 40,
@@ -215,21 +170,17 @@ export const FINAL_ARCHETYPE_EFFECTS: Record<string, ArchetypeBonusConfig> = {
       fire: 40,
       life: 40,
       harmony: 40,
-
       death: -60,
       chaos: -60,
     },
-
     resistanceBonus: {
       death: 50,
       chaos: 50,
     },
-
     allowedSpellFlags: ["acolyte", "prophet"],
   },
 
-
-  "ŻNIWIARZE": {
+  REAPER: {
     damageBonus: {
       water: 40,
       air: 40,
@@ -237,17 +188,46 @@ export const FINAL_ARCHETYPE_EFFECTS: Record<string, ArchetypeBonusConfig> = {
       fire: 40,
       death: 40,
       chaos: 40,
-
       life: -60,
       harmony: -60,
     },
-
     resistanceBonus: {
       life: 50,
       harmony: 50,
     },
-
-    allowedSpellFlags: ["acolyte", "reaper"],
+    allowedSpellFlags: ["abbot", "reaper"],
   },
-
 };
+
+// ─────────────────────────────────────────────
+// AKTYWNA KONFIGURACJA — zależna od aktualnej klasy postaci
+// ─────────────────────────────────────────────
+function getActiveBonusConfig(
+  profile: { initialPath: string | null; finalClass: string | null }
+): ArchetypeBonusConfig | null {
+  if (profile.finalClass) {
+    return FINAL_CLASS_BONUSES[profile.finalClass] ?? null;
+  }
+  if (profile.initialPath) {
+    return INITIAL_PATH_BONUSES[profile.initialPath] ?? null;
+  }
+  return null;
+}
+
+// ── BONUSY BOJOWE ──────────────────────────────────────────────────────────────
+export async function getCharacterArchetypeBonus(
+  characterId: number
+): Promise<ArchetypeBonusConfig | null> {
+  const profile = await prisma.archetypeProfile.findUnique({ where: { characterId } });
+  if (!profile) return null;
+  return getActiveBonusConfig(profile);
+}
+
+// ── FLAGI CZARÓW DOSTĘPNE W KSIĘDZE ──────────────────────────────────────────────
+export async function getAccessibleSpellFlags(
+  characterId: number
+): Promise<SpellArchetypeFlag[]> {
+  const profile = await prisma.archetypeProfile.findUnique({ where: { characterId } });
+  if (!profile) return [];
+  return getActiveBonusConfig(profile)?.allowedSpellFlags ?? [];
+}

@@ -1,5 +1,6 @@
 import prisma from "../lib/prisma.js";
 import { archetypeTriggerService } from "./archetype/archetype-trigger.service.js";
+import { getVaultCapacity } from "./chaos_vault.service.js";
 
 // ── KONFIGURACJA BUDYNKÓW ────────────────────────────
 
@@ -10,7 +11,6 @@ interface BuildingConfig {
   requiredTowerLevel: number;
   maxLevel: number | null;
   baseCostShards: number;
-  baseCostGold?: number;
   baseReqKnowledge: number;
   baseReqIntelligence: number;
   baseReqPower?: number;
@@ -33,16 +33,6 @@ const BUILDING_CONFIG: Record<string, BuildingConfig> = {
     baseDurationSeconds: 120,
     scaleMultiplier: 1.2,
   },
-  storage: {
-    requiredTowerLevel: 1,
-    maxLevel: 30,
-    baseCostShards: 5,
-    baseReqKnowledge: 3,
-    baseReqIntelligence: 3,
-    baseReqPower: 1,
-    baseDurationSeconds: 120,
-    scaleMultiplier: 1.3,
-  },
   library: {
     requiredTowerLevel: 1,
     maxLevel: 5,
@@ -54,6 +44,7 @@ const BUILDING_CONFIG: Record<string, BuildingConfig> = {
     baseDurationSeconds: 120,
     scaleMultiplier: 5.0,
   },
+  // ── PLACEHOLDER — bez funkcji na razie ──────────────
   magic_hands: {
     requiredTowerLevel: 5,
     maxLevel: null,
@@ -64,22 +55,22 @@ const BUILDING_CONFIG: Record<string, BuildingConfig> = {
     baseDurationSeconds: 300,
     scaleMultiplier: 1.3,
   },
+  // ── PLACEHOLDER — bez funkcji na razie ──────────────
   spy_orb: {
     requiredTowerLevel: 10,
     maxLevel: 1,
     baseCostShards: 200,
-    baseCostGold: 200,
     baseReqKnowledge: 20,
     baseReqIntelligence: 15,
     baseReqPower: 25,
     baseDurationSeconds: 600,
     scaleMultiplier: 1.3,
   },
-  candles: {
+  // ── ALTAIR — wzmocnienia żywiołowe (patrz sekcja niżej) ──
+  Altair: {
     requiredTowerLevel: 5,
-    maxLevel: 20,
-    baseCostShards: 0,
-    baseCostGold: 100,
+    maxLevel: 40, // 4 pary × co 10 poziomów -> wartość do dostrojenia balansu
+    baseCostShards: 50, // PLACEHOLDER — dostrój koszt
     baseReqKnowledge: 20,
     baseReqIntelligence: 0,
     baseReqElementalMagic: 10,
@@ -90,27 +81,25 @@ const BUILDING_CONFIG: Record<string, BuildingConfig> = {
     costScaleMultiplier: 2.0,
   },
   chaos_vault: {
-  requiredTowerLevel: 1,
-  maxLevel: 10,
-  baseCostShards: 10,
-  baseCostGold: 10,
-  baseReqKnowledge: 5,
-  baseReqIntelligence: 5,
-  baseReqPower: 5,
-  baseDurationSeconds: 150, // 2.5 minuty
-  scaleMultiplier: 1.3,
-},
-disintegrator: {
-  requiredTowerLevel: 10,
-  maxLevel: 1,
-  baseCostShards: 30,
-  baseCostGold: 10,
-  baseReqKnowledge: 5,
-  baseReqIntelligence: 5,
-  baseReqPower: 15,
-  baseDurationSeconds: 300,
-  scaleMultiplier: 1,
-},
+    requiredTowerLevel: 1,
+    maxLevel: 10,
+    baseCostShards: 10,
+    baseReqKnowledge: 5,
+    baseReqIntelligence: 5,
+    baseReqPower: 5,
+    baseDurationSeconds: 150, // 2.5 minuty
+    scaleMultiplier: 1.3,
+  },
+  disintegrator: {
+    requiredTowerLevel: 10,
+    maxLevel: 1,
+    baseCostShards: 30,
+    baseReqKnowledge: 5,
+    baseReqIntelligence: 5,
+    baseReqPower: 15,
+    baseDurationSeconds: 300,
+    scaleMultiplier: 1,
+  },
 };
 
 function scaleValue(base: number, level: number, multiplier = 1.3): number {
@@ -127,13 +116,12 @@ function getBuildingReqs(type: string, currentLevel: number) {
 
   return {
     costShards:      currentLevel === 0 ? cfg.baseCostShards : scaleValue(cfg.baseCostShards, lvl, costScale),
-    costGold:        currentLevel === 0 ? (cfg.baseCostGold ?? 0) : scaleValue(cfg.baseCostGold ?? 0, lvl, costScale),
     reqKnowledge:    currentLevel === 0 ? cfg.baseReqKnowledge : scaleValue(cfg.baseReqKnowledge, lvl, scale),
     reqIntelligence: currentLevel === 0 ? cfg.baseReqIntelligence : scaleValue(cfg.baseReqIntelligence, lvl, scale),
     reqPower:        currentLevel === 0 ? (cfg.baseReqPower ?? 0) : scaleValue(cfg.baseReqPower ?? 0, lvl, scale),
-    reqElementalMagic:      currentLevel === 0 ? (cfg.baseReqElementalMagic ?? 0) : scaleValue(cfg.baseReqElementalMagic ?? 0, lvl, scale),
-    reqAstralMagic:         currentLevel === 0 ? (cfg.baseReqAstralMagic ?? 0) : scaleValue(cfg.baseReqAstralMagic ?? 0, lvl, scale),
-    reqBloodMagic:          currentLevel === 0 ? (cfg.baseReqBloodMagic ?? 0) : scaleValue(cfg.baseReqBloodMagic ?? 0, lvl, scale),
+    reqElementalMagic: currentLevel === 0 ? (cfg.baseReqElementalMagic ?? 0) : scaleValue(cfg.baseReqElementalMagic ?? 0, lvl, scale),
+    reqAstralMagic:    currentLevel === 0 ? (cfg.baseReqAstralMagic ?? 0) : scaleValue(cfg.baseReqAstralMagic ?? 0, lvl, scale),
+    reqBloodMagic:     currentLevel === 0 ? (cfg.baseReqBloodMagic ?? 0) : scaleValue(cfg.baseReqBloodMagic ?? 0, lvl, scale),
     durationSeconds: currentLevel === 0 ? cfg.baseDurationSeconds : scaleValue(cfg.baseDurationSeconds, lvl, scale),
   };
 }
@@ -158,27 +146,21 @@ export async function collectResources(characterId: number) {
   const pcLevel = buildings.find(b => b.buildingType === "power_collector")?.level ?? 0;
   const pcProduction = pcLevel > 0 ? scaleValue(2, pcLevel, 1.2) : 0;
 
-  const magicHandsLevel = buildings.find(b => b.buildingType === "magic_hands")?.level ?? 0;
-  const goldProduction = magicHandsLevel > 0 ? scaleValue(1, magicHandsLevel, 1.3) : 0;
-
   const shardsCollected = Math.floor((BASE_PRODUCTION_PER_HOUR + pcProduction) * hoursElapsed);
-  const goldCollected   = Math.floor(goldProduction * hoursElapsed);
 
-  if (shardsCollected <= 0 && goldCollected <= 0) return { collected: 0 };
+  if (shardsCollected <= 0) return { collected: 0 };
 
   await prisma.character.update({
     where: { id: characterId },
     data: {
       powerShards: { increment: shardsCollected },
-      gold:        { increment: goldCollected },
       lastResourceCollect: now,
     },
   });
 
-  await archetypeTriggerService.checkTrigger(characterId, "GOLD_20000");
   await archetypeTriggerService.checkTrigger(characterId, "SHARDS_10000");
 
-  return { shardsCollected, goldCollected };
+  return { shardsCollected };
 }
 
 // ── HELPER — sprawdź wymagania ───────────────────────
@@ -189,10 +171,101 @@ function checkUnmet(reqs: ReturnType<typeof getBuildingReqs>, character: any, to
   if (character.knowledge < reqs.reqKnowledge)     unmet.push(`Wiedza ${reqs.reqKnowledge} (masz ${character.knowledge})`);
   if (reqs.reqIntelligence > 0 && character.intelligence < reqs.reqIntelligence) unmet.push(`Inteligencja ${reqs.reqIntelligence} (masz ${character.intelligence})`);
   if (reqs.reqPower > 0 && character.power < reqs.reqPower)                       unmet.push(`Moc ${reqs.reqPower} (masz ${character.power})`);
-  if (reqs.reqElementalMagic > 0 && character.elementalMagic < reqs.reqElementalMagic) unmet.push(`Magia ognia ${reqs.reqElementalMagic} (masz ${character.elementalMagic})`);
+  if (reqs.reqElementalMagic > 0 && character.elementalMagic < reqs.reqElementalMagic) unmet.push(`Magia żywiołów ${reqs.reqElementalMagic} (masz ${character.elementalMagic})`);
   if (reqs.costShards > 0 && character.powerShards < reqs.costShards)             unmet.push(`Okruchy mocy ${reqs.costShards} (masz ${character.powerShards})`);
-  if (reqs.costGold > 0 && character.gold < reqs.costGold)                        unmet.push(`Złoto ${reqs.costGold} (masz ${character.gold})`);
   return unmet;
+}
+
+// ── ALTAIR — PARY ŻYWIOŁÓW ────────────────────────────────────────────────────
+
+export const ALTAIR_ELEMENT_PAIRS: [string, string][] = [
+  ["water", "fire"],
+  ["earth", "air"],
+  ["chaos", "harmony"],
+  ["life", "death"],
+];
+
+const ALTAIR_BOOST_PERCENT = 2;
+const ALTAIR_PENALTY_PERCENT = 1;
+const ALTAIR_LEVELS_PER_PAIR = 10;
+
+interface AltairConfig {
+  selections: (string | null)[]; // indeks = numer pary; wartość = wybrany żywioł "wiodący" lub null
+}
+
+function parseAltairConfig(raw: string): AltairConfig {
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed?.selections)) return parsed as AltairConfig;
+  } catch { /* noop */ }
+  return { selections: ALTAIR_ELEMENT_PAIRS.map(() => null) };
+}
+
+// Ile par żywiołów jest odblokowanych przy danym poziomie Altaira
+export function getAltairUnlockedPairs(level: number): number {
+  if (level <= 0) return 0;
+  return Math.min(ALTAIR_ELEMENT_PAIRS.length, Math.floor((level - 1) / ALTAIR_LEVELS_PER_PAIR) + 1);
+}
+
+// Wybór "wiodącego" żywiołu dla danej pary
+export async function setAltairElement(userId: number, pairIndex: number, element: string) {
+  const character = await prisma.character.findUnique({
+    where: { userId },
+    include: { tower: { include: { buildings: true } } },
+  });
+  if (!character || !character.tower) throw new Error("Wieża nie znaleziona");
+
+  const building = character.tower.buildings.find(b => b.buildingType === "Altair");
+  if (!building) throw new Error("Altair nie został jeszcze wybudowany");
+
+  const unlockedPairs = getAltairUnlockedPairs(building.level);
+
+  if (pairIndex < 0 || pairIndex >= ALTAIR_ELEMENT_PAIRS.length) {
+    throw new Error("Nieprawidłowy indeks pary żywiołów");
+  }
+  if (pairIndex >= unlockedPairs) {
+    throw new Error(`Ta para żywiołów jest jeszcze zablokowana (wymagany poziom Altaira: ${pairIndex * ALTAIR_LEVELS_PER_PAIR + 1})`);
+  }
+
+  const pair = ALTAIR_ELEMENT_PAIRS[pairIndex];
+  if (!pair.includes(element)) {
+    throw new Error(`Żywioł "${element}" nie należy do tej pary (${pair.join("/")})`);
+  }
+
+  const config = parseAltairConfig(building.config);
+  config.selections[pairIndex] = element;
+
+  await prisma.towerBuilding.update({
+    where: { id: building.id },
+    data: { config: JSON.stringify(config) },
+  });
+
+  return { pairIndex, element, config };
+}
+
+// Modyfikatory % obrażeń per element wynikające z Altaira — do użycia w combat.service.ts
+export async function getAltairDamageModifiers(characterId: number): Promise<Record<string, number>> {
+  const character = await prisma.character.findUnique({
+    where: { id: characterId },
+    include: { tower: { include: { buildings: true } } },
+  });
+  if (!character || !character.tower) return {};
+
+  const building = character.tower.buildings.find(b => b.buildingType === "Altair");
+  if (!building) return {};
+
+  const config = parseAltairConfig(building.config);
+  const modifiers: Record<string, number> = {};
+
+  config.selections.forEach((leadingElement, i) => {
+    if (!leadingElement) return;
+    const pair = ALTAIR_ELEMENT_PAIRS[i];
+    const opposing = pair.find(e => e !== leadingElement)!;
+    modifiers[leadingElement] = (modifiers[leadingElement] ?? 0) + ALTAIR_BOOST_PERCENT;
+    modifiers[opposing]       = (modifiers[opposing] ?? 0) - ALTAIR_PENALTY_PERCENT;
+  });
+
+  return modifiers;
 }
 
 // ── INFORMACJE O WIEŻY ───────────────────────────────
@@ -206,7 +279,6 @@ export async function getTowerInfo(userId: number) {
 
   await collectResources(character.id);
 
-  // Odśwież dane po kolekcji
   const fresh = await prisma.character.findUnique({
     where: { id: character.id },
     include: { tower: { include: { buildings: true } } },
@@ -244,9 +316,12 @@ export async function getTowerInfo(userId: number) {
 
   const pcInfo = buildingInfo("power_collector");
   const pcLevel = pcInfo.level;
-  const mhLevel = buildingInfo("magic_hands").level;
-  const candlesLevel = buildingInfo("candles").level;
   const cvLevel = buildingInfo("chaos_vault").level;
+
+  const altairBuilding = tower.buildings.find(b => b.buildingType === "Altair");
+  const altairLevel = altairBuilding?.level ?? 0;
+  const altairConfig = parseAltairConfig(altairBuilding?.config ?? "{}");
+  const altairUnlockedPairs = getAltairUnlockedPairs(altairLevel);
 
   return {
     tower: {
@@ -267,19 +342,22 @@ export async function getTowerInfo(userId: number) {
     },
     buildings: {
       power_collector: { ...pcInfo, currentProduction: pcLevel > 0 ? scaleValue(2, pcLevel, 1.2) : 0 },
-      storage:         buildingInfo("storage"),
       library:         buildingInfo("library"),
-      magic_hands:     { ...buildingInfo("magic_hands"), currentGoldProduction: mhLevel > 0 ? scaleValue(1, mhLevel, 1.3) : 0 },
+      magic_hands:     buildingInfo("magic_hands"),
       spy_orb:         buildingInfo("spy_orb"),
-      candles:         { ...buildingInfo("candles"), currentBonus: candlesLevel },
-      chaos_vault: { ...buildingInfo("chaos_vault"), visibleSlots: cvLevel * 5 },
-      disintegrator: buildingInfo("disintegrator"),
+      Altair: {
+        ...buildingInfo("Altair"),
+        unlockedPairs: altairUnlockedPairs,
+        pairs: ALTAIR_ELEMENT_PAIRS,
+        selections: altairConfig.selections,
+        boostPercent: ALTAIR_BOOST_PERCENT,
+        penaltyPercent: ALTAIR_PENALTY_PERCENT,
+      },
+chaos_vault: { ...buildingInfo("chaos_vault"), visibleSlots: getVaultCapacity(cvLevel) },      disintegrator: buildingInfo("disintegrator"),
     },
     resources: {
       powerShards: char.powerShards,
-      gold: char.gold,
       productionPerHour: BASE_PRODUCTION_PER_HOUR + (pcLevel > 0 ? scaleValue(2, pcLevel, 1.2) : 0),
-      goldPerHour: mhLevel > 0 ? scaleValue(1, mhLevel, 1.3) : 0,
     },
   };
 }
@@ -312,23 +390,19 @@ async function startBuildingUpgrade(userId: number, buildingType: string) {
 
   const finishesAt = new Date(Date.now() + reqs.durationSeconds * 1000);
 
-if (buildingType === "library") {
-  const nextLevel = currentLevel + 1; // 1..5
-  const requiredTowerLevels = [1, 10, 25, 50, 100];
-  const requiredTower = requiredTowerLevels[nextLevel - 1];
-  if (character.tower.level < requiredTower) {
-    throw new Error(
-      `LIBRARY_TOWER_LOCKED:${requiredTower}`
-    );
+  if (buildingType === "library") {
+    const nextLevel = currentLevel + 1; // 1..5
+    const requiredTowerLevels = [1, 10, 25, 50, 100];
+    const requiredTower = requiredTowerLevels[nextLevel - 1];
+    if (character.tower.level < requiredTower) {
+      throw new Error(`LIBRARY_TOWER_LOCKED:${requiredTower}`);
+    }
   }
-}
 
-  // Pobierz koszt
   await prisma.character.update({
     where: { id: character.id },
     data: {
       powerShards: { decrement: reqs.costShards },
-      gold:        { decrement: reqs.costGold },
     },
   });
 
@@ -371,13 +445,6 @@ async function claimBuildingUpgrade(userId: number, buildingType: string) {
     data: { level: newLevel, isUpgrading: false, upgradeFinishesAt: null },
   });
 
-  // Efekty ukończenia budynku
-  const updates: Record<string, any> = {};
-  if (buildingType === "storage") updates.maxItems = { increment: 10 };
-  if (Object.keys(updates).length > 0) {
-    await prisma.character.update({ where: { id: character.id }, data: updates });
-  }
-
   return { newLevel };
 }
 
@@ -406,32 +473,29 @@ export const claimTowerUpgrade = async (userId: number) => {
   if (!character || !character.tower) throw new Error("Wieża nie znaleziona");
   if (!character.tower.isUpgrading) throw new Error("Wieża nie jest w trakcie rozbudowy");
   if (character.tower.upgradeFinishesAt && new Date() < character.tower.upgradeFinishesAt) throw new Error("Rozbudowa jeszcze trwa");
-  const newLevel = character.tower.level + 1;
   await prisma.tower.update({ where: { id: character.tower.id }, data: { level: { increment: 1 }, isUpgrading: false, upgradeFinishesAt: null } });
+  const newLevel = character.tower.level + 1;
   await archetypeTriggerService.checkTrigger(character.id, "TOWER_LEVEL_50", { towerLevel: newLevel });
-  
-  return { newLevel: character.tower.level + 1 };
+
+  return { newLevel };
 };
 
 export function getSpellSlotCount(libraryLevel: number, extraSlots: number = 0): number {
   // poziom 0 = 0 slotów, 1=1, 2=2, 3=3, 4=4, 5=5 (max 5)
   return Math.min(libraryLevel, 5) + extraSlots;
-
 }
 
 export const startPowerCollectorUpgrade   = (userId: number) => startBuildingUpgrade(userId, "power_collector");
 export const claimPowerCollectorUpgrade   = (userId: number) => claimBuildingUpgrade(userId, "power_collector");
-export const startStorageUpgrade          = (userId: number) => startBuildingUpgrade(userId, "storage");
-export const claimStorageUpgrade          = (userId: number) => claimBuildingUpgrade(userId, "storage");
 export const startLibraryUpgrade          = (userId: number) => startBuildingUpgrade(userId, "library");
 export const claimLibraryUpgrade          = (userId: number) => claimBuildingUpgrade(userId, "library");
 export const startMagicHandsUpgrade       = (userId: number) => startBuildingUpgrade(userId, "magic_hands");
 export const claimMagicHandsUpgrade       = (userId: number) => claimBuildingUpgrade(userId, "magic_hands");
 export const startSpyOrbUpgrade           = (userId: number) => startBuildingUpgrade(userId, "spy_orb");
 export const claimSpyOrbUpgrade           = (userId: number) => claimBuildingUpgrade(userId, "spy_orb");
-export const startCandlesUpgrade          = (userId: number) => startBuildingUpgrade(userId, "candles");
-export const claimCandlesUpgrade          = (userId: number) => claimBuildingUpgrade(userId, "candles");
-export const startChaosVaultUpgrade = (userId: number) => startBuildingUpgrade(userId, "chaos_vault");
-export const claimChaosVaultUpgrade = (userId: number) => claimBuildingUpgrade(userId, "chaos_vault");
-export const startDisintegratorUpgrade = (userId: number) => startBuildingUpgrade(userId, "disintegrator");
-export const claimDisintegratorUpgrade = (userId: number) => claimBuildingUpgrade(userId, "disintegrator");
+export const startAltairUpgrade           = (userId: number) => startBuildingUpgrade(userId, "Altair");
+export const claimAltairUpgrade           = (userId: number) => claimBuildingUpgrade(userId, "Altair");
+export const startChaosVaultUpgrade       = (userId: number) => startBuildingUpgrade(userId, "chaos_vault");
+export const claimChaosVaultUpgrade       = (userId: number) => claimBuildingUpgrade(userId, "chaos_vault");
+export const startDisintegratorUpgrade    = (userId: number) => startBuildingUpgrade(userId, "disintegrator");
+export const claimDisintegratorUpgrade    = (userId: number) => claimBuildingUpgrade(userId, "disintegrator");

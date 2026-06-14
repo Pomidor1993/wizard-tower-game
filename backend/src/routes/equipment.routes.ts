@@ -6,6 +6,7 @@ import {
   unequipItemEndpoint,
   equipSpellEndpoint,
   unequipSpellEndpoint,
+  equipSpellAutoEndpoint,
 } from "../controllers/equipment.controller.js";
 
 const router = Router();
@@ -15,5 +16,6 @@ router.post("/item/equip",   requireAuth, equipItemEndpoint);
 router.post("/item/unequip", requireAuth, unequipItemEndpoint);
 router.post("/spell/equip",  requireAuth, equipSpellEndpoint);
 router.post("/spell/unequip",requireAuth, unequipSpellEndpoint);
+router.post("/spell/equip-auto", requireAuth, equipSpellAutoEndpoint);
 
 export default router;

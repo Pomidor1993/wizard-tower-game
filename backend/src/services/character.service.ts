@@ -18,7 +18,7 @@ type UpgradeableStat = typeof UPGRADEABLE_STATS[number];
 
 // ── DOŚWIADCZENIE I POZIOMY ───────────────────────────
 export function calculateXpForNextLevel(currentLevel: number): number {
-  return Math.round(500 * Math.pow(1.4, currentLevel - 1));
+  return Math.round(300 * Math.pow(1.4, currentLevel - 1));
 }
 
 const SKILL_POINTS_PER_LEVEL = 5;

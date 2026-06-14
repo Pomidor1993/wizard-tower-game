@@ -56,9 +56,18 @@ async function main() {
     data: [
 ///////////////NOWE CZARY - ZWYKŁE////////////////////////
       {
+        name: "Pomniejsze przywołanie",
+        category: "offensive", spellPool: "chaotic",
+        rarity: "common", 
+        element: "basic", damage: 1, isDirectional: true,
+        isTutorialReward: true, 
+        special: "Nad {target} materializuje się {list} i spadając, zadaje {damage} pkt obrażeń.",
+        statusEffects: fx([]),
+      },
+      {
         name: "Pomniejszy pocisk chaosu",
         category: "offensive", spellPool: "chaotic",
-        rarity: "common", spellBook: true,
+        rarity: "common", 
         element: "chaos", damage: 7, isDirectional: true, 
         reqBloodMagic: 15,
         special: "Wystrzeliwuje w fioletowy pocisk, który uderza w {target} i zadaje {damage} obrażeń.",
@@ -67,7 +76,7 @@ async function main() {
       {
         name: "Pocisk chaosu",
         category: "offensive", spellPool: "controlled",
-        rarity: "common", spellBook: true,
+        rarity: "common", 
         element: "chaos", damage: 14, isDirectional: true, 
         reqBloodMagic: 30,
         special: "Wystrzeliwuje w fioletowy pocisk, który uderza w {target} i zadaje {damage} obrażeń.",
@@ -76,7 +85,7 @@ async function main() {
       {
         name: "Potężny pocisk chaosu",
         category: "offensive", spellPool: "incantation",
-        rarity: "common", spellBook: true,
+        rarity: "common", 
         element: "chaos", damage: 25, isDirectional: true, 
         reqBloodMagic: 45,
         special: "Wystrzeliwuje w fioletowy pocisk, który uderza w {target} i zadaje {damage} obrażeń.",
@@ -85,7 +94,7 @@ async function main() {
       {
         name: "Pomniejsza wiązka energii",
         category: "offensive", spellPool: "chaotic",
-        rarity: "common", spellBook: true,
+        rarity: "common", 
         element: "energy", damage: 5, isDirectional: true, 
         reqAstralMagic: 5,
         special: "Wystrzeliwuje wiązkę energii, która razi {target} zadając {damage} obrazeń.",
@@ -94,7 +103,7 @@ async function main() {
       {
         name: "Wiązka energii",
         category: "offensive", spellPool: "controlled",
-        rarity: "common", spellBook: true,
+        rarity: "common", 
         element: "energy", damage: 10, isDirectional: true, 
         reqAstralMagic: 20,
         special: "Wystrzeliwuje wiązkę energii, która razi {target} zadając {damage} obrazeń.",
@@ -103,7 +112,7 @@ async function main() {
       {
         name: "Potężna wiązka energii",
         category: "offensive", spellPool: "incantation",
-        rarity: "common", spellBook: true,
+        rarity: "common", 
         element: "energy", damage: 15, isDirectional: true, 
         reqAstralMagic: 35,
         special: "Wystrzeliwuje wiązkę energii, która razi {target} zadając {damage} obrazeń.",
@@ -112,7 +121,7 @@ async function main() {
       {
         name: "Pomniejszy pocisk lodowy",
         category: "offensive", spellPool: "chaotic",
-        rarity: "common", spellBook: true,
+        rarity: "common", 
         element: "water", damage: 5, isDirectional: true, 
         reqElementalMagic: 5,
         special: "W {target} uderzają lodowe sople zadając {damage} obrażeń.",
@@ -121,7 +130,7 @@ async function main() {
       {
         name: "Pocisk lodowy",
         category: "offensive", spellPool: "controlled",
-        rarity: "common", spellBook: true,
+        rarity: "common", 
         element: "water", damage: 10, isDirectional: true, 
         reqElementalMagic: 20,
         special: "W {target} uderzają lodowe sople zadając {damage} obrażeń.",
@@ -130,7 +139,7 @@ async function main() {
       {
         name: "Potężny pocisk lodowy",
         category: "offensive", spellPool: "incantation",
-        rarity: "common", spellBook: true,
+        rarity: "common", 
         element: "water", damage: 15, isDirectional: true, 
         reqElementalMagic: 35,
         special: "W {target} uderzają lodowe sople zadając {damage} obrażeń.",
@@ -141,7 +150,7 @@ async function main() {
   category: "offensive",
   spellPool: "chaotic",
   rarity: "common",
-  spellBook: true,
+  
   element: "fire",
   damage: 5,
   isDirectional: true,
@@ -155,7 +164,7 @@ async function main() {
   category: "offensive",
   spellPool: "controlled",
   rarity: "common",
-  spellBook: true,
+  
   element: "fire",
   damage: 10,
   isDirectional: true,
@@ -169,7 +178,7 @@ async function main() {
   category: "offensive",
   spellPool: "incantation",
   rarity: "common",
-  spellBook: true,
+  
   element: "fire",
   damage: 15,
   isDirectional: true,
@@ -183,7 +192,7 @@ async function main() {
   category: "offensive",
   spellPool: "chaotic",
   rarity: "common",
-  spellBook: true,
+  
   element: "air",
   damage: 5,
   isDirectional: true,
@@ -197,7 +206,7 @@ async function main() {
   category: "offensive",
   spellPool: "controlled",
   rarity: "common",
-  spellBook: true,
+  
   element: "air",
   damage: 10,
   isDirectional: true,
@@ -211,7 +220,7 @@ async function main() {
   category: "offensive",
   spellPool: "incantation",
   rarity: "common",
-  spellBook: true,
+  
   element: "air",
   damage: 15,
   isDirectional: true,
@@ -225,7 +234,7 @@ async function main() {
   category: "offensive",
   spellPool: "chaotic",
   rarity: "common",
-  spellBook: true,
+  
   element: "earth",
   damage: 5,
   isDirectional: true,
@@ -239,7 +248,7 @@ async function main() {
   category: "offensive",
   spellPool: "controlled",
   rarity: "common",
-  spellBook: true,
+  
   element: "earth",
   damage: 10,
   isDirectional: true,
@@ -253,7 +262,7 @@ async function main() {
   category: "offensive",
   spellPool: "incantation",
   rarity: "common",
-  spellBook: true,
+  
   element: "earth",
   damage: 15,
   isDirectional: true,
@@ -267,7 +276,7 @@ async function main() {
   category: "other",
   spellPool: "chaotic",
   rarity: "common",
-  spellBook: false,
+  
   element: "basic",
   damage: 2,
   isDirectional: false,
@@ -281,7 +290,7 @@ async function main() {
   category: "other",
   spellPool: "chaotic",
   rarity: "none",
-  spellBook: false,
+  
   element: "basic",
   damage: 0,
   isDirectional: false,
@@ -295,7 +304,7 @@ async function main() {
   category: "other",
   spellPool: "chaotic",
   rarity: "none",
-  spellBook: false,
+  
   element: "basic",
   damage: 0,
   isDirectional: false,
@@ -308,7 +317,7 @@ async function main() {
   category: "other",
   spellPool: "chaotic",
   rarity: "none",
-  spellBook: false,
+  
   element: "basic",
   damage: 0,
   isDirectional: false,
@@ -321,7 +330,7 @@ async function main() {
   category: "summoner",
   spellPool: "chaotic",
   rarity: "none",
-  spellBook: false,
+  
   element: "basic",
   damage: 0,
   isDirectional: false,
@@ -335,7 +344,7 @@ async function main() {
   category: "other",
   spellPool: "chaotic",
   rarity: "none",
-  spellBook: false,
+  
   element: "basic",
   damage: 0,
   isDirectional: false,
@@ -349,7 +358,7 @@ async function main() {
   category: "other",
   spellPool: "chaotic",
   rarity: "none",
-  spellBook: false,
+  
   element: "basic",
   damage: 0,
   isDirectional: false,
@@ -362,7 +371,7 @@ async function main() {
   category: "other",
   spellPool: "chaotic",
   rarity: "none",
-  spellBook: false,
+  
   element: "basic",
   damage: 0,
   isDirectional: false,
@@ -375,7 +384,7 @@ async function main() {
   category: "offensive",
   spellPool: "chaotic",
   rarity: "common",
-  spellBook: false,
+  
   element: "basic",
   damage: 2,
   isDirectional: false,
@@ -388,7 +397,7 @@ async function main() {
   category: "offensive",
   spellPool: "chaotic",
   rarity: "common",
-  spellBook: false,
+  
   element: "basic",
   damage: 5,
   isDirectional: false,
@@ -401,7 +410,7 @@ async function main() {
   category: "offensive",
   spellPool: "chaotic",
   rarity: "none",
-  spellBook: false,
+  
   element: "basic",
   damage: 3,
   isDirectional: false,
@@ -414,7 +423,7 @@ async function main() {
   category: "offensive",
   spellPool: "chaotic",
   rarity: "none",
-  spellBook: false,
+  
   element: "basic",
   damage: 1,
   isDirectional: false,
@@ -427,7 +436,7 @@ async function main() {
   category: "offensive",
   spellPool: "chaotic",
   rarity: "none",
-  spellBook: false,
+  
   element: "fire",
   damage: 1,
   isDirectional: false,
@@ -440,7 +449,7 @@ async function main() {
   category: "offensive",
   spellPool: "chaotic",
   rarity: "none",
-  spellBook: false,
+  
   element: "basic",
   damage: 2,
   isDirectional: false,
@@ -454,7 +463,7 @@ async function main() {
   category: "offensive",
   spellPool: "chaotic",
   rarity: "none",
-  spellBook: false,
+  
   element: "basic",
   damage: 2,
   isDirectional: false,
@@ -468,7 +477,7 @@ async function main() {
   category: "other",
   spellPool: "chaotic",
   rarity: "none",
-  spellBook: false,
+  
   element: "basic",
   damage: 0,
   isDirectional: false,
@@ -482,7 +491,7 @@ async function main() {
   category: "offensive",
   spellPool: "chaotic",
   rarity: "none",
-  spellBook: false,
+  
   element: "basic",
   damage: 1,
   isDirectional: false,
@@ -496,7 +505,7 @@ async function main() {
   category: "other",
   spellPool: "chaotic",
   rarity: "none",
-  spellBook: false,
+  
   element: "basic",
   damage: 0,
   isDirectional: false,
@@ -510,7 +519,7 @@ async function main() {
   element: "fire", rarity: "common", damage: 0, spellPool: "chaotic",
   isDirectional: false,
   reqElementalMagic: 10,
-  spellBook: true,
+  
   special: "Na pobojowisku pojawia się mnóstwo lawy!",
   statusEffects: fx([{
     type: "damage_on_move",
@@ -529,7 +538,7 @@ async function main() {
   element: "death", rarity: "common", damage: 0, spellPool: "chaotic",
   isDirectional: false,
   reqBloodMagic: 10,
-  spellBook: true,
+  
   special: "Pobojowisko wypełnia śmiercionośne powietrze.",
   statusEffects: fx([{
     type: "damage_on_move",
@@ -548,7 +557,7 @@ async function main() {
   element: "earth", rarity: "common", damage: 0, spellPool: "chaotic",
   isDirectional: false,
   reqElementalMagic: 10,
-  spellBook: true,
+  
   special: "Pobojowisko zalewa nieprzeniknione, ruchome bagno.",
   statusEffects: fx([{
     type: "damage_on_move",
@@ -566,7 +575,7 @@ async function main() {
   name: "Rozstrzaskane lustra",
   element: "basic", rarity: "common", damage: 0, spellPool: "chaotic",
   isDirectional: false,
-  spellBook: false,
+  
   special: "Przywołuje dziesiątki luster, które roztrzaskują się o podłoże.",
   statusEffects: fx([{
     type: "damage_on_move",
@@ -585,7 +594,7 @@ async function main() {
   element: "water", rarity: "common", damage: 0, spellPool: "chaotic",
   isDirectional: false,
   reqElementalMagic: 10,
-  spellBook: true,
+  
   special: "Udało mu się sprawić, że całe podłoże zostało skute lodem — strasznie ślisko!",
   statusEffects: fx([{
     type: "damage_on_move",
@@ -606,7 +615,7 @@ async function main() {
   element: "fire", rarity: "common", damage: 0, spellPool: "chaotic",
   isDirectional: true,
   reqElementalMagic: 1,
-  spellBook: false,
+  
   special: "Niechcący przywołał mnóstwo iskier, które parzą mu dłonie!",
   statusEffects: fx([{
     type: "dot",
@@ -624,7 +633,7 @@ async function main() {
   element: "chaos", rarity: "uncommon", damage: 0, spellPool: "chaotic",
   isDirectional: true,
   reqBloodMagic: 5,
-  spellBook: false,
+  
   special: "Zatruwa {target}.",
   statusEffects: fx([{
     type: "dot",
@@ -642,7 +651,7 @@ async function main() {
   element: "fire", rarity: "uncommon", damage: 0, spellPool: "chaotic",
   isDirectional: true,
   reqElementalMagic: 5,
-  spellBook: false,
+  
   special: "Podpala {target}.",
   statusEffects: fx([{
     type: "dot",
@@ -660,7 +669,7 @@ async function main() {
   element: "energy", rarity: "common", damage: 0, spellPool: "chaotic",
   isDirectional: false,
   reqAstralMagic: 15,
-  spellBook: true,
+  
   special: "Przywołuje ładunek energii, który skacze pomiędzy przeciwnikami zadając {damage} obrażeń.",
   statusEffects: fx([{
     type: "dot",
@@ -679,7 +688,7 @@ async function main() {
   element: "energy", rarity: "common", damage: 0, spellPool: "controlled",
   isDirectional: false,
   reqAstralMagic: 30,
-  spellBook: true,
+  
   special: "Przywołuje ładunek energii, który skacze pomiędzy przeciwnikami zadając {damage} obrażeń.",
   statusEffects: fx([{
     type: "dot",
@@ -698,7 +707,7 @@ async function main() {
   element: "energy", rarity: "common", damage: 0, spellPool: "incantation",
   isDirectional: false,
   reqAstralMagic: 45,
-  spellBook: true,
+  
   special: "Przywołuje ładunek energii, który skacze pomiędzy przeciwnikami zadając {damage} obrażeń.",
   statusEffects: fx([{
     type: "dot",
@@ -717,7 +726,7 @@ async function main() {
   element: "water", rarity: "common", damage: 0, spellPool: "chaotic",
   isDirectional: false,
   reqElementalMagic: 15,
-  spellBook: true,
+  
   special: "Przywołuje lodowe kolce, które ranią przeciwników zadając {damage} obrażeń.",
   statusEffects: fx([{
     type: "dot",
@@ -736,7 +745,7 @@ async function main() {
   element: "water", rarity: "common", damage: 0, spellPool: "controlled",
   isDirectional: false,
   reqElementalMagic: 30,
-  spellBook: true,
+  
   special: "Przywołuje lodowe kolce, które ranią przeciwników zadając {damage} obrażeń.",
   statusEffects: fx([{
     type: "dot",
@@ -755,7 +764,7 @@ async function main() {
   element: "water", rarity: "common", damage: 0, spellPool: "incantation",
   isDirectional: false,
   reqElementalMagic: 45,
-  spellBook: true,
+  
   special: "Przywołuje lodowe kolce, które ranią przeciwników zadając {damage} obrażeń.",
   statusEffects: fx([{
     type: "dot",
@@ -774,7 +783,7 @@ async function main() {
   element: "fire", rarity: "common", damage: 0, spellPool: "chaotic",
   isDirectional: false,
   reqElementalMagic: 15,
-  spellBook: true,
+  
   special: "Przywołuje ognisty krąg wokół przeciwników, który pali ich zadając {damage} obrażeń.",
   statusEffects: fx([{
     type: "dot",
@@ -793,7 +802,7 @@ async function main() {
   element: "fire", rarity: "common", damage: 0, spellPool: "controlled",
   isDirectional: false,
   reqElementalMagic: 30,
-  spellBook: true,
+  
   special: "Przywołuje ognisty krąg wokół przeciwników, który pali ich zadając {damage} obrażeń.",
   statusEffects: fx([{
     type: "dot",
@@ -812,7 +821,7 @@ async function main() {
   element: "fire", rarity: "common", damage: 0, spellPool: "incantation",
   isDirectional: false,
   reqElementalMagic: 45,
-  spellBook: true,
+  
   special: "Przywołuje ognisty krąg wokół przeciwników, który pali ich zadając {damage} obrażeń.",
   statusEffects: fx([{
     type: "dot",
@@ -831,7 +840,7 @@ async function main() {
   element: "air", rarity: "common", damage: 0, spellPool: "chaotic",
   isDirectional: false,
   reqElementalMagic: 15,
-  spellBook: true,
+  
   special: "Przywołuje powietrzny wir, który krąży pomiędzy przeciwnikami zadając {damage} obrażeń.",
   statusEffects: fx([{
     type: "dot",
@@ -850,7 +859,7 @@ async function main() {
   element: "air", rarity: "common", damage: 0, spellPool: "controlled",
   isDirectional: false,
   reqElementalMagic: 30,
-  spellBook: true,
+  
   special: "Przywołuje powietrzny wir, który krąży pomiędzy przeciwnikami zadając {damage} obrażeń.",
   statusEffects: fx([{
     type: "dot",
@@ -869,7 +878,7 @@ async function main() {
   element: "air", rarity: "common", damage: 0, spellPool: "incantation",
   isDirectional: false,
   reqElementalMagic: 45,
-  spellBook: true,
+  
   special: "Przywołuje powietrzny wir, który krąży pomiędzy przeciwnikami zadając {damage} obrażeń.",
   statusEffects: fx([{
     type: "dot",
@@ -888,7 +897,7 @@ async function main() {
   element: "earth", rarity: "common", damage: 0, spellPool: "chaotic",
   isDirectional: false,
   reqElementalMagic: 15,
-  spellBook: true,
+  
   special: "Wywołuje wstrząsy, które ranią przeciwników zadając {damage} obrażeń.",
   statusEffects: fx([{
     type: "dot",
@@ -907,7 +916,7 @@ async function main() {
   element: "earth", rarity: "common", damage: 0, spellPool: "controlled",
   isDirectional: false,
   reqElementalMagic: 30,
-  spellBook: true,
+  
   special: "Wywołuje wstrząsy, które ranią przeciwników zadając {damage} obrażeń.",
   statusEffects: fx([{
     type: "dot",
@@ -926,7 +935,7 @@ async function main() {
   element: "earth", rarity: "common", damage: 0, spellPool: "incantation",
   isDirectional: false,
   reqElementalMagic: 45,
-  spellBook: true,
+  
   special: "Wywołuje wstrząsy, które ranią przeciwników zadając {damage} obrażeń.",
   statusEffects: fx([{
     type: "dot",
@@ -945,7 +954,7 @@ async function main() {
   element: "chaos", rarity: "common", damage: 0, spellPool: "chaotic",
   isDirectional: false,
   reqBloodMagic: 5,
-  spellBook: true,
+  
   special: "Mroczny wir zaczyna krążyć wokół przeciwników, zadając im {damage} obrażeń.",
   statusEffects: fx([{
     type: "dot",
@@ -964,7 +973,7 @@ async function main() {
   element: "chaos", rarity: "common", damage: 0, spellPool: "controlled",
   isDirectional: false,
   reqBloodMagic: 20,
-  spellBook: true,
+  
   special: "Mroczny wir zaczyna krążyć wokół przeciwników, zadając im {damage} obrażeń.",
   statusEffects: fx([{
     type: "dot",
@@ -983,7 +992,7 @@ async function main() {
   element: "chaos", rarity: "common", damage: 0, spellPool: "incantation",
   isDirectional: false,
   reqBloodMagic: 35,
-  spellBook: true,
+  
   special: "Mroczny wir zaczyna krążyć wokół przeciwników, zadając im {damage} obrażeń.",
   statusEffects: fx([{
     type: "dot",
@@ -1004,7 +1013,7 @@ async function main() {
   element: "life", rarity: "common", damage: 0, spellPool: "chaotic",
   isDirectional: true,
   reqBloodMagic: 5,
-  spellBook: false,
+  
   special: "Generuje aurę leczącą, która co rundę ma szansę uzdrowić część jego punktów życia.",
   statusEffects: fx([{
     type: "heal_chance",
@@ -1022,7 +1031,7 @@ async function main() {
   element: "life", rarity: "common", damage: 0, spellPool: "chaotic",
   isDirectional: false,
   reqBloodMagic: 5,
-  spellBook: true,
+  
   special: "{target} leczy 25% utraconego życia.",
   statusEffects: fx([{
     type: "heal_chance",
@@ -1039,7 +1048,7 @@ async function main() {
   element: "life", rarity: "common", damage: 0, spellPool: "controlled",
   isDirectional: false,
   reqBloodMagic: 20,
-  spellBook: true,
+  
   special: "{target} leczy 50% utraconego życia.",
   statusEffects: fx([{
     type: "heal_chance",
@@ -1056,7 +1065,7 @@ async function main() {
   element: "life", rarity: "common", damage: 0, spellPool: "incantation",
   isDirectional: false,
   reqBloodMagic: 35,
-  spellBook: true,
+  
   special: "{target} leczy 75% utraconego życia.",
   statusEffects: fx([{
     type: "heal_chance",
@@ -1073,7 +1082,7 @@ async function main() {
   element: "life", rarity: "common", damage: 0, spellPool: "chaotic",
   isDirectional: false,
   reqBloodMagic: 10,
-  spellBook: true,
+  
   special: "Wokół sojuszników pojawia się życiowa energia, która leczy ich rany.",
   statusEffects: fx([{
     type: "heal_chance",
@@ -1092,7 +1101,7 @@ async function main() {
   element: "life", rarity: "common", damage: 0, spellPool: "controlled",
   isDirectional: false,
   reqBloodMagic: 25,
-  spellBook: true,
+  
   special: "Wokół sojuszników pojawia się życiowa energia, która leczy ich rany.",
   statusEffects: fx([{
     type: "heal_chance",
@@ -1111,7 +1120,7 @@ async function main() {
   element: "life", rarity: "common", damage: 0, spellPool: "incantation",
   isDirectional: false,
   reqBloodMagic: 40,
-  spellBook: true,
+  
   special: "Wokół sojuszników pojawia się życiowa energia, która leczy ich rany.",
   statusEffects: fx([{
     type: "heal_chance",
@@ -1131,7 +1140,7 @@ async function main() {
   name: "Rój much",
   element: "basic", rarity: "common", damage: 0, spellPool: "chaotic",
   isDirectional: true,
-  spellBook: false,
+  
   special: "Przywołuje rój irytujących much wokół {target} (-25% szansy na trafienie).",
   statusEffects: fx([{
     type: "miss_chance",
@@ -1146,7 +1155,7 @@ async function main() {
   name: "Porywisty wiatr",
   element: "basic", rarity: "common", damage: 0, spellPool: "chaotic",
   isDirectional: false,
-  spellBook: false,
+  
   special: "Przywołuje porywisty wiatr, który utrudnia przeciwnikom celowanie (-35% szansy na trafienie).",
   statusEffects: fx([{
     type: "miss_chance",
@@ -1162,7 +1171,7 @@ async function main() {
   element: "basic", rarity: "common", damage: 0, spellPool: "chaotic",
   isDirectional: false,
   reqElementalMagic: 5,
-  spellBook: false,
+  
   special: "Wytworzył w powietrzu mgłę, która utrudnia przeciwnikom celowanie (-50% szansy na trafienie).",
   statusEffects: fx([{
     type: "miss_chance",
@@ -1180,7 +1189,7 @@ async function main() {
   element: "basic", rarity: "rare", damage: 0, spellPool: "chaotic",
   isDirectional: false,
   reqElementalMagic: 10,
-  spellBook: false,
+  
   special: "Jego skóra staje się twarda jak kamień! (+50% odporności na obrażenia bazowe).",
   statusEffects: fx([{
     type: "resist",
@@ -1196,7 +1205,7 @@ async function main() {
   element: "energy", rarity: "common", damage: 0, spellPool: "chaotic",
   isDirectional: false,
   reqAstralMagic: 5,
-  spellBook: true,
+  
   special: "Jego ciało pokrywają złote znaki, które absorbują część otrzymywanych obrażeń od energii.",
   statusEffects: fx([{
     type: "resist", element: "energy", value: 25, target: "self", duration: null,
@@ -1208,7 +1217,7 @@ async function main() {
   element: "chaos", rarity: "common", damage: 0, spellPool: "chaotic",
   isDirectional: false,
   reqBloodMagic: 5,
-  spellBook: true,
+  
   special: "Jego ciało pokrywają fioletowe spirale, które absorbują część otrzymywanych obrażeń z chaosu.",
   statusEffects: fx([{
     type: "resist", element: "chaos", value: 25, target: "self", duration: null,
@@ -1220,7 +1229,7 @@ async function main() {
   element: "death", rarity: "common", damage: 0, spellPool: "chaotic",
   isDirectional: false,
   reqBloodMagic: 5,
-  spellBook: true,
+  
   special: "Jego ciało pokrywają czarne znaki, które absorbują część otrzymywanych obrażeń z magii śmierci.",
   statusEffects: fx([{
     type: "resist", element: "death", value: 25, target: "self", duration: null,
@@ -1232,7 +1241,7 @@ async function main() {
   element: "energy", rarity: "common", damage: 0, spellPool: "chaotic",
   isDirectional: false,
   reqAstralMagic: 20,
-  spellBook: true,
+  
   special: "Jego ciało pokrywają złote znaki, które absorbują część otrzymywanych obrażeń od energii.",
   statusEffects: fx([{
     type: "resist", element: "energy", value: 50, target: "self", duration: null,
@@ -1244,7 +1253,7 @@ async function main() {
   element: "chaos", rarity: "common", damage: 0, spellPool: "chaotic",
   isDirectional: false,
   reqBloodMagic: 20,
-  spellBook: true,
+  
   special: "Jego ciało pokrywają fioletowe spirale, które absorbują część otrzymywanych obrażeń z chaosu.",
   statusEffects: fx([{
     type: "resist", element: "chaos", value: 50, target: "self", duration: null,
@@ -1256,7 +1265,7 @@ async function main() {
   element: "death", rarity: "common", damage: 0, spellPool: "chaotic",
   isDirectional: false,
   reqBloodMagic: 20,
-  spellBook: true,
+  
   special: "Jego ciało pokrywają czarne znaki, które absorbują część otrzymywanych obrażeń z magii śmierci.",
   statusEffects: fx([{
     type: "resist", element: "death", value: 50, target: "self", duration: null,
@@ -1268,7 +1277,7 @@ async function main() {
   element: "energy", rarity: "common", damage: 0, spellPool: "chaotic",
   isDirectional: false,
   reqAstralMagic: 35,
-  spellBook: true,
+  
   special: "Jego ciało pokrywają złote znaki, które absorbują część otrzymywanych obrażeń od energii.",
   statusEffects: fx([{
     type: "resist", element: "energy", value: 75, target: "self", duration: null,
@@ -1280,7 +1289,7 @@ async function main() {
   element: "chaos", rarity: "common", damage: 0, spellPool: "chaotic",
   isDirectional: false,
   reqBloodMagic: 35,
-  spellBook: true,
+  
   special: "Jego ciało pokrywają fioletowe spirale, które absorbują część otrzymywanych obrażeń z chaosu.",
   statusEffects: fx([{
     type: "resist", element: "chaos", value: 75, target: "self", duration: null,
@@ -1292,7 +1301,7 @@ async function main() {
   element: "death", rarity: "common", damage: 0, spellPool: "chaotic",
   isDirectional: false,
   reqBloodMagic: 35,
-  spellBook: true,
+  
   special: "Jego ciało pokrywają czarne znaki, które absorbują część otrzymywanych obrażeń z magii śmierci.",
   statusEffects: fx([{
     type: "resist", element: "death", value: 75, target: "self", duration: null,
@@ -1304,7 +1313,7 @@ async function main() {
   element: "fire", rarity: "common", damage: 0, spellPool: "chaotic",
   isDirectional: false,
   reqElementalMagic: 5,
-  spellBook: true,
+  
   special: "Jego ciało pokrywają ogniste znaki, które absorbują część otrzymywanych obrażeń z magii ognia.",
   statusEffects: fx([{
     type: "resist", element: "fire", value: 25, target: "self", duration: null,
@@ -1316,7 +1325,7 @@ async function main() {
   element: "water", rarity: "common", damage: 0, spellPool: "chaotic",
   isDirectional: false,
   reqElementalMagic: 5,
-  spellBook: true,
+  
   special: "Jego ciało pokrywają czerwone znaki, które absorbują część otrzymywanych obrażeń z magii wody.",
   statusEffects: fx([{
     type: "resist", element: "water", value: 25, target: "self", duration: null,
@@ -1328,7 +1337,7 @@ async function main() {
   element: "air", rarity: "common", damage: 0, spellPool: "chaotic",
   isDirectional: false,
   reqElementalMagic: 5,
-  spellBook: true,
+  
   special: "Jego ciało pokrywają białe znaki, które absorbują część otrzymywanych obrażeń z magii powietrza.",
   statusEffects: fx([{
     type: "resist", element: "air", value: 25, target: "self", duration: null,
@@ -1340,7 +1349,7 @@ async function main() {
   element: "earth", rarity: "common", damage: 0, spellPool: "chaotic",
   isDirectional: false,
   reqElementalMagic: 5,
-  spellBook: true,
+  
   special: "Jego ciało pokrywają brązowe znaki, które absorbują część otrzymywanych obrażeń z magii ziemi.",
   statusEffects: fx([{
     type: "resist", element: "earth", value: 25, target: "self", duration: null,
@@ -1352,7 +1361,7 @@ async function main() {
   element: "earth", rarity: "common", damage: 0, spellPool: "chaotic",
   isDirectional: false,
   reqElementalMagic: 5,
-  spellBook: false,
+  
   special: "Jego ciało pokrywają różne znaki, które absorbują część otrzymywanych obrażeń z magii wody, ziemi, ognia i powietrza.",
   statusEffects: fx([
     { type: "resist", element: "earth", value: 25, target: "self", duration: null },
@@ -1367,7 +1376,7 @@ async function main() {
   element: "fire", rarity: "common", damage: 0, spellPool: "controlled",
   isDirectional: false,
   reqElementalMagic: 20,
-  spellBook: false,
+  
   special: "Jego ciało pokrywają ogniste znaki, które absorbują część otrzymywanych obrażeń z magii ognia.",
   statusEffects: fx([{
     type: "resist", element: "fire", value: 50, target: "self", duration: null,
@@ -1379,7 +1388,7 @@ async function main() {
   element: "water", rarity: "common", damage: 0, spellPool: "controlled",
   isDirectional: false,
   reqElementalMagic: 20,
-  spellBook: false,
+  
   special: "Jego ciało pokrywają czerwone znaki, które absorbują część otrzymywanych obrażeń z magii wody.",
   statusEffects: fx([{
     type: "resist", element: "water", value: 50, target: "self", duration: null,
@@ -1391,7 +1400,7 @@ async function main() {
   element: "air", rarity: "common", damage: 0, spellPool: "controlled",
   isDirectional: false,
   reqElementalMagic: 20,
-  spellBook: false,
+  
   special: "Jego ciało pokrywają białe znaki, które absorbują część otrzymywanych obrażeń z magii powietrza.",
   statusEffects: fx([{
     type: "resist", element: "air", value: 50, target: "self", duration: null,
@@ -1403,7 +1412,7 @@ async function main() {
   element: "earth", rarity: "common", damage: 0, spellPool: "controlled",
   isDirectional: false,
   reqElementalMagic: 20,
-  spellBook: false,
+  
   special: "Jego ciało pokrywają brązowe znaki, które absorbują część otrzymywanych obrażeń z magii ziemi.",
   statusEffects: fx([{
     type: "resist", element: "earth", value: 50, target: "self", duration: null,
@@ -1415,7 +1424,7 @@ async function main() {
   element: "basic", rarity: "uncommon", damage: 0, spellPool: "controlled",
   isDirectional: false,
   reqElementalMagic: 15,
-  spellBook: false,
+  
   special: "Jego ciało pokrywają różne znaki, które absorbują część otrzymywanych obrażeń z magii wody, ziemi, ognia i powietrza.",
   statusEffects: fx([
     { type: "resist", element: "fire",  value: 20, target: "self", duration: null },
@@ -1430,7 +1439,7 @@ async function main() {
   element: "fire", rarity: "common", damage: 0, spellPool: "incantation",
   isDirectional: false,
   reqElementalMagic: 35,
-  spellBook: false,
+  
   special: "Jego ciało pokrywają ogniste znaki, które absorbują część otrzymywanych obrażeń z magii ognia.",
   statusEffects: fx([{
     type: "resist", element: "fire", value: 75, target: "self", duration: null,
@@ -1442,7 +1451,7 @@ async function main() {
   element: "water", rarity: "common", damage: 0, spellPool: "incantation",
   isDirectional: false,
   reqElementalMagic: 35,
-  spellBook: false,
+  
   special: "Jego ciało pokrywają czerwone znaki, które absorbują część otrzymywanych obrażeń z magii wody.",
   statusEffects: fx([{
     type: "resist", element: "water", value: 75, target: "self", duration: null,
@@ -1454,7 +1463,7 @@ async function main() {
   element: "air", rarity: "common", damage: 0, spellPool: "incantation",
   isDirectional: false,
   reqElementalMagic: 35,
-  spellBook: false,
+  
   special: "Jego ciało pokrywają białe znaki, które absorbują część otrzymywanych obrażeń z magii powietrza.",
   statusEffects: fx([{
     type: "resist", element: "air", value: 75, target: "self", duration: null,
@@ -1466,7 +1475,7 @@ async function main() {
   element: "earth", rarity: "common", damage: 0, spellPool: "incantation",
   isDirectional: false,
   reqElementalMagic: 35,
-  spellBook: false,
+  
   special: "Jego ciało pokrywają brązowe znaki, które absorbują część otrzymywanych obrażeń z magii ziemi.",
   statusEffects: fx([{
     type: "resist", element: "earth", value: 75, target: "self", duration: null,
@@ -1478,7 +1487,7 @@ async function main() {
   element: "basic", rarity: "uncommon", damage: 0, spellPool: "incantation",
   isDirectional: false,
   reqElementalMagic: 25,
-  spellBook: false,
+  
   special: "Jego ciało pokrywają różne znaki, które absorbują część otrzymywanych obrażeń z magii wody, ziemi, ognia i powietrza.",
   statusEffects: fx([
     { type: "resist", element: "fire",  value: 40, target: "self", duration: null },
@@ -1495,7 +1504,7 @@ async function main() {
   element: "basic", rarity: "uncommon", damage: 0, spellPool: "chaotic",
   isDirectional: false,
   reqElementalMagic: 10,
-  spellBook: false,
+  
   special: "Wokół niego oraz jego sojuszników zaczyna powiewać przyjemna bryza, która przyspiesza ich ruchy.",
   statusEffects: fx([{
     type: "stat_boost",
@@ -1513,7 +1522,7 @@ async function main() {
   element: "air", rarity: "uncommon", damage: 0, spellPool: "chaotic",
   isDirectional: false,
   reqElementalMagic: 10,
-  spellBook: false,
+  
   special: "Wokół przeciwników zaczyna wiać lodowaty wiatr, który spowalnia ich ruchy.",
   statusEffects: fx([{
     type: "stat_boost",
@@ -1531,7 +1540,7 @@ async function main() {
   element: "basic", rarity: "uncommon", damage: 0, spellPool: "chaotic",
   isDirectional: false,
   reqElementalMagic: 5,
-  spellBook: false,
+  
   special: "Wokół przeciwników pojawiają się ogromne ilości błota, które znacznie spowalniają ich ruchy (-50% inicjatywy).",
   statusEffects: fx([{
     type: "stat_boost",
@@ -1550,7 +1559,7 @@ async function main() {
   element: "basic", rarity: "common", damage: 0, spellPool: "chaotic",
   isDirectional: false,
   reqAstralMagic: 5,
-  spellBook: false,
+  
   special: "Nakłada na siebie aurę wzmocnienia (+5 do wszystkich statystyk).",
   statusEffects: fx([
     { type: "stat_boost", stat: "power",      statMode: "flat", statAmount: 5, target: "self", duration: 5 },
@@ -1573,7 +1582,7 @@ async function main() {
   name: "Prześcieradło",
   element: "basic", rarity: "common", damage: 0, spellPool: "chaotic",
   isDirectional: true,
-  spellBook: false,
+  
   special: "Przywołuje prześcieradło nad {target}, które blokuje ruchy!",
   statusEffects: fx([{
     type: "stun",
@@ -1590,7 +1599,7 @@ async function main() {
   element: "basic", rarity: "common", damage: 0, spellPool: "chaotic",
   isDirectional: false,
   reqBloodMagic: 5,
-  spellBook: false,
+  
   special: "Przywołuje chmarę pięknych, kolorowych motyli — wszyscy stoją zauroczeni.",
   statusEffects: fx([{
     type: "stun",
@@ -1606,7 +1615,7 @@ async function main() {
   element: "air", rarity: "common", damage: 1, spellPool: "chaotic",
   isDirectional: true,
   reqElementalMagic: 5,
-  spellBook: false,
+  
   special: "Generuje mocny podmuch, który uderza w {target} zadając {damage} obrażeń.",
   statusEffects: fx([{
     type: "stun",
@@ -1624,7 +1633,7 @@ async function main() {
   element: "basic", rarity: "common", damage: 0, spellPool: "chaotic",
   isDirectional: true,
   reqAstralMagic: 5,
-  spellBook: false,
+  
   special: "Generuje potężny błysk, który oślepia {target}.",
   statusEffects: fx([{
     type: "stun",
@@ -1643,7 +1652,7 @@ async function main() {
   element: "water", rarity: "common", damage: 5, spellPool: "chaotic",
   isDirectional: true,
   reqElementalMagic: 10,
-  spellBook: false,
+  
   special: "Tworzy w powietrzu dużą, wodną kulę, która z impetem wpada w {target} zadając {damage} obrażeń i nadając status mokry.",
   statusEffects: fx([{
     type: "vulnerable",
@@ -1660,7 +1669,7 @@ async function main() {
   element: "energy", rarity: "common", damage: 5, spellPool: "chaotic",
   isDirectional: true,
   reqAstralMagic: 10,
-  spellBook: false,
+  
   special: "Generuje mały piorun kulisty, który uderza w {target} zadając {damage} obrażeń i nadając status naelektryzowany.",
   statusEffects: fx([{
     type: "vulnerable",
@@ -1677,7 +1686,7 @@ async function main() {
   element: "water", rarity: "common", damage: 1, spellPool: "chaotic",
   isDirectional: true,
   reqElementalMagic: 10,
-  spellBook: false,
+  
   special: "Tworzy strumień wody pod ciśnieniem, który uderza w {target} zadając {damage} obrażeń i nadając status mokry.",
   statusEffects: fx([{
     type: "vulnerable",

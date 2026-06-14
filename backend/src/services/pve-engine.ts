@@ -42,8 +42,10 @@ interface BattleSpell {
 export interface PvEFighter {
   id: number;
   name: string;
+  level: number;
   hp: number;
   maxHp: number;
+  powerShards: number;
   resistance: number;
   initiative: number;
   power: number;
@@ -174,8 +176,10 @@ export function buildEntityFighter(entity: MinorEntityDef): PvEFighter {
   return {
     id: -999,          // Ujemne ID — byt nie jest Character w bazie
     name: entity.name,
+    level: 1,           // Byt nie ma poziomu — zawsze 1
     hp: entity.hp,
     maxHp: entity.hp,
+    powerShards: Infinity,
     resistance: entity.resistance,
     initiative: entity.initiative,
     power: entity.power,

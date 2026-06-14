@@ -13,14 +13,14 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Wyloguj przy 401
+// Wyloguj przy 401 
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem("token");
       localStorage.removeItem("username");
-      window.location.href = "/login";
+      window.dispatchEvent(new Event("auth:logout"));
     }
     return Promise.reject(error);
   }

@@ -8,7 +8,7 @@ import equipmentRoutes from "./routes/equipment.routes.js";
 import combatRoutes from "./routes/combat.routes.js";
 import towerRoutes from "./routes/tower.routes.js";
 import spellbookRouter from "./routes/spellbook.routes.js";
-
+import tutorialRoutes from "./routes/tutorial.routes.js";
 
 dotenv.config();
 
@@ -26,7 +26,7 @@ app.use("/api/equipment", equipmentRoutes);
 app.use("/api/combat", combatRoutes);
 app.use("/api/tower", towerRoutes);
 app.use("/api/spellbook", spellbookRouter);
-
+app.use("/tutorial", tutorialRoutes)
 
 
 // Health check

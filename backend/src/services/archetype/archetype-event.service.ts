@@ -56,9 +56,6 @@ export const archetypeEventService = {
       case "TOWER_LEVEL_50":
         return "TRANSCENDENCE_EVENT";
 
-      case "GOLD_20000":
-        return "WEALTH_CORRUPTION_EVENT";
-
       case "SHARDS_10000":
         return "POWER_OVERFLOW_EVENT";
 

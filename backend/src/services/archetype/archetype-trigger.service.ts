@@ -46,7 +46,6 @@ export const archetypeTriggerService = {
         elementalMagic: true,
         astralMagic: true,
         bloodMagic: true,
-        gold: true,
         powerShards: true
       }
     });
@@ -87,9 +86,6 @@ export const archetypeTriggerService = {
 
       case "FIRST_ITEM_DESTROYED":
         return payload.destroyed === true;
-
-      case "GOLD_20000":
-        return character.gold >= 20000;
 
       case "SHARDS_10000":
         return character.powerShards >= 10000;

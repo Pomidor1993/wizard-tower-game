@@ -37,9 +37,8 @@ export async function getRanking(req: Request, res: Response) {
     });
 
     // Znajdź z kim już walczyłem dziś
-    const myChar = await prisma.character.findUnique({
-      where: { userId: req.userId },
-    });
+const myChar = await prisma.character.findUnique({ where: { userId: req.userId } });
+if (!myChar) { res.status(404).json({ error: "Postać nie znaleziona" }); return; }
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);

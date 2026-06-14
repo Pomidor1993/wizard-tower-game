@@ -13,7 +13,6 @@ import {
   isNegativeStatus,
   CleanMode,
 } from "../types/status-types.js";
-import { recordSpellbookEntries } from "./spellbook.service.js";
 import { archetypeTriggerService } from "./archetype/archetype-trigger.service.js";
 import { getCharacterArchetypeBonus, MagicElement } from "./archetype/archetype-bonuses.constants.js";
 import { calculateDuelExperience, addExperience } from "./character.service.js";
@@ -72,6 +71,7 @@ interface BattleSpell {
   isDirectional: boolean;
   statusEffectDefs: StatusEffectDef[];
   castEffectDefs: CastEffectDef[];
+  basicCost: number;
   special: string | null;
   descAlt:  string | null;
   endInfo:  string | null;
@@ -105,6 +105,7 @@ export interface Fighter {
   level: number;
   hp: number;
   maxHp: number;
+  powerShards: number;
   resistance: number;
   initiative: number;
   intelligence: number;
@@ -212,10 +213,10 @@ function canUseSpell(spell: BattleSpell, fighter: Fighter, globalStatuses: Appli
   return (
     getEffectiveStat(fighter, "elementalMagic", globalStatuses) >= mod(spell.reqElementalMagic) &&
     getEffectiveStat(fighter, "astralMagic",    globalStatuses) >= mod(spell.reqAstralMagic)    &&
-    getEffectiveStat(fighter, "bloodMagic",     globalStatuses) >= mod(spell.reqBloodMagic)
+    getEffectiveStat(fighter, "bloodMagic",     globalStatuses) >= mod(spell.reqBloodMagic)     &&
+    fighter.powerShards >= spell.basicCost
   );
 }
-
 function requiresDeadAlly(spell: BattleSpell): boolean {
   return spell.castEffectDefs.some(e => e.target === "randomDeadAlly");
 }
@@ -1089,6 +1090,7 @@ function mapSpell(s: any): BattleSpell {  // ← mapSpell bez filtrowania
       damage:            s.damage ?? 0,
       element:           s.element,
       spellPool:         s.spellPool as SpellPool,
+      basicCost:         s.basicCost ?? 0,
       isDirectional:     s.isDirectional ?? true,
       statusEffectDefs:  parseStatusEffects(s.statusEffects),
       castEffectDefs:    parseCastEffects(s.castEffects),
@@ -1125,6 +1127,7 @@ function mapSpell(s: any): BattleSpell {  // ← mapSpell bez filtrowania
     name:           character.name,
     level:          character.level,
     hp:             maxHp,
+    powerShards:    character.powerShards,
     maxHp,
     resistance:     character.resistance   + bonusResistance,
     initiative:     character.initiative   + bonusInitiative,
@@ -1175,7 +1178,6 @@ export function simulateBattle(
   summary: string;
   metadata: BattleMetadata;
   minionTargetTypeMap: Map<string, string>;
-  castSpellsByFighter: Map<string, number[]>;
 } {
   const state: BattleState = {
     sideA: makeSide(fightersA),
@@ -1246,23 +1248,27 @@ export function simulateBattle(
     let spell: BattleSpell | null = null;
     let isActive = false;
 
-    if (queue.length > 0) {
-      spell    = queue.shift()!;
-      isActive = true;
-    } else {
-      spell = pickRandomSpell(actor, globalUsedSpellIds, ownSide, enemySide, state.globalStatuses);
-      if (spell) {
-        if (spell.id > 0) {
-          const existing = castSpellsByFighter.get(actor.name) ?? [];
-          if (!existing.includes(spell.id)) {
-            existing.push(spell.id);
-            castSpellsByFighter.set(actor.name, existing);
-          }
-        }
-        globalUsedSpellIds.add(spell.id);
-        used.add(spell.id);
+if (queue.length > 0 && actor.powerShards >= queue[0].basicCost) {
+  spell    = queue.shift()!;
+  isActive = true;
+} else {
+  spell = pickRandomSpell(actor, globalUsedSpellIds, ownSide, enemySide, state.globalStatuses);
+  if (spell) {
+    if (spell.id > 0) {
+      const existing = castSpellsByFighter.get(actor.name) ?? [];
+      if (!existing.includes(spell.id)) {
+        existing.push(spell.id);
+        castSpellsByFighter.set(actor.name, existing);
       }
     }
+    globalUsedSpellIds.add(spell.id);
+    used.add(spell.id);
+  }
+}
+
+if (spell) {
+  actor.powerShards -= spell.basicCost;
+}
 
     // Pięści
     if (!spell) {
@@ -1579,7 +1585,7 @@ export function simulateBattle(
     turnLog.events = turnLog.events.filter(e => !e.description.includes("[INTERNAL:"));
   }
 
-  return { winnerId, log, summary, metadata, minionTargetTypeMap, castSpellsByFighter };
+  return { winnerId, log, summary, metadata, minionTargetTypeMap };
 }
 
 
@@ -1607,15 +1613,16 @@ export async function challengePlayer(attackerUserId: number, defenderCharacterI
   const attackerFighter = await buildFighter(attackerChar.id);
   const defenderFighter = await buildFighter(defenderChar.id);
 
+  const attackerInitialShards = attackerFighter.powerShards;
+  const defenderInitialShards = defenderFighter.powerShards
+
   console.log("fightersA spells:", attackerFighter?.spellPool?.length);
   console.log("fightersB spells:", defenderFighter?.spellPool?.length);
 
   const result = simulateBattle([attackerFighter], [defenderFighter]);
 
-  const attackerSpellIds = result.castSpellsByFighter.get(attackerFighter.name) ?? [];
-  await recordSpellbookEntries(attackerChar.id, attackerSpellIds, "battle_cast");
-  const defenderSpellIds = result.castSpellsByFighter.get(defenderFighter.name) ?? [];
-  await recordSpellbookEntries(defenderChar.id, defenderSpellIds, "battle_cast");
+  const attackerShardsSpent = attackerInitialShards - attackerFighter.powerShards;
+  const defenderShardsSpent = defenderInitialShards - defenderFighter.powerShards;
 
   const attackerWon = result.winnerId === attackerChar.id;
   const defenderWon = result.winnerId === defenderChar.id;
@@ -1689,6 +1696,7 @@ if (result.winnerId !== null) {
     defenderName:  defenderChar.name,
     duelExperience,
     allParticipants: buildParticipants(),
+    shardsSpent: { attacker: attackerShardsSpent, defender: defenderShardsSpent },
   };
 
   const battle = await prisma.battle.create({
@@ -1702,6 +1710,19 @@ if (result.winnerId !== null) {
       prestigeGain: attackerWon ? prestigeGain : 0,
     },
   });
+
+  if (attackerShardsSpent > 0) {
+  await prisma.character.update({
+    where: { id: attackerChar.id },
+    data: { powerShards: { decrement: attackerShardsSpent } },
+  });
+}
+if (defenderShardsSpent > 0) {
+  await prisma.character.update({
+    where: { id: defenderChar.id },
+    data: { powerShards: { decrement: defenderShardsSpent } },
+  });
+}
 
 // ── ARCHETYPE TRIGGERS ─────────────────────────────
 const duelCountAttacker = await prisma.battle.count({
@@ -1744,7 +1765,7 @@ await archetypeTriggerService.checkTrigger(
     duelExperience,
     log:          result.log,
     turns:        result.log.length,
-    metadata:     { ...fullMetadata, allParticipants: buildParticipants() },
+    metadata:     { ...fullMetadata, allParticipants: buildParticipants(), shardsSpent: { attacker: attackerShardsSpent, defender: defenderShardsSpent } },
   };
 
 }

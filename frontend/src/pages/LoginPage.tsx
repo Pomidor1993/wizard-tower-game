@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { login } from "../api/auth";
+import wizardTower from "../assets/WizardTowerMain.png";
+
+const TOP_NAV = ["Home", "O grze", "Regulamin", "Forum", "Magiczne Kompendium"];
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -17,7 +20,7 @@ export default function LoginPage() {
       const data = await login(email, password);
       localStorage.setItem("token", data.token);
       localStorage.setItem("username", data.username);
-      navigate("/dashboard");
+      navigate("/overview");
     } catch (err: any) {
       setError(err.response?.data?.error ?? "Błąd logowania");
     } finally {
@@ -26,56 +29,206 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="w-full max-w-sm bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">Wieża Magów</h1>
-        <p className="text-sm text-gray-500 mb-6">Zaloguj się do swojego konta</p>
+    <div style={{
+      minHeight: "100vh",
+      display: "flex",
+      flexDirection: "column",
+      fontFamily: "Inter, sans-serif",
+      color: "#F7F0DD",
+    }}>
 
-        {error && (
-          <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-            {error}
+      {/* ── PASEK GÓRNY ── */}
+      <header style={{
+        background: "#161d38",
+        borderBottom: "1px solid rgba(245,196,81,0.12)",
+        zIndex: 10,
+      }}>
+        <div style={{
+          maxWidth: 1200, margin: "0 auto", padding: "0 24px",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          height: 56,
+        }}>
+          {/* Logo / nazwa gry — placeholder */}
+          <div style={{
+            display: "flex", alignItems: "center", gap: 10,
+          }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 8,
+              background: "linear-gradient(135deg, #F5C451, #F46A4E)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 16,
+            }}>
+              🧙
+            </div>
+            <span style={{
+              fontFamily: "Cinzel, serif", fontSize: 18, fontWeight: 700,
+              color: "#F5C451", letterSpacing: "0.08em",
+            }}>
+              Magic Mess
+            </span>
           </div>
-        )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-              placeholder="mag@wiezamagow.pl"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Hasło</label>
-            <input
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-              placeholder="••••••••"
-              required
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-2 px-4 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 disabled:opacity-50 transition-colors"
-          >
-            {loading ? "Logowanie..." : "Zaloguj się"}
-          </button>
-        </form>
+          {/* Nawigacja (nieaktywna) */}
+          <nav style={{ display: "flex", gap: 4 }}>
+            {TOP_NAV.map(item => (
+              <span
+                key={item}
+                style={{
+                  padding: "8px 14px",
+                  fontSize: 13,
+                  color: "rgba(247,240,221,0.35)",
+                  cursor: "not-allowed",
+                  fontFamily: "Inter, sans-serif",
+                  userSelect: "none",
+                }}
+                title="Wkrótce"
+              >
+                {item}
+              </span>
+            ))}
+          </nav>
+        </div>
+      </header>
 
-        <p className="mt-4 text-center text-sm text-gray-500">
-          Nie masz konta?{" "}
-          <Link to="/register" className="text-gray-900 font-medium hover:underline">
-            Zarejestruj się
-          </Link>
-        </p>
+      {/* ── TŁO + FORMULARZ ── */}
+      <div style={{
+        flex: 1,
+        position: "relative",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        overflow: "hidden",
+      }}>
+        {/* Grafika tła */}
+        <img
+          src={wizardTower}
+          alt=""
+          style={{
+            position: "absolute", inset: 0,
+            width: "100%", height: "100%",
+            objectFit: "cover",
+          }}
+        />
+        {/* Nakładka dla kontrastu */}
+        <div style={{
+          position: "absolute", inset: 0,
+          background: "linear-gradient(135deg, rgba(22,29,56,0.85) 0%, rgba(22,29,56,0.5) 50%, rgba(22,29,56,0.85) 100%)",
+        }} />
+
+        {/* Formularz */}
+        <div style={{
+          position: "relative", zIndex: 1,
+          width: "100%", maxWidth: 380,
+          background: "#372b5d",
+          borderRadius: 16,
+          border: "1px solid rgba(245,196,81,0.18)",
+          padding: 32,
+          boxShadow: "0 24px 64px rgba(0,0,0,0.4)",
+        }}>
+          <h1 style={{
+            fontFamily: "Cinzel, serif", fontSize: 24, fontWeight: 700,
+            color: "#F5C451", marginBottom: 4, letterSpacing: "0.05em",
+            textAlign: "center",
+          }}>
+            Magic Mess
+          </h1>
+          <p style={{
+            fontSize: 13, color: "rgba(247,240,221,0.5)",
+            marginBottom: 24, textAlign: "center",
+          }}>
+            Zaloguj się do swojego konta
+          </p>
+
+          {error && (
+            <div style={{
+              marginBottom: 16, padding: "10px 14px",
+              background: "rgba(244,106,78,0.12)",
+              border: "1px solid rgba(244,106,78,0.35)",
+              borderRadius: 10,
+              fontSize: 13, color: "#F46A4E",
+            }}>
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div>
+              <label style={{
+                display: "block", fontSize: 12, fontWeight: 500,
+                color: "rgba(247,240,221,0.6)", marginBottom: 6,
+              }}>
+                Email
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="mag@magicmess.pl"
+                required
+                style={inputStyle}
+                onFocus={e => (e.currentTarget.style.borderColor = "#F5C451")}
+                onBlur={e => (e.currentTarget.style.borderColor = "rgba(245,196,81,0.2)")}
+              />
+            </div>
+            <div>
+              <label style={{
+                display: "block", fontSize: 12, fontWeight: 500,
+                color: "rgba(247,240,221,0.6)", marginBottom: 6,
+              }}>
+                Hasło
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                style={inputStyle}
+                onFocus={e => (e.currentTarget.style.borderColor = "#F5C451")}
+                onBlur={e => (e.currentTarget.style.borderColor = "rgba(245,196,81,0.2)")}
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              style={{
+                width: "100%", padding: "12px 0", marginTop: 4,
+                background: loading ? "rgba(245,196,81,0.4)" : "#F5C451",
+                color: "#161d38",
+                border: "none", borderRadius: 10,
+                fontFamily: "Cinzel, serif", fontSize: 14, fontWeight: 700,
+                letterSpacing: "0.06em",
+                cursor: loading ? "default" : "pointer",
+                transition: "background 0.15s",
+              }}
+            >
+              {loading ? "Logowanie..." : "Zaloguj się"}
+            </button>
+          </form>
+
+          <p style={{
+            marginTop: 20, textAlign: "center",
+            fontSize: 13, color: "rgba(247,240,221,0.5)",
+          }}>
+            Nie masz konta?{" "}
+            <Link to="/register" style={{ color: "#59D4D0", fontWeight: 600, textDecoration: "none" }}>
+              Zarejestruj się
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   );
 }
+
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "10px 12px",
+  background: "rgba(22,29,56,0.5)",
+  border: "1px solid rgba(245,196,81,0.2)",
+  borderRadius: 8,
+  color: "#F7F0DD",
+  fontSize: 13,
+  outline: "none",
+  transition: "border-color 0.15s",
+};

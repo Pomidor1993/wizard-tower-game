@@ -16,6 +16,7 @@ interface Props {
   onRefresh: () => void;
 }
 
+
 export default function StudyPanel({ studyActions, studyActionsMax, activeActions, onRefresh }: Props) {
   const [loading, setLoading] = useState<number | null>(null);
   const [claiming, setClaiming] = useState<number | null>(null);

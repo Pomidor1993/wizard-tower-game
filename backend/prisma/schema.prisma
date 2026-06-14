@@ -36,6 +36,8 @@ model Character {
   spellSlots  CharacterSpellSlots[]
   chaosVault  ChaosVaultItem[]
 
+
+
   // Statystyki bazowe
   knowledge       Int @default(0)
   intelligence    Int @default(0)
@@ -49,12 +51,10 @@ model Character {
 
   // Zasoby
   powerShards         Int      @default(1)
-  gold                Int      @default(0)
   skillPoints         Int      @default(5)
   prestige            Int      @default(0)
   runicStoneShards    Int      @default(0)
   lastResourceCollect DateTime @default(now())
-  maxItems            Int      @default(10)
   maxSpells           Int      @default(2)
 
   // Pule akcji
@@ -77,8 +77,36 @@ model Character {
   archetypeTriggers ArchetypeTriggerProgress[]
   archetypeEvents   ArchetypeEventQueue[]
 
+  tutorial  CharacterTutorial?
+  homeRepairTasks HomeRepairTask[]
 }
 
+
+model CharacterTutorial {
+  id          Int       @id @default(autoincrement())
+  characterId Int       @unique
+  character   Character @relation(fields: [characterId], references: [id])
+
+  step              String  @default("INTRO")
+  duelUnlockShown   Boolean @default(false)
+  schoolUnlockShown Boolean @default(false)
+
+  updatedAt   DateTime @updatedAt
+}
+
+model HomeRepairTask {
+  id          Int       @id @default(autoincrement())
+  characterId Int
+  character   Character @relation(fields: [characterId], references: [id])
+
+  taskCode    String    // "FOUNDATIONS" | "WALLS" | "FURNITURE"
+  status      String    @default("locked") // locked | available | in_progress | completed
+  startedAt   DateTime?
+  finishesAt  DateTime?
+  completedAt DateTime?
+
+  @@unique([characterId, taskCode])
+}
 
 // ── WIEŻA ────────────────────────────────────────────
 model Tower {
@@ -101,6 +129,7 @@ model TowerBuilding {
   level             Int     @default(1)
   isUpgrading       Boolean @default(false)
   upgradeFinishesAt DateTime?
+  config            String  @default("{}")
 
   @@unique([towerId, buildingType])
 }
@@ -115,9 +144,9 @@ model Spell {
   spellPool String @default("chaotic") // "chaotic"|"controlled"|"incantation"|"professional"|"master"
   castEffects String @default("[]")  // JSON array: CastEffectDef[]
   category String @default("offensive") // "offensive"|"defensive"|"summoner"
-  isBasic   Boolean @default(false)
-  spellBook    Boolean @default(false)
   basicCost Int     @default(0)
+  isTutorialReward Boolean @default(false) // "Podstawowe Przywołanie" — gwarantowany pierwszy czar
+
 
   // ── NOWY SYSTEM STATUSÓW ──────────────────────────
   // JSON array: StatusEffectDef[]
@@ -153,6 +182,7 @@ model Spell {
   characters  CharacterSpell[]
   chaosVault  ChaosVaultItem[]
   spellbookEntries SpellbookEntry[]
+  allowedClasses String @default("[]")
 }
 
 model CharacterSpell {
@@ -408,3 +438,4 @@ model ArchetypeEventChoice {
   prophetDelta    Int @default(0)
   reaperDelta     Int @default(0)
 }
+

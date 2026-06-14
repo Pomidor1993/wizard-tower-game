@@ -1,7 +1,7 @@
 import prisma from "../lib/prisma.js";
 import { getCharacterArchetypeBonus } from "./archetype/archetype-bonuses.constants.js";
 import { getSpellSlotCount } from "./tower.service.js";
-
+import { getVisibleChaosVaultItems } from "./chaos_vault.service.js";
 
 // ── HELPER — efektywne statystyki z bonusami ekwipunku ──
 async function getEffectiveCharacter(userId: number) {
@@ -9,8 +9,6 @@ async function getEffectiveCharacter(userId: number) {
     where: { userId },
     include: {
       equipment: true,
-      items: true,
-      spells: true,
     },
   });
   if (!character) throw new Error("Postać nie znaleziona");
@@ -18,47 +16,41 @@ async function getEffectiveCharacter(userId: number) {
   const eq = character.equipment;
   const equippedItemIds = [
     eq?.robeId, eq?.bootsId, eq?.hatId,
-    eq?.amuletId, eq?.mainHandId, eq?.offHandId,
+    eq?.amuletId, eq?.mainHandId, eq?.offHandId, eq?.offHand2Id,
   ].filter(Boolean) as number[];
 
   let bonusKnowledge = 0, bonusIntelligence = 0, bonusPower = 0,
-  bonusEndurance = 0, bonusResistance = 0, bonusInitiative = 0, 
-  bonusElementalMagic = 0, bonusAstralMagic = 0, bonusBloodMagic = 0; 
-
-
+      bonusEndurance = 0, bonusResistance = 0, bonusInitiative = 0,
+      bonusElementalMagic = 0, bonusAstralMagic = 0, bonusBloodMagic = 0;
 
   if (equippedItemIds.length > 0) {
     const equippedItems = await prisma.item.findMany({
       where: { id: { in: equippedItemIds } },
     });
     for (const item of equippedItems) {
-      bonusKnowledge += item.bonusKnowledge;
-      bonusIntelligence += item.bonusIntelligence;
-      bonusPower += item.bonusPower;
-      bonusEndurance += item.bonusEndurance;
-      bonusResistance += item.bonusResistance;
-      bonusInitiative += item.bonusInitiative;
+      bonusKnowledge      += item.bonusKnowledge;
+      bonusIntelligence   += item.bonusIntelligence;
+      bonusPower          += item.bonusPower;
+      bonusEndurance      += item.bonusEndurance;
+      bonusResistance     += item.bonusResistance;
+      bonusInitiative     += item.bonusInitiative;
       bonusElementalMagic += item.bonusElementalMagic;
-      bonusAstralMagic += item.bonusAstralMagic;
-      bonusBloodMagic += item.bonusBloodMagic;
-
-
+      bonusAstralMagic    += item.bonusAstralMagic;
+      bonusBloodMagic     += item.bonusBloodMagic;
     }
   }
 
   return {
-    // oryginalne dane postaci (id, items, spells, equipment itd.)
     ...character,
-    // efektywne statystyki (bazowe + bonusy)
-    knowledge:    character.knowledge      + bonusKnowledge,
-    intelligence: character.intelligence   + bonusIntelligence,
-    power:        character.power          + bonusPower,
-    endurance:    character.endurance      + bonusEndurance,
-    resistance:   character.resistance     + bonusResistance,
-    initiative:   character.initiative     + bonusInitiative,
-    elementalMagic:    character.elementalMagic      + bonusElementalMagic,
-    astralMagic:   character.astralMagic     + bonusAstralMagic,
-    bloodMagic:   character.bloodMagic     + bonusBloodMagic,
+    knowledge:      character.knowledge      + bonusKnowledge,
+    intelligence:   character.intelligence   + bonusIntelligence,
+    power:          character.power          + bonusPower,
+    endurance:      character.endurance      + bonusEndurance,
+    resistance:     character.resistance     + bonusResistance,
+    initiative:     character.initiative     + bonusInitiative,
+    elementalMagic: character.elementalMagic + bonusElementalMagic,
+    astralMagic:    character.astralMagic    + bonusAstralMagic,
+    bloodMagic:     character.bloodMagic     + bonusBloodMagic,
   };
 }
 
@@ -92,18 +84,6 @@ function checkItemRequirements(item: any, character: any, reqModifier: number = 
 function checkSpellRequirements(spell: any, character: any, reqModifier: number = 0) {
   const mod = (req: number) => Math.floor(req * (1 + reqModifier));
   const errors: string[] = [];
-  if (spell.reqKnowledge > 0 && character.knowledge < mod(spell.reqKnowledge))
-    errors.push(`Wiedza ${mod(spell.reqKnowledge)} (masz ${character.knowledge})`);
-  if (spell.reqIntelligence > 0 && character.intelligence < mod(spell.reqIntelligence))
-    errors.push(`Inteligencja ${mod(spell.reqIntelligence)} (masz ${character.intelligence})`);
-  if (spell.reqPower > 0 && character.power < mod(spell.reqPower))
-    errors.push(`Moc ${mod(spell.reqPower)} (masz ${character.power})`);
-  if (spell.reqEndurance > 0 && character.endurance < mod(spell.reqEndurance))
-    errors.push(`Wytrzymałość ${mod(spell.reqEndurance)} (masz ${character.endurance})`);
-  if (spell.reqResistance > 0 && character.resistance < mod(spell.reqResistance))
-    errors.push(`Odporność ${mod(spell.reqResistance)} (masz ${character.resistance})`);
-  if (spell.reqInitiative > 0 && character.initiative < mod(spell.reqInitiative))
-    errors.push(`Inicjatywa ${mod(spell.reqInitiative)} (masz ${character.initiative})`);
   if (spell.reqElementalMagic > 0 && character.elementalMagic < mod(spell.reqElementalMagic))
     errors.push(`Magia żywiołów ${mod(spell.reqElementalMagic)} (masz ${character.elementalMagic})`);
   if (spell.reqAstralMagic > 0 && character.astralMagic < mod(spell.reqAstralMagic))
@@ -122,16 +102,18 @@ export async function getEquipment(userId: number) {
     include: {
       equipment: true,
       spellSlots: { include: { spell: true }, orderBy: { slotIndex: "asc" } },
-      items: { include: { item: true } },
-      spells: { include: { spell: true } },
+      tower: { include: { buildings: true } },
     },
   });
   if (!character) throw new Error("Postać nie znaleziona");
 
+  const libraryLevel = character.tower?.buildings.find(b => b.buildingType === "library")?.level ?? 0;
+  const archetypeBonus = await getCharacterArchetypeBonus(character.id);
+  const maxSlots = getSpellSlotCount(libraryLevel, archetypeBonus?.extraActiveSpellSlots ?? 0);
   const eq = character.equipment;
   const equippedItemIds = [
     eq?.robeId, eq?.bootsId, eq?.hatId,
-    eq?.amuletId, eq?.mainHandId, eq?.offHandId,
+    eq?.amuletId, eq?.mainHandId, eq?.offHandId, eq?.offHand2Id,
   ].filter(Boolean) as number[];
 
   const equippedItems = equippedItemIds.length > 0
@@ -139,6 +121,8 @@ export async function getEquipment(userId: number) {
     : [];
 
   const itemById = Object.fromEntries(equippedItems.map(i => [i.id, i]));
+
+  const { capacity, total, visible, hidden } = await getVisibleChaosVaultItems(character.id);
 
   return {
     equipped: {
@@ -148,31 +132,35 @@ export async function getEquipment(userId: number) {
       amulet:   eq?.amuletId   ? itemById[eq.amuletId]   : null,
       mainHand: eq?.mainHandId ? itemById[eq.mainHandId] : null,
       offHand:  eq?.offHandId  ? itemById[eq.offHandId]  : null,
+      offHand2: eq?.offHand2Id ? itemById[eq.offHand2Id] : null,
     },
-    spellSlots:  character.spellSlots,
-    inventory:   character.items.map(ci => ci.item),
-    knownSpells: character.spells.map(cs => cs.spell),
+    spellSlots: character.spellSlots,
+    maxSlots,
+    chaosVault: {
+      capacity,
+      total,
+      visible: visible.map(cv => ({ chaosVaultItemId: cv.id, item: cv.item, addedAt: cv.addedAt })),
+      hiddenCount: hidden.length,
+    },
   };
 }
 
 // ── ZAŁÓŻ PRZEDMIOT ──────────────────────────────────
 
 export async function equipItem(userId: number, itemId: number) {
-  // Pobierz postać z efektywnymi statystykami (bazowe + bonusy z ekwipunku)
   const character = await getEffectiveCharacter(userId);
 
-  // Sprawdź czy gracz posiada przedmiot
-  const owned = character.items.find((ci: any) => ci.itemId === itemId);
-  if (!owned) throw new Error("Nie posiadasz tego przedmiotu");
+  // Przedmiot musi być w "widocznej" części Komnaty Nieładu
+  const { visible } = await getVisibleChaosVaultItems(character.id);
+  const owned = visible.some(cv => cv.itemId === itemId);
+  if (!owned) throw new Error("Ten przedmiot nie jest dostępny — rozbuduj Komnatę Nieładu lub zwolnij miejsce.");
 
   const item = await prisma.item.findUnique({ where: { id: itemId } });
   if (!item) throw new Error("Przedmiot nie istnieje");
 
-  // Walidacja wymagań z efektywnymi statystykami
-const archetypeBonus = await getCharacterArchetypeBonus(character.id);
-checkItemRequirements(item, character, archetypeBonus?.spellReqModifier ?? 0);
+  const archetypeBonus = await getCharacterArchetypeBonus(character.id);
+  checkItemRequirements(item, character, archetypeBonus?.spellReqModifier ?? 0);
 
-  // Ustal slot
   const slotMap: Record<string, string> = {
     robe:       "robeId",
     boots:      "bootsId",
@@ -188,37 +176,34 @@ checkItemRequirements(item, character, archetypeBonus?.spellReqModifier ?? 0);
   const updateData: Record<string, number | null> = { [slotField]: itemId };
 
   if (item.weaponType === "two_handed") {
-    // Dwuręczna zeruje lewą rękę
     updateData.offHandId = null;
+    updateData.offHand2Id = null;
   }
 
-if (item.slot === "weapon_one") {
-  const archetypeBonus = await getCharacterArchetypeBonus(character.id);
-  const hasThirdHand = archetypeBonus?.thirdWeaponHand ?? false;
+  if (item.slot === "weapon_one") {
+    const hasThirdHand = archetypeBonus?.thirdWeaponHand ?? false;
 
-  if (character.equipment?.mainHandId) {
-    const mainHandItem = await prisma.item.findUnique({
-      where: { id: character.equipment.mainHandId },
-    });
+    if (character.equipment?.mainHandId) {
+      const mainHandItem = await prisma.item.findUnique({
+        where: { id: character.equipment.mainHandId },
+      });
 
-    if (mainHandItem?.weaponType === "two_handed") {
-      updateData.mainHandId = itemId;
-      updateData.offHandId = null;
-    } else if (!character.equipment.offHandId) {
-      // offHand wolny — wstaw tam
-      updateData.offHandId = itemId;
-      delete updateData.mainHandId;
-    } else if (hasThirdHand && !character.equipment.offHand2Id) {
-      // offHand zajęty, ale klasa ma trzecią rękę i offHand2 wolny
-      updateData.offHand2Id = itemId;
-      delete updateData.mainHandId;
-    } else {
-      // wszystkie sloty zajęte — zastąp offHand
-      updateData.offHandId = itemId;
-      delete updateData.mainHandId;
+      if (mainHandItem?.weaponType === "two_handed") {
+        updateData.mainHandId = itemId;
+        updateData.offHandId = null;
+        updateData.offHand2Id = null;
+      } else if (!character.equipment.offHandId) {
+        updateData.offHandId = itemId;
+        delete updateData.mainHandId;
+      } else if (hasThirdHand && !character.equipment.offHand2Id) {
+        updateData.offHand2Id = itemId;
+        delete updateData.mainHandId;
+      } else {
+        updateData.offHandId = itemId;
+        delete updateData.mainHandId;
+      }
     }
   }
-}
 
   await prisma.characterEquipment.upsert({
     where: { characterId: character.id },
@@ -263,14 +248,12 @@ export async function unequipItem(userId: number, slot: string) {
 // ── DODAJ CZAR DO SLOTU ──────────────────────────────
 
 export async function equipSpell(userId: number, spellId: number, slotIndex: number) {
-
-  // Pobierz postać z efektami ekwipunku (statystyki) oraz osobno wieżę (bibliotekę)
   const character = await getEffectiveCharacter(userId);
+
   const charTower = await prisma.character.findUnique({
     where: { userId },
     include: { tower: { include: { buildings: true } } },
   });
-  if (!character) throw new Error("Postać nie znaleziona");
 
   const libraryLevel = charTower?.tower?.buildings
     .find(b => b.buildingType === "library")?.level ?? 0;
@@ -279,15 +262,16 @@ export async function equipSpell(userId: number, spellId: number, slotIndex: num
   if (maxSlots === 0) throw new Error("Wybuduj Bibliotekę aby aktywować czary bojowe");
   if (slotIndex >= maxSlots) throw new Error(`Biblioteka poziomu ${libraryLevel} daje tylko ${maxSlots} slot(y) aktywnych czarów`);
 
-  // Sprawdź czy gracz zna czar
-  const known = character.spells.find((cs: any) => cs.spellId === spellId);
-  if (!known) throw new Error("Nie znasz tego czaru");
+  // Czar musi być odkryty w Księdze Magii
+  const discovered = await prisma.spellbookEntry.findUnique({
+    where: { characterId_spellId: { characterId: character.id, spellId } },
+  });
+  if (!discovered) throw new Error("Nie poznałeś jeszcze tego czaru — odkryj go poprzez Studia");
 
   const spell = await prisma.spell.findUnique({ where: { id: spellId } });
   if (!spell) throw new Error("Czar nie istnieje");
 
-  // Walidacja wymagań z efektwnymi statystykami
-checkSpellRequirements(spell, character, archetypeBonus?.spellReqModifier ?? 0);
+  checkSpellRequirements(spell, character, archetypeBonus?.spellReqModifier ?? 0);
 
   await prisma.characterSpellSlots.upsert({
     where:  { characterId_slotIndex: { characterId: character.id, slotIndex } },
@@ -296,6 +280,34 @@ checkSpellRequirements(spell, character, archetypeBonus?.spellReqModifier ?? 0);
   });
 
   return { message: `Czar ${spell.name} przypisany do slotu ${slotIndex}` };
+}
+
+export async function equipSpellAuto(userId: number, spellId: number) {
+  const character = await prisma.character.findUnique({ where: { userId } });
+  if (!character) throw new Error("Postać nie znaleziona");
+
+  const charTower = await prisma.character.findUnique({
+    where: { userId },
+    include: { tower: { include: { buildings: true } } },
+  });
+  const libraryLevel = charTower?.tower?.buildings.find(b => b.buildingType === "library")?.level ?? 0;
+  const archetypeBonus = await getCharacterArchetypeBonus(character.id);
+  const maxSlots = getSpellSlotCount(libraryLevel, archetypeBonus?.extraActiveSpellSlots ?? 0);
+  if (maxSlots === 0) throw new Error("Wybuduj Bibliotekę aby aktywować czary bojowe");
+
+  const used = await prisma.characterSpellSlots.findMany({
+    where: { characterId: character.id },
+    select: { slotIndex: true },
+  });
+  const usedSlots = new Set(used.map(s => s.slotIndex));
+
+  let freeSlot = -1;
+  for (let i = 0; i < maxSlots; i++) {
+    if (!usedSlots.has(i)) { freeSlot = i; break; }
+  }
+  if (freeSlot === -1) throw new Error("Wszystkie dostępne sloty czarów są zajęte");
+
+  return equipSpell(userId, spellId, freeSlot);
 }
 
 // ── USUŃ CZAR ZE SLOTU ───────────────────────────────

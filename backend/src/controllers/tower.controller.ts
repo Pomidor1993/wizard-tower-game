@@ -3,17 +3,16 @@ import {
   getTowerInfo,
   startTowerUpgrade, claimTowerUpgrade,
   startPowerCollectorUpgrade, claimPowerCollectorUpgrade,
-  startStorageUpgrade, claimStorageUpgrade,
   startLibraryUpgrade, claimLibraryUpgrade,
   startMagicHandsUpgrade, claimMagicHandsUpgrade,
   startSpyOrbUpgrade, claimSpyOrbUpgrade,
-  startCandlesUpgrade, claimCandlesUpgrade,
+  startAltairUpgrade, claimAltairUpgrade,
   startChaosVaultUpgrade, claimChaosVaultUpgrade,
   startDisintegratorUpgrade, claimDisintegratorUpgrade,
 } from "../services/tower.service.js";
-import { getChaosVault, moveSpellFromVault, moveItemFromVault, addToVaultFromInventory } from "../services/chaos_vault.service.js";
+import { getChaosVault } from "../services/chaos_vault.service.js";
 import { previewDisintegrate, confirmDisintegrate } from "../services/disintegrator.service.js";
-
+import { setAltairElement } from "../services/tower.service.js";
 
 async function handle(res: Response, fn: () => Promise<any>) {
   try { res.json(await fn()); }
@@ -25,30 +24,19 @@ export const upgradeTower                = (req: Request, res: Response) => hand
 export const claimTower                  = (req: Request, res: Response) => handle(res, () => claimTowerUpgrade(req.userId!));
 export const upgradePowerCollector       = (req: Request, res: Response) => handle(res, () => startPowerCollectorUpgrade(req.userId!));
 export const claimPowerCollector         = (req: Request, res: Response) => handle(res, () => claimPowerCollectorUpgrade(req.userId!));
-export const upgradeStorage              = (req: Request, res: Response) => handle(res, () => startStorageUpgrade(req.userId!));
-export const claimStorage                = (req: Request, res: Response) => handle(res, () => claimStorageUpgrade(req.userId!));
 export const upgradeLibrary              = (req: Request, res: Response) => handle(res, () => startLibraryUpgrade(req.userId!));
 export const claimLibrary                = (req: Request, res: Response) => handle(res, () => claimLibraryUpgrade(req.userId!));
 export const upgradeMagicHands           = (req: Request, res: Response) => handle(res, () => startMagicHandsUpgrade(req.userId!));
 export const claimMagicHands             = (req: Request, res: Response) => handle(res, () => claimMagicHandsUpgrade(req.userId!));
 export const upgradeSpyOrb               = (req: Request, res: Response) => handle(res, () => startSpyOrbUpgrade(req.userId!));
 export const claimSpyOrb                 = (req: Request, res: Response) => handle(res, () => claimSpyOrbUpgrade(req.userId!));
-export const upgradeCandles              = (req: Request, res: Response) => handle(res, () => startCandlesUpgrade(req.userId!));
-export const claimCandles                = (req: Request, res: Response) => handle(res, () => claimCandlesUpgrade(req.userId!));
-
-
+export const upgradeAltair               = (req: Request, res: Response) => handle(res, () => startAltairUpgrade(req.userId!));
+export const claimAltair                 = (req: Request, res: Response) => handle(res, () => claimAltairUpgrade(req.userId!));
+export const selectAltairElement = (req: Request, res: Response) =>
+  handle(res, () => setAltairElement(req.userId!, req.body.pairIndex, req.body.element));
 export const upgradeChaosVault = (req: Request, res: Response) => handle(res, () => startChaosVaultUpgrade(req.userId!));
 export const claimChaosVault   = (req: Request, res: Response) => handle(res, () => claimChaosVaultUpgrade(req.userId!));
 export const getVault          = (req: Request, res: Response) => handle(res, () => getChaosVault(req.userId!));
-export const moveSpell         = (req: Request, res: Response) => handle(res, () =>
-  moveSpellFromVault(req.userId!, parseInt(req.body.vaultItemId), req.body.replaceSpellId ? parseInt(req.body.replaceSpellId) : undefined)
-);
-export const moveItem          = (req: Request, res: Response) => handle(res, () =>
-  moveItemFromVault(req.userId!, parseInt(req.body.vaultItemId), req.body.replaceItemId ? parseInt(req.body.replaceItemId) : undefined)
-);
-export const addToVault = (req: Request, res: Response) => handle(res, () =>
-  addToVaultFromInventory(req.userId!, req.body.type, parseInt(req.body.sourceId))
-);
 
 export const upgradeDisintegrator = (req: Request, res: Response) =>
   handle(res, () => startDisintegratorUpgrade(req.userId!));

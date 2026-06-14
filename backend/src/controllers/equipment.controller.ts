@@ -5,6 +5,7 @@ import {
   unequipItem,
   equipSpell,
   unequipSpell,
+  equipSpellAuto,
 } from "../services/equipment.service.js";
 
 export async function getEquipmentEndpoint(req: Request, res: Response) {
@@ -20,6 +21,17 @@ export async function equipItemEndpoint(req: Request, res: Response) {
   if (!itemId) { res.status(400).json({ error: "Podaj itemId" }); return; }
   try {
     res.json(await equipItem(req.userId!, parseInt(itemId)));
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+}
+
+// equipment.controller.ts
+export async function equipSpellAutoEndpoint(req: Request, res: Response) {
+  const { spellId } = req.body;
+  if (spellId === undefined) { res.status(400).json({ error: "Podaj spellId" }); return; }
+  try {
+    res.json(await equipSpellAuto(req.userId!, parseInt(spellId)));
   } catch (error: any) {
     res.status(400).json({ error: error.message });
   }

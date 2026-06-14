@@ -6,7 +6,6 @@ import api from "../api/client";
 interface SpellbookSpell {
   id: number;
   discovered: boolean;
-  spellBook: boolean;
   basicCost: number;
   element: string;
   spellPool: string;
@@ -17,33 +16,37 @@ interface SpellbookSpell {
   special?: string;
   isDirectional?: boolean;
   statusEffects?: string;
-  reqFireMagic?: number;
-  reqWaterMagic?: number;
-  reqEarthMagic?: number;
-  reqAirMagic?: number;
-  reqChaosMagic?: number;
-  reqLifeMagic?: number;
-  reqDeathMagic?: number;
-  reqEnergyMagic?: number;
+  reqElementalMagic?: number;
+  reqAstralMagic?: number;
+  reqBloodMagic?: number;
   summonCount?: number;
   summonElement?: string | null;
   discoveredAt?: string;
   source?: string;
-  owned?: boolean;
+  equippedSlot?: number | null;
+}
+
+interface SpellSlotEntry {
+  slotIndex: number;
+  spell: { id: number; name: string; element: string; rarity: string } | null;
+}
+
+interface CharacterStats {
+  elementalMagic: number; astralMagic: number; bloodMagic: number;
 }
 
 // ── KONFIGURACJE ──────────────────────────────────────────────────────────────
 
 const ELEMENT_CONFIG: Record<string, { label: string; color: string; bg: string; icon: string }> = {
-  fire:   { label: "Ogień",      color: "#ef4444", bg: "rgba(239,68,68,0.12)",   icon: "🔥" },
-  water:  { label: "Woda",       color: "#3b82f6", bg: "rgba(59,130,246,0.12)",  icon: "💧" },
-  earth:  { label: "Ziemia",     color: "#84cc16", bg: "rgba(132,204,22,0.12)",  icon: "🌿" },
-  air:    { label: "Powietrze",  color: "#a3e635", bg: "rgba(163,230,53,0.12)",  icon: "🌪" },
-  chaos:  { label: "Chaos",      color: "#a855f7", bg: "rgba(168,85,247,0.12)",  icon: "🌀" },
-  life:   { label: "Życie",      color: "#22c55e", bg: "rgba(34,197,94,0.12)",   icon: "✨" },
-  death:  { label: "Śmierć",     color: "#64748b", bg: "rgba(100,116,139,0.12)", icon: "💀" },
-  energy: { label: "Energia",    color: "#f59e0b", bg: "rgba(245,158,11,0.12)",  icon: "⚡" },
-  basic:  { label: "Podstawowy", color: "#94a3b8", bg: "rgba(148,163,184,0.12)", icon: "○" },
+  fire:    { label: "Ogień",     color: "#F46A4E", bg: "rgba(244,106,78,0.12)",  icon: "🔥" },
+  water:   { label: "Woda",      color: "#59D4D0", bg: "rgba(89,212,208,0.12)",  icon: "💧" },
+  earth:   { label: "Ziemia",    color: "#8BAA5C", bg: "rgba(139,170,92,0.12)",  icon: "🌿" },
+  air:     { label: "Powietrze", color: "#C9D6E8", bg: "rgba(201,214,232,0.12)", icon: "🌪" },
+  chaos:   { label: "Chaos",     color: "#B681E0", bg: "rgba(182,129,224,0.12)", icon: "🌀" },
+  life:    { label: "Życie",     color: "#7FCB7F", bg: "rgba(127,203,127,0.12)", icon: "✨" },
+  death:   { label: "Śmierć",    color: "#9C9CB0", bg: "rgba(156,156,176,0.12)", icon: "💀" },
+  harmony: { label: "Harmonia",  color: "#F5C451", bg: "rgba(245,196,81,0.12)",  icon: "☯" },
+  none:    { label: "Brak",      color: "#9C9CB0", bg: "rgba(156,156,176,0.12)", icon: "○" },
 };
 
 const POOL_CONFIG: Record<string, { label: string; difficulty: number }> = {
@@ -55,10 +58,10 @@ const POOL_CONFIG: Record<string, { label: string; difficulty: number }> = {
 };
 
 const RARITY_CONFIG: Record<string, { label: string; color: string; glow: string }> = {
-  common:   { label: "Pospolity",  color: "#94a3b8", glow: "rgba(148,163,184,0.3)" },
-  uncommon: { label: "Nietypowy",  color: "#4ade80", glow: "rgba(74,222,128,0.3)"  },
-  rare:     { label: "Rzadki",     color: "#60a5fa", glow: "rgba(96,165,250,0.3)"  },
-  unique:   { label: "Unikalny",   color: "#fbbf24", glow: "rgba(251,191,36,0.4)"  },
+  common:   { label: "Pospolity",  color: "#9C9CB0", glow: "rgba(156,156,176,0.3)" },
+  uncommon: { label: "Nietypowy",  color: "#7FCB7F", glow: "rgba(127,203,127,0.3)" },
+  rare:     { label: "Rzadki",     color: "#59D4D0", glow: "rgba(89,212,208,0.3)"  },
+  unique:   { label: "Unikalny",   color: "#F5C451", glow: "rgba(245,196,81,0.4)" },
 };
 
 const CATEGORY_CONFIG: Record<string, { label: string; icon: string }> = {
@@ -69,31 +72,85 @@ const CATEGORY_CONFIG: Record<string, { label: string; icon: string }> = {
 };
 
 const SOURCE_LABELS: Record<string, string> = {
-  study:          "Studia",
-  battle_cast:    "Walka",
-  school:         "Szkoła Magii",
-  basic_purchase: "Zakupiony",
-  basic:          "Czar podstawowy",
+  study: "Studia",
 };
-
-type MainTab = "basic" | "custom";
-
-interface CharacterStats {
-  fireMagic: number; waterMagic: number; earthMagic: number; airMagic: number;
-  chaosMagic: number; lifeMagic: number; deathMagic: number; energyMagic: number;
-}
 
 function meetsRequirements(spell: SpellbookSpell, stats: CharacterStats | null): boolean {
   if (!stats) return false;
   return (
-    (spell.reqFireMagic   ?? 0) <= stats.fireMagic   &&
-    (spell.reqWaterMagic  ?? 0) <= stats.waterMagic  &&
-    (spell.reqEarthMagic  ?? 0) <= stats.earthMagic  &&
-    (spell.reqAirMagic    ?? 0) <= stats.airMagic    &&
-    (spell.reqChaosMagic  ?? 0) <= stats.chaosMagic  &&
-    (spell.reqLifeMagic   ?? 0) <= stats.lifeMagic   &&
-    (spell.reqDeathMagic  ?? 0) <= stats.deathMagic  &&
-    (spell.reqEnergyMagic ?? 0) <= stats.energyMagic
+    (spell.reqElementalMagic ?? 0) <= stats.elementalMagic &&
+    (spell.reqAstralMagic    ?? 0) <= stats.astralMagic &&
+    (spell.reqBloodMagic     ?? 0) <= stats.bloodMagic
+  );
+}
+
+// ── PASEK AKTYWNYCH CZARÓW ────────────────────────────────────────────────────
+
+function ActiveSpellsBar({
+  slots,
+  maxSlots,
+  onMove,
+  onUnequip,
+  moving,
+}: {
+  slots: SpellSlotEntry[];
+  maxSlots: number;
+  onMove: (fromIndex: number, direction: -1 | 1) => void;
+  onUnequip: (slotIndex: number) => void;
+  moving: boolean;
+}) {
+  const TOTAL_SLOTS = 5;
+  const bySlot = new Map(slots.map(s => [s.slotIndex, s.spell]));
+
+  return (
+    <div className="active-spells-bar">
+      <p className="active-spells-title">Aktywne czary <span className="active-spells-sub">— kolejność decyduje o pierwszeństwie w walce</span></p>
+      <div className="active-spells-row">
+        {Array.from({ length: TOTAL_SLOTS }, (_, i) => {
+          const spell = bySlot.get(i) ?? null;
+          const unlocked = i < maxSlots;
+          const elem = spell ? (ELEMENT_CONFIG[spell.element] ?? ELEMENT_CONFIG.none) : null;
+
+          return (
+            <div className="active-slot-group" key={i}>
+              <div
+                className={`active-slot ${!unlocked ? "locked" : spell ? "filled" : "empty"}`}
+                style={spell ? {
+                  "--elem-color": elem!.color,
+                  "--elem-bg": elem!.bg,
+                } as React.CSSProperties : undefined}
+                  data-tooltip={!unlocked ? "Rozbuduj bibliotekę aby odblokować slot" : undefined}
+                onClick={() => spell && unlocked && onUnequip(i)}
+              >
+                <span className="active-slot-index">{i + 1}</span>
+                {spell ? (
+                  <>
+                    <span className="active-slot-icon">{elem!.icon}</span>
+                    <span className="active-slot-name">{spell.name}</span>
+                  </>
+                ) : unlocked ? (
+                  <span className="active-slot-empty-label">—</span>
+                ) : (
+                  <span className="active-slot-lock">🔒</span>
+                )}
+              </div>
+
+              {/* Strzałki przesuwania — pomiędzy slotami */}
+              {i < TOTAL_SLOTS - 1 && (
+                <div className="active-slot-arrows">
+                  <button
+                    className="arrow-btn"
+                    disabled={!spell || moving}
+                    onClick={() => onMove(i, 1)}
+                    title="Przesuń w prawo"
+                  >›</button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -102,20 +159,21 @@ function meetsRequirements(spell: SpellbookSpell, stats: CharacterStats | null):
 function DiscoveredCard({
   spell,
   onClick,
-  onLearn,
-  canLearn,
-  learning,
+  onEquip,
+  canEquip,
+  equipping,
 }: {
   spell: SpellbookSpell;
   onClick: () => void;
-  onLearn?: (e: React.MouseEvent) => void;
-  canLearn?: boolean;
-  learning?: boolean;
+  onEquip: (e: React.MouseEvent) => void;
+  canEquip: boolean;
+  equipping: boolean;
 }) {
-  const elem   = ELEMENT_CONFIG[spell.element]   ?? ELEMENT_CONFIG.basic!;
-  const rarity = RARITY_CONFIG[spell.rarity]     ?? RARITY_CONFIG.common!;
+  const elem   = ELEMENT_CONFIG[spell.element]   ?? ELEMENT_CONFIG.none;
+  const rarity = RARITY_CONFIG[spell.rarity]     ?? RARITY_CONFIG.common;
   const pool   = POOL_CONFIG[spell.spellPool]    ?? { label: spell.spellPool, difficulty: 1 };
-  const cat    = CATEGORY_CONFIG[spell.category] ?? CATEGORY_CONFIG.unknown!;
+  const cat    = CATEGORY_CONFIG[spell.category] ?? CATEGORY_CONFIG.unknown;
+  const isEquipped = spell.equippedSlot != null;
 
   return (
     <button
@@ -154,23 +212,20 @@ function DiscoveredCard({
         )}
       </div>
 
-      {/* Przycisk "Naucz się" dla czarów podstawowych nieposiadanych */}
-{spell.spellBook && !spell.owned && onLearn && (
-  <div className="learn-btn-wrapper" onClick={e => e.stopPropagation()}>
-    <button
-      onClick={canLearn ? onLearn : undefined}
-      disabled={learning || !canLearn}
-      className={`learn-btn ${!canLearn ? "locked" : ""}`}
-      title={!canLearn ? "Nie spełniasz wymagań" : undefined}
-    >
-      {learning ? "..." : `✦ ${spell.basicCost} ✦`}
-    </button>
-  </div>
-)}
-
-      {spell.owned && (
-        <div className="owned-indicator">✓ W bibliotece</div>
-      )}
+      <div className="equip-btn-wrapper" onClick={e => e.stopPropagation()}>
+        {isEquipped ? (
+          <div className="equipped-indicator">✓ Slot {spell.equippedSlot! + 1}</div>
+        ) : (
+          <button
+            onClick={canEquip ? onEquip : undefined}
+            disabled={equipping || !canEquip}
+            className={`equip-btn ${!canEquip ? "locked" : ""}`}
+            title={!canEquip ? "Brak wolnego slotu lub nie spełniasz wymagań" : undefined}
+          >
+            {equipping ? "..." : "Ekwipuj"}
+          </button>
+        )}
+      </div>
     </button>
   );
 }
@@ -178,9 +233,9 @@ function DiscoveredCard({
 // ── KARTA NIEPOZNANEGO CZARU ──────────────────────────────────────────────────
 
 function UnknownCard({ spell }: { spell: SpellbookSpell }) {
-  const elem   = ELEMENT_CONFIG[spell.element] ?? ELEMENT_CONFIG.basic!;
+  const elem   = ELEMENT_CONFIG[spell.element] ?? ELEMENT_CONFIG.none;
   const pool   = POOL_CONFIG[spell.spellPool]  ?? { label: spell.spellPool, difficulty: 1 };
-  const rarity = RARITY_CONFIG[spell.rarity]   ?? RARITY_CONFIG.common!;
+  const rarity = RARITY_CONFIG[spell.rarity]   ?? RARITY_CONFIG.common;
 
   return (
     <div className="spellbook-card unknown">
@@ -217,30 +272,28 @@ function UnknownCard({ spell }: { spell: SpellbookSpell }) {
 function SpellDetailModal({
   spell,
   onClose,
-  onLearn,
-  canLearn,
-  learning,
+  onEquip,
+  onUnequip,
+  canEquip,
+  equipping,
 }: {
   spell: SpellbookSpell;
   onClose: () => void;
-  onLearn?: () => void;
-  canLearn?: boolean;
-  learning?: boolean;
+  onEquip: () => void;
+  onUnequip: () => void;
+  canEquip: boolean;
+  equipping: boolean;
 }) {
-  const elem   = ELEMENT_CONFIG[spell.element]   ?? ELEMENT_CONFIG.basic!;
-  const rarity = RARITY_CONFIG[spell.rarity]     ?? RARITY_CONFIG.common!;
+  const elem   = ELEMENT_CONFIG[spell.element]   ?? ELEMENT_CONFIG.none;
+  const rarity = RARITY_CONFIG[spell.rarity]     ?? RARITY_CONFIG.common;
   const pool   = POOL_CONFIG[spell.spellPool]    ?? { label: spell.spellPool, difficulty: 1 };
-  const cat    = CATEGORY_CONFIG[spell.category] ?? CATEGORY_CONFIG.unknown!;
+  const cat    = CATEGORY_CONFIG[spell.category] ?? CATEGORY_CONFIG.unknown;
+  const isEquipped = spell.equippedSlot != null;
 
   const requirements = [
-    { label: "Ogień",     val: spell.reqFireMagic },
-    { label: "Woda",      val: spell.reqWaterMagic },
-    { label: "Ziemia",    val: spell.reqEarthMagic },
-    { label: "Powietrze", val: spell.reqAirMagic },
-    { label: "Chaos",     val: spell.reqChaosMagic },
-    { label: "Życie",     val: spell.reqLifeMagic },
-    { label: "Śmierć",    val: spell.reqDeathMagic },
-    { label: "Energia",   val: spell.reqEnergyMagic },
+    { label: "Magia Żywiołów", val: spell.reqElementalMagic },
+    { label: "Magia Astralna", val: spell.reqAstralMagic },
+    { label: "Magia Krwi",     val: spell.reqBloodMagic },
   ].filter(r => r.val != null && r.val > 0);
 
   let parsedStatuses: any[] = [];
@@ -261,10 +314,6 @@ function SpellDetailModal({
       >
         <div className="modal-bg-glow" />
         <button className="modal-close" onClick={onClose}>×</button>
-
-        {spell.spellBook && (
-          <div className="modal-basic-badge">✦ Czar podstawowy</div>
-        )}
 
         <div className="modal-header">
           <div className="modal-element-badge">
@@ -300,6 +349,12 @@ function SpellDetailModal({
               <span className="modal-stat-value">{spell.summonCount}</span>
             </div>
           )}
+          {spell.basicCost != null && spell.basicCost > 0 && (
+            <div className="modal-stat">
+              <span className="modal-stat-label">Koszt rzucenia</span>
+              <span className="modal-stat-value">{spell.basicCost} ✦</span>
+            </div>
+          )}
           {spell.isDirectional != null && (
             <div className="modal-stat">
               <span className="modal-stat-label">Typ</span>
@@ -330,30 +385,25 @@ function SpellDetailModal({
           </div>
         )}
 
-        {/* Sekcja zakupu dla czarów podstawowych */}
-{spell.spellBook && !spell.owned && (
-  <div className="modal-learn-section">
-    <p className="modal-learn-cost">
-      Koszt nauki: <strong>{spell.basicCost} okruchów mocy</strong>
-    </p>
-    {!canLearn && (
-      <p className="modal-learn-locked">✕ Nie spełniasz wymagań tego czaru</p>
-    )}
-    {canLearn && onLearn && (
-      <button
-        onClick={onLearn}
-        disabled={learning}
-        className="modal-learn-btn"
-      >
-        {learning ? "Uczenie się..." : `✦ Naucz się tego czaru`}
-      </button>
-    )}
-  </div>
-)}
-
-        {spell.owned && (
-          <div className="modal-owned-badge">✓ Czar w Twojej bibliotece</div>
-        )}
+        <div className="modal-equip-section">
+          {isEquipped ? (
+            <>
+              <p className="modal-equip-info">Czar wyekwipowany w slocie {spell.equippedSlot! + 1}</p>
+              <button onClick={onUnequip} disabled={equipping} className="modal-unequip-btn">
+                {equipping ? "..." : "Zdejmij ze slotu"}
+              </button>
+            </>
+          ) : (
+            <>
+              {!canEquip && (
+                <p className="modal-equip-locked">✕ Brak wolnego slotu lub nie spełniasz wymagań</p>
+              )}
+              <button onClick={onEquip} disabled={equipping || !canEquip} className="modal-equip-btn">
+                {equipping ? "Ekwipowanie..." : "✦ Ekwipuj jako aktywny"}
+              </button>
+            </>
+          )}
+        </div>
 
         {spell.discoveredAt && (
           <div className="modal-discovery">
@@ -387,17 +437,19 @@ function describeStatus(s: any): string {
 
 // ── GŁÓWNY KOMPONENT ──────────────────────────────────────────────────────────
 
-export default function SpellbookPanel() {
+export default function Spellbook() {
   const [spells, setSpells]               = useState<SpellbookSpell[]>([]);
-  const [loading, setLoading]             = useState(true);
-  const [selectedSpell, setSelectedSpell] = useState<SpellbookSpell | null>(null);
-  const [learningId, setLearningId]       = useState<number | null>(null);
-  const [mainTab, setMainTab]             = useState<MainTab>("basic");
-  const [filterElement, setFilterElement] = useState("all");
-  const [filterPool, setFilterPool]       = useState("all");
+  const [spellSlots, setSpellSlots]        = useState<SpellSlotEntry[]>([]);
+  const [maxSlots, setMaxSlots]            = useState(0);
+  const [loading, setLoading]              = useState(true);
+  const [selectedSpell, setSelectedSpell]  = useState<SpellbookSpell | null>(null);
+  const [equippingId, setEquippingId]      = useState<number | null>(null);
+  const [moving, setMoving]                = useState(false);
+  const [filterElement, setFilterElement]  = useState("all");
+  const [filterPool, setFilterPool]        = useState("all");
   const [filterCategory, setFilterCategory] = useState("all");
-  const [showOnlyOwned, setShowOnlyOwned] = useState(false);
-  const [charStats, setCharStats] = useState<CharacterStats | null>(null);
+  const [showOnlyDiscovered, setShowOnlyDiscovered] = useState(false);
+  const [charStats, setCharStats]          = useState<CharacterStats | null>(null);
 
   const fetchSpellbook = useCallback(async () => {
     try {
@@ -410,69 +462,137 @@ export default function SpellbookPanel() {
     }
   }, []);
 
-  useEffect(() => { fetchSpellbook(); }, [fetchSpellbook]);
-  useEffect(() => {
-  api.get("/character/effective-stats")
-    .then(res => setCharStats(res.data.effective))
-    .catch(() => {});
-}, []);
-
-  async function handleLearn(spell: SpellbookSpell, e?: React.MouseEvent) {
-    e?.stopPropagation();
-    setLearningId(spell.id);
+  const fetchEquipment = useCallback(async () => {
     try {
-      const res = await api.post("/spellbook/learn-basic", { spellId: spell.id });
-      alert(res.data.message);
-      await fetchSpellbook();
-      // Odśwież wybrany czar jeśli modal jest otwarty
+      const res = await api.get("/equipment");
+      setSpellSlots(res.data.spellSlots ?? []);
+      setMaxSlots(res.data.maxSlots ?? 0);
+    } catch { /* noop */ }
+  }, []);
+
+  useEffect(() => { fetchSpellbook(); fetchEquipment(); }, [fetchSpellbook, fetchEquipment]);
+  useEffect(() => {
+    api.get("/character/effective-stats")
+      .then(res => setCharStats(res.data.effective))
+      .catch(() => {});
+  }, []);
+
+  const hasFreeSlot = spellSlots.length < maxSlots;
+
+  async function refreshAll() {
+    await Promise.all([fetchSpellbook(), fetchEquipment()]);
+  }
+
+  async function handleEquip(spell: SpellbookSpell, e?: React.MouseEvent) {
+    e?.stopPropagation();
+    setEquippingId(spell.id);
+    try {
+      await api.post("/equipment/spell/equip-auto", { spellId: spell.id });
+      await refreshAll();
       if (selectedSpell?.id === spell.id) {
-        setSelectedSpell(prev => prev ? { ...prev, owned: true } : null);
+        setSelectedSpell(null);
       }
     } catch (err: any) {
-      alert(err.response?.data?.error ?? "Błąd podczas nauki czaru");
+      alert(err.response?.data?.error ?? "Błąd podczas ekwipowania czaru");
     } finally {
-      setLearningId(null);
+      setEquippingId(null);
     }
   }
 
-  // Filtruj wg głównej zakładki
-  const tabFiltered = useMemo(() =>
-    spells.filter(s => mainTab === "basic" ? s.spellBook : !s.spellBook),
-    [spells, mainTab]
-  );
+  async function handleUnequip(slotIndex: number) {
+    setEquippingId(-1); // blokada wszystkich przycisków na czas operacji
+    try {
+      await api.post("/equipment/spell/unequip", { slotIndex });
+      await refreshAll();
+      setSelectedSpell(null);
+    } catch (err: any) {
+      alert(err.response?.data?.error ?? "Błąd podczas zdejmowania czaru");
+    } finally {
+      setEquippingId(null);
+    }
+  }
 
-  // Filtruj wg dodatkowych filtrów
+  // Przesuwanie kolejności: zamiana zawartości slotu i+1 z i (lub i z i+1, zależnie od direction)
+  async function handleMove(fromIndex: number, direction: -1 | 1) {
+    const toIndex = fromIndex + direction;
+    if (toIndex < 0 || toIndex >= 5) return;
+
+    const fromEntry = spellSlots.find(s => s.slotIndex === fromIndex);
+    const toEntry   = spellSlots.find(s => s.slotIndex === toIndex);
+
+    if (!fromEntry?.spell) return;
+
+    setMoving(true);
+    try {
+      // equipSpell z upsert nadpisuje slotIndex -> wystarczy zamienić oba (lub przenieść jeśli toIndex pusty)
+      if (toEntry?.spell) {
+        // zamiana miejscami: tymczasowo zdejmij "from", przenieś "to" na "from", przenieś oryginalny "from" na "to"
+        const fromSpellId = fromEntry.spell.id;
+        const toSpellId   = toEntry.spell.id;
+
+        await api.post("/equipment/spell/unequip", { slotIndex: fromIndex });
+        await api.post("/equipment/spell/equip", { spellId: toSpellId, slotIndex: fromIndex });
+        await api.post("/equipment/spell/equip", { spellId: fromSpellId, slotIndex: toIndex });
+      } else {
+        // toIndex pusty -> proste przeniesienie
+        await api.post("/equipment/spell/unequip", { slotIndex: fromIndex });
+        await api.post("/equipment/spell/equip", { spellId: fromEntry.spell.id, slotIndex: toIndex });
+      }
+      await fetchEquipment();
+    } catch (err: any) {
+      alert(err.response?.data?.error ?? "Błąd podczas zmiany kolejności");
+    } finally {
+      setMoving(false);
+    }
+  }
+  
+  // Wzbogać czary o equippedSlot na podstawie spellSlots (na wypadek gdyby backend nie dosłał tego pola)
+  const enrichedSpells = useMemo(() => {
+    const slotMap = new Map(spellSlots.filter(s => s.spell).map(s => [s.spell!.id, s.slotIndex]));
+    return spells.map(s => ({
+      ...s,
+      equippedSlot: s.equippedSlot ?? slotMap.get(s.id) ?? null,
+    }));
+  }, [spells, spellSlots]);
+
   const filtered = useMemo(() => {
-    return tabFiltered.filter(s => {
-      if (showOnlyOwned && !s.owned) return false;
+    return enrichedSpells.filter(s => {
+      if (showOnlyDiscovered && !s.discovered) return false;
       if (filterElement  !== "all" && s.element  !== filterElement)  return false;
       if (filterPool     !== "all" && s.spellPool !== filterPool)     return false;
       if (filterCategory !== "all" && s.category  !== filterCategory) return false;
       return true;
     });
-  }, [tabFiltered, filterElement, filterPool, filterCategory, showOnlyOwned]);
+  }, [enrichedSpells, filterElement, filterPool, filterCategory, showOnlyDiscovered]);
 
-  const basicSpells  = spells.filter(s => s.spellBook);
-  const customSpells = spells.filter(s => !s.spellBook);
-  const basicOwned   = basicSpells.filter(s => s.owned).length;
-  const customDiscovered = customSpells.filter(s => s.discovered).length;
+  const discoveredCount = enrichedSpells.filter(s => s.discovered).length;
+  const totalCount = enrichedSpells.length;
 
   return (
     <>
       <style>{SPELLBOOK_CSS}</style>
 
-{selectedSpell?.discovered && (
-  <SpellDetailModal
-    spell={selectedSpell}
-    onClose={() => setSelectedSpell(null)}
-    onLearn={selectedSpell.spellBook && !selectedSpell.owned
-      ? () => handleLearn(selectedSpell)
-      : undefined}
-    canLearn={meetsRequirements(selectedSpell, charStats)}
-    learning={learningId === selectedSpell.id}
-  />
-)}
+      {selectedSpell?.discovered && (
+        <SpellDetailModal
+          spell={selectedSpell}
+          onClose={() => setSelectedSpell(null)}
+          onEquip={() => handleEquip(selectedSpell)}
+          onUnequip={() => handleUnequip(selectedSpell.equippedSlot!)}
+          canEquip={hasFreeSlot && meetsRequirements(selectedSpell, charStats)}
+          equipping={equippingId === selectedSpell.id || equippingId === -1}
+        />
+      )}
+
       <div className="spellbook-root">
+
+        {/* ── PASEK AKTYWNYCH CZARÓW ── */}
+        <ActiveSpellsBar
+          slots={spellSlots}
+          maxSlots={maxSlots}
+          onMove={handleMove}
+          onUnequip={handleUnequip}
+          moving={moving}
+        />
 
         {/* ── NAGŁÓWEK ── */}
         <div className="spellbook-header">
@@ -481,32 +601,8 @@ export default function SpellbookPanel() {
             <h1 className="book-title">Księga Magii</h1>
             <div className="book-ornament">✦</div>
           </div>
-
-          {/* ── GŁÓWNE ZAKŁADKI ── */}
-          <div className="main-tabs">
-            <button
-              className={`main-tab ${mainTab === "basic" ? "active" : ""}`}
-              onClick={() => { setMainTab("basic"); setShowOnlyOwned(false); }}
-            >
-              <span className="main-tab-icon">📖</span>
-              <span className="main-tab-label">Czary podstawowe</span>
-              <span className="main-tab-count">{basicOwned}/{basicSpells.length}</span>
-            </button>
-            <button
-              className={`main-tab ${mainTab === "custom" ? "active" : ""}`}
-              onClick={() => { setMainTab("custom"); setShowOnlyOwned(false); }}
-            >
-              <span className="main-tab-icon">🌀</span>
-              <span className="main-tab-label">Czary niestandardowe</span>
-              <span className="main-tab-count">{customDiscovered}/{customSpells.length}</span>
-            </button>
-          </div>
-
-          {/* Opis zakładki */}
           <p className="tab-description">
-            {mainTab === "basic"
-              ? "Czary dostępne dla każdego maga. Naucz się ich za okruchy mocy."
-              : "Czary odkryte podczas studiów, walk i eksploracji."}
+            Odkryte czary możesz ekwipować jako aktywne. Pozostałe czeka na odkrycie podczas Studiów.
           </p>
         </div>
 
@@ -528,7 +624,7 @@ export default function SpellbookPanel() {
             <span className="filter-group-label">Żywioł</span>
             <div className="filter-pills">
               <button className={`filter-pill ${filterElement === "all" ? "active" : ""}`} onClick={() => setFilterElement("all")}>Wszystkie</button>
-              {Object.entries(ELEMENT_CONFIG).map(([key, cfg]) => (
+              {Object.entries(ELEMENT_CONFIG).filter(([k]) => k !== "none").map(([key, cfg]) => (
                 <button
                   key={key}
                   className={`filter-pill element-pill ${filterElement === key ? "active" : ""}`}
@@ -553,25 +649,13 @@ export default function SpellbookPanel() {
             </div>
           </div>
 
-          {mainTab === "basic" && (
-            <div className="filter-group filter-toggle-group">
-              <label className="toggle-label">
-                <input type="checkbox" checked={showOnlyOwned} onChange={e => setShowOnlyOwned(e.target.checked)} className="toggle-input" />
-                <span className="toggle-track"><span className="toggle-thumb" /></span>
-                <span className="toggle-text">Tylko posiadane</span>
-              </label>
-            </div>
-          )}
-
-          {mainTab === "custom" && (
-            <div className="filter-group filter-toggle-group">
-              <label className="toggle-label">
-                <input type="checkbox" checked={showOnlyOwned} onChange={e => setShowOnlyOwned(e.target.checked)} className="toggle-input" />
-                <span className="toggle-track"><span className="toggle-thumb" /></span>
-                <span className="toggle-text">Tylko odkryte</span>
-              </label>
-            </div>
-          )}
+          <div className="filter-group filter-toggle-group">
+            <label className="toggle-label">
+              <input type="checkbox" checked={showOnlyDiscovered} onChange={e => setShowOnlyDiscovered(e.target.checked)} className="toggle-input" />
+              <span className="toggle-track"><span className="toggle-thumb" /></span>
+              <span className="toggle-text">Tylko odkryte</span>
+            </label>
+          </div>
         </div>
 
         {/* ── TREŚĆ KSIĘGI ── */}
@@ -597,18 +681,16 @@ export default function SpellbookPanel() {
               </div>
             ) : (
               <div className="spell-grid">
-{filtered.map(spell =>
-  spell.discovered ? (
-    <DiscoveredCard
-      key={spell.id}
-      spell={spell}
-      onClick={() => setSelectedSpell(spell)}
-      onLearn={spell.spellBook && !spell.owned
-        ? (e) => handleLearn(spell, e)
-        : undefined}
-      canLearn={meetsRequirements(spell, charStats)}
-      learning={learningId === spell.id}
-    />
+                {filtered.map(spell =>
+                  spell.discovered ? (
+                    <DiscoveredCard
+                      key={spell.id}
+                      spell={spell}
+                      onClick={() => setSelectedSpell(spell)}
+                      onEquip={(e) => handleEquip(spell, e)}
+                      canEquip={spell.equippedSlot == null && hasFreeSlot && meetsRequirements(spell, charStats)}
+                      equipping={equippingId === spell.id}
+                    />
                   ) : (
                     <UnknownCard key={spell.id} spell={spell} />
                   )
@@ -618,10 +700,7 @@ export default function SpellbookPanel() {
 
             {!loading && (
               <div className="results-count">
-                {filtered.length} czarów
-                {mainTab === "basic"
-                  ? ` · ${filtered.filter(s => s.owned).length} posiadanych`
-                  : ` · ${filtered.filter(s => s.discovered).length} odkrytych`}
+                {filtered.length} czarów · {discoveredCount}/{totalCount} odkrytych
               </div>
             )}
           </div>
@@ -637,26 +716,156 @@ const SPELLBOOK_CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap');
 
   :root {
-    --parchment:      #f5efe0;
-    --parchment-dark: #e8ddc8;
-    --ink:            #2c1810;
-    --ink-faded:      #6b4c3b;
-    --gold:           #c9963a;
-    --gold-light:     #e8c06a;
-    --border-ornate:  #8b6840;
+    --bg-deep:        #161d38;
+    --panel:          #372b5d;
+    --panel-dark:     #3A3158;
+    --gold:           #F5C451;
+    --gold-soft:      rgba(245,196,81,0.6);
+    --turquoise:      #59D4D0;
+    --cta:            #F46A4E;
+    --parchment:      #F7F0DD;
+    --ink:            #161d38;
+    --ink-faded:      rgba(32,38,63,0.6);
+    --border-ornate:  rgba(245,196,81,0.3);
   }
 
   .spellbook-root {
     font-family: 'Crimson Text', Georgia, serif;
-    color: var(--ink);
+    color: var(--parchment);
     max-width: 100%;
   }
+
+  /* ── PASEK AKTYWNYCH CZARÓW ── */
+  .active-spells-bar {
+    background: var(--panel);
+    border: 1px solid var(--border-ornate);
+    border-radius: 12px;
+    padding: 16px 18px;
+    margin-bottom: 16px;
+  }
+  .active-spells-title {
+    font-family: 'Cinzel', serif;
+    font-size: 12px;
+    color: var(--gold);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin: 0 0 12px;
+  }
+  .active-spells-sub {
+    font-family: 'Crimson Text', serif;
+    text-transform: none;
+    letter-spacing: normal;
+    color: rgba(247,240,221,0.4);
+    font-size: 11px;
+    font-style: italic;
+  }
+  .active-spells-row {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+  .active-slot-group {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+  }
+  .active-slot {
+    width: 96px;
+    min-height: 64px;
+    border-radius: 8px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    text-align: center;
+    position: relative;
+    transition: all 0.15s;
+  }
+  .active-slot.filled {
+    background: linear-gradient(135deg, var(--elem-bg, rgba(245,196,81,0.1)), rgba(0,0,0,0.15));
+    border: 1px solid var(--elem-color, var(--gold));
+    cursor: pointer;
+  }
+  .active-slot.filled:hover {
+    box-shadow: 0 0 12px var(--elem-color, var(--gold));
+  }
+  .active-slot.empty {
+    background: rgba(0,0,0,0.15);
+    border: 1px dashed rgba(247,240,221,0.2);
+  }
+  .active-slot.locked {
+    background: rgba(0,0,0,0.25);
+    border: 1px dashed rgba(247,240,221,0.08);
+    opacity: 0.4;
+    cursor: help;
+    position: relative;
+  }
+    .active-slot.locked[data-tooltip]:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #161d38;
+  color: #F7F0DD;
+  font-size: 11px;
+  font-family: 'Crimson Text', serif;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(245,196,81,0.3);
+  white-space: nowrap;
+  z-index: 50;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  pointer-events: none;
+}
+
+.active-slot.locked[data-tooltip]:hover::before {
+  content: '';
+  position: absolute;
+  bottom: calc(100% + 3px);
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: #161d38;
+  z-index: 50;
+  pointer-events: none;
+}
+  .active-slot-index {
+    position: absolute; top: 4px; left: 6px;
+    font-family: 'Cinzel', serif; font-size: 9px;
+    color: rgba(247,240,221,0.35);
+  }
+  .active-slot-icon { font-size: 16px; margin-top: 6px; }
+  .active-slot-name {
+    font-size: 10px; font-weight: 600; color: var(--parchment);
+    line-height: 1.2;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .active-slot-empty-label { color: rgba(247,240,221,0.2); font-size: 16px; }
+  .active-slot-lock { font-size: 14px; opacity: 0.5; }
+
+  .active-slot-arrows {
+    display: flex; flex-direction: column;
+    padding: 0 2px;
+  }
+  .arrow-btn {
+    background: none; border: none; cursor: pointer;
+    color: var(--turquoise); font-size: 16px; font-weight: 700;
+    padding: 2px 4px; line-height: 1;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+  .arrow-btn:hover:not(:disabled) { transform: scale(1.2); }
+  .arrow-btn:disabled { opacity: 0.15; cursor: default; }
 
   /* ── NAGŁÓWEK ── */
   .spellbook-header {
     text-align: center;
     padding: 24px 24px 0;
-    background: linear-gradient(180deg, #2c1810 0%, #3d2410 100%);
+    background: linear-gradient(180deg, var(--bg-deep) 0%, var(--panel-dark) 100%);
     border-radius: 12px 12px 0 0;
     border: 1px solid var(--border-ornate);
     border-bottom: none;
@@ -667,99 +876,33 @@ const SPELLBOOK_CSS = `
     align-items: center;
     justify-content: center;
     gap: 16px;
-    margin-bottom: 20px;
+    margin-bottom: 14px;
   }
 
   .book-title {
     font-family: 'Cinzel', serif;
     font-size: 26px;
     font-weight: 700;
-    color: var(--gold-light);
+    color: var(--gold);
     letter-spacing: 0.1em;
     margin: 0;
-    text-shadow: 0 0 30px rgba(201,150,58,0.5);
+    text-shadow: 0 0 30px rgba(245,196,81,0.4);
   }
 
   .book-ornament { font-size: 16px; color: var(--gold); opacity: 0.7; }
 
-  /* ── GŁÓWNE ZAKŁADKI ── */
-  .main-tabs {
-    display: flex;
-    gap: 2px;
-    justify-content: center;
-    margin-bottom: 0;
-  }
-
-  .main-tab {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 12px 28px;
-    border: none;
-    border-radius: 8px 8px 0 0;
-    background: rgba(255,255,255,0.06);
-    color: rgba(232,192,106,0.55);
-    cursor: pointer;
-    font-family: 'Cinzel', serif;
-    font-size: 13px;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    transition: all 0.2s ease;
-    border-top: 1px solid rgba(139,104,64,0.2);
-    border-left: 1px solid rgba(139,104,64,0.2);
-    border-right: 1px solid rgba(139,104,64,0.2);
-  }
-
-  .main-tab:hover:not(.active) {
-    background: rgba(255,255,255,0.1);
-    color: rgba(232,192,106,0.8);
-  }
-
-  .main-tab.active {
-    background: var(--parchment);
-    color: var(--ink);
-    border-color: var(--border-ornate);
-    position: relative;
-    z-index: 1;
-  }
-
-  .main-tab.active::after {
-    content: '';
-    position: absolute;
-    bottom: -1px;
-    left: 0; right: 0;
-    height: 2px;
-    background: var(--parchment);
-  }
-
-  .main-tab-icon { font-size: 15px; }
-  .main-tab-label { }
-
-  .main-tab-count {
-    font-size: 10px;
-    padding: 1px 6px;
-    border-radius: 10px;
-    background: rgba(0,0,0,0.15);
-    color: inherit;
-    opacity: 0.8;
-  }
-
-  .main-tab.active .main-tab-count {
-    background: rgba(44,24,16,0.1);
-  }
-
   .tab-description {
     font-size: 12px;
-    color: rgba(232,192,106,0.45);
+    color: rgba(247,240,221,0.45);
     margin: 0;
-    padding: 8px 0 14px;
+    padding: 0 0 16px;
     font-style: italic;
     font-family: 'Crimson Text', serif;
   }
 
   /* ── FILTRY ── */
   .spellbook-filters {
-    background: var(--parchment-dark);
+    background: var(--panel-dark);
     border: 1px solid var(--border-ornate);
     border-top: none;
     border-bottom: none;
@@ -780,7 +923,7 @@ const SPELLBOOK_CSS = `
     font-family: 'Cinzel', serif;
     font-size: 11px;
     font-weight: 600;
-    color: var(--ink-faded);
+    color: var(--gold-soft);
     letter-spacing: 0.08em;
     min-width: 80px;
     text-transform: uppercase;
@@ -793,25 +936,25 @@ const SPELLBOOK_CSS = `
     font-size: 13px;
     padding: 2px 9px;
     border-radius: 20px;
-    border: 1px solid rgba(139,104,64,0.35);
+    border: 1px solid rgba(245,196,81,0.2);
     background: transparent;
-    color: var(--ink-faded);
+    color: rgba(247,240,221,0.6);
     cursor: pointer;
     transition: all 0.15s;
   }
 
-  .filter-pill:hover { background: rgba(201,150,58,0.1); border-color: var(--gold); color: var(--ink); }
-  .filter-pill.active { background: var(--ink); border-color: var(--ink); color: var(--gold-light); }
+  .filter-pill:hover { background: rgba(245,196,81,0.1); border-color: var(--gold); color: var(--parchment); }
+  .filter-pill.active { background: var(--gold); border-color: var(--gold); color: var(--ink); font-weight: 600; }
 
   .filter-pill.element-pill.active {
-    background: var(--pill-color, var(--ink));
-    border-color: var(--pill-color, var(--ink));
-    color: white;
+    background: var(--pill-color, var(--gold));
+    border-color: var(--pill-color, var(--gold));
+    color: var(--ink);
   }
   .filter-pill.element-pill:hover:not(.active) {
-    background: var(--pill-bg, rgba(201,150,58,0.1));
+    background: var(--pill-bg, rgba(245,196,81,0.1));
     border-color: var(--pill-color, var(--gold));
-    color: var(--pill-color, var(--ink));
+    color: var(--parchment);
   }
 
   .filter-toggle-group { margin-top: 2px; }
@@ -820,23 +963,23 @@ const SPELLBOOK_CSS = `
   .toggle-input { display: none; }
   .toggle-track {
     width: 34px; height: 18px;
-    background: rgba(139,104,64,0.3);
+    background: rgba(245,196,81,0.15);
     border-radius: 9px;
     position: relative;
-    border: 1px solid rgba(139,104,64,0.5);
+    border: 1px solid rgba(245,196,81,0.3);
     transition: background 0.2s;
   }
-  .toggle-input:checked + .toggle-track { background: var(--ink); }
+  .toggle-input:checked + .toggle-track { background: var(--turquoise); }
   .toggle-thumb {
     position: absolute; top: 2px; left: 2px;
     width: 12px; height: 12px;
     background: var(--gold); border-radius: 50%;
     transition: transform 0.2s;
   }
-  .toggle-input:checked + .toggle-track .toggle-thumb { transform: translateX(16px); }
+  .toggle-input:checked + .toggle-track .toggle-thumb { transform: translateX(16px); background: var(--ink); }
   .toggle-text {
     font-family: 'Cinzel', serif; font-size: 11px; font-weight: 600;
-    color: var(--ink-faded); letter-spacing: 0.06em; text-transform: uppercase;
+    color: rgba(247,240,221,0.6); letter-spacing: 0.06em; text-transform: uppercase;
   }
 
   /* ── TREŚĆ KSIĘGI ── */
@@ -846,35 +989,35 @@ const SPELLBOOK_CSS = `
     border: 1px solid var(--border-ornate);
     border-radius: 0 0 12px 12px;
     overflow: hidden;
-    box-shadow: 0 8px 32px rgba(44,24,16,0.2);
+    box-shadow: 0 8px 32px rgba(16,14,32,0.3);
   }
 
   .book-spine {
     width: 20px;
     flex-shrink: 0;
-    background: linear-gradient(90deg, #3d1f0a 0%, #6b3a1a 50%, #3d1f0a 100%);
+    background: linear-gradient(90deg, var(--bg-deep) 0%, var(--panel) 50%, var(--bg-deep) 100%);
     position: relative;
   }
   .book-spine::after {
     content: '';
     position: absolute;
     top: 0; left: 50%; width: 2px; height: 100%;
-    background: linear-gradient(180deg, transparent, rgba(201,150,58,0.3), transparent);
+    background: linear-gradient(180deg, transparent, rgba(245,196,81,0.3), transparent);
     transform: translateX(-50%);
   }
 
   .book-pages {
     flex: 1;
     background:
-      radial-gradient(ellipse at 10% 20%, rgba(201,150,58,0.04) 0%, transparent 60%),
-      var(--parchment);
+      radial-gradient(ellipse at 10% 20%, rgba(245,196,81,0.05) 0%, transparent 60%),
+      var(--panel);
     padding: 20px;
     position: relative;
   }
 
   .book-page-texture {
     position: absolute; inset: 0;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
     pointer-events: none;
   }
 
@@ -892,8 +1035,8 @@ const SPELLBOOK_CSS = `
     position: relative;
     border-radius: 8px;
     padding: 11px;
-    border: 1px solid rgba(139,104,64,0.35);
-    background: white;
+    border: 1px solid rgba(245,196,81,0.15);
+    background: var(--bg-deep);
     display: flex;
     flex-direction: column;
     gap: 7px;
@@ -902,25 +1045,26 @@ const SPELLBOOK_CSS = `
     transition: transform 0.15s, box-shadow 0.15s;
     min-height: 150px;
     overflow: hidden;
+    color: var(--parchment);
   }
 
   .spellbook-card.discovered {
     cursor: pointer;
-    background: linear-gradient(135deg, color-mix(in srgb, white 92%, var(--elem-bg, white)) 0%, white 100%);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--bg-deep) 85%, var(--elem-bg, transparent)) 0%, var(--bg-deep) 100%);
   }
 
   .spellbook-card.discovered:hover {
     transform: translateY(-3px);
     box-shadow:
-      0 8px 20px rgba(44,24,16,0.1),
-      0 0 0 1px var(--rarity-color, rgba(139,104,64,0.4)),
+      0 8px 20px rgba(16,14,32,0.4),
+      0 0 0 1px var(--rarity-color, rgba(245,196,81,0.3)),
       0 0 14px var(--rarity-glow, transparent);
-    border-color: var(--rarity-color, rgba(139,104,64,0.35));
+    border-color: var(--rarity-color, rgba(245,196,81,0.3));
   }
 
   .spellbook-card.unknown {
-    background: repeating-linear-gradient(45deg, rgba(139,104,64,0.03), rgba(139,104,64,0.03) 2px, transparent 2px, transparent 8px), white;
-    opacity: 0.7;
+    background: repeating-linear-gradient(45deg, rgba(245,196,81,0.02), rgba(245,196,81,0.02) 2px, transparent 2px, transparent 8px), var(--bg-deep);
+    opacity: 0.6;
     cursor: default;
   }
 
@@ -929,14 +1073,14 @@ const SPELLBOOK_CSS = `
     width: 0; height: 0;
     border-style: solid;
     border-width: 0 18px 18px 0;
-    border-color: transparent var(--rarity-color, rgba(148,163,184,0.6)) transparent transparent;
+    border-color: transparent var(--rarity-color, rgba(156,156,176,0.5)) transparent transparent;
     opacity: 0.8;
   }
 
   .card-element-bar { display: flex; align-items: center; gap: 4px; }
   .card-element-bar.muted { opacity: 0.6; }
   .element-icon  { font-size: 12px; line-height: 1; }
-  .element-label { font-size: 10px; color: var(--ink-faded); font-family: 'Cinzel', serif; flex: 1; }
+  .element-label { font-size: 10px; color: rgba(247,240,221,0.5); font-family: 'Cinzel', serif; flex: 1; }
   .category-badge { font-size: 11px; opacity: 0.6; }
 
   .card-name { flex: 1; }
@@ -944,7 +1088,7 @@ const SPELLBOOK_CSS = `
     font-family: 'Cinzel', serif;
     font-size: 12px;
     font-weight: 600;
-    color: var(--ink);
+    color: var(--parchment);
     line-height: 1.3;
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -955,52 +1099,57 @@ const SPELLBOOK_CSS = `
   .card-difficulty { display: flex; align-items: center; gap: 2px; }
   .difficulty-dot {
     width: 5px; height: 5px; border-radius: 50%;
-    background: var(--ink); display: inline-block; flex-shrink: 0;
+    background: var(--gold); display: inline-block; flex-shrink: 0;
   }
   .difficulty-label {
-    font-size: 9px; color: var(--ink-faded); margin-left: 3px;
+    font-size: 9px; color: rgba(247,240,221,0.5); margin-left: 3px;
     font-family: 'Cinzel', serif; letter-spacing: 0.03em;
   }
 
   .card-footer { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
   .rarity-label { font-family: 'Cinzel', serif; font-size: 9px; letter-spacing: 0.05em; font-weight: 600; }
   .damage-badge {
-    font-size: 9px; color: var(--ink-faded);
-    background: rgba(44,24,16,0.07); padding: 1px 4px; border-radius: 3px; margin-left: auto;
+    font-size: 9px; color: rgba(247,240,221,0.5);
+    background: rgba(0,0,0,0.25); padding: 1px 4px; border-radius: 3px; margin-left: auto;
   }
 
-  /* Przycisk nauki na karcie */
-  .learn-btn-wrapper { margin-top: auto; }
-  .learn-btn {
+  /* Przycisk ekwipowania na karcie */
+  .equip-btn-wrapper { margin-top: auto; }
+  .equip-btn {
     width: 100%;
     padding: 5px 8px;
     font-family: 'Cinzel', serif;
-    font-size: 9px;
+    font-size: 10px;
     font-weight: 600;
     letter-spacing: 0.05em;
-    color: var(--gold-light);
-    background: var(--ink);
-    border: 1px solid var(--gold);
+    color: var(--ink);
+    background: var(--turquoise);
+    border: 1px solid var(--turquoise);
     border-radius: 4px;
     cursor: pointer;
     transition: all 0.15s;
   }
-  .learn-btn:hover:not(:disabled) {
-    background: #3d2410;
-    box-shadow: 0 0 8px rgba(201,150,58,0.3);
+  .equip-btn:hover:not(:disabled) {
+    background: #7be0dd;
+    box-shadow: 0 0 8px rgba(89,212,208,0.4);
   }
-  .learn-btn:disabled { opacity: 0.5; cursor: default; }
+  .equip-btn.locked, .equip-btn:disabled {
+    opacity: 0.35; cursor: not-allowed;
+    background: rgba(156,156,176,0.2);
+    border-color: rgba(156,156,176,0.2);
+    color: rgba(247,240,221,0.4);
+  }
 
-  .owned-indicator {
+  .equipped-indicator {
     margin-top: auto;
     font-family: 'Cinzel', serif;
     font-size: 9px;
-    color: #16a34a;
+    color: var(--turquoise);
     text-align: center;
     padding: 3px;
-    background: rgba(22,163,74,0.08);
+    background: rgba(89,212,208,0.1);
     border-radius: 3px;
-    border: 1px solid rgba(22,163,74,0.2);
+    border: 1px solid rgba(89,212,208,0.25);
   }
 
   /* Nieznana karta */
@@ -1008,10 +1157,10 @@ const SPELLBOOK_CSS = `
     flex: 1; display: flex; flex-direction: column;
     align-items: center; justify-content: center; gap: 5px;
   }
-  .unknown-sigil { width: 32px; height: 32px; color: var(--ink-faded); }
+  .unknown-sigil { width: 32px; height: 32px; color: rgba(247,240,221,0.3); }
   .unknown-sigil svg { width: 100%; height: 100%; }
   .unknown-label {
-    font-size: 9px; color: var(--ink-faded);
+    font-size: 9px; color: rgba(247,240,221,0.3);
     font-family: 'Cinzel', serif; letter-spacing: 0.04em; opacity: 0.6;
   }
 
@@ -1023,28 +1172,28 @@ const SPELLBOOK_CSS = `
   }
   .loading-runes { display: flex; gap: 8px; }
   .loading-rune {
-    font-size: 20px; color: var(--ink-faded);
+    font-size: 20px; color: var(--gold);
     animation: rune-pulse 1.5s ease-in-out infinite;
   }
   @keyframes rune-pulse {
     0%, 100% { opacity: 0.2; transform: translateY(0); }
     50%       { opacity: 1;   transform: translateY(-4px); }
   }
-  .loading-text { font-family: 'Cinzel', serif; font-size: 12px; color: var(--ink-faded); letter-spacing: 0.1em; }
+  .loading-text { font-family: 'Cinzel', serif; font-size: 12px; color: rgba(247,240,221,0.5); letter-spacing: 0.1em; }
   .empty-icon { font-size: 36px; margin: 0; }
-  .empty-text { font-family: 'Cinzel', serif; font-size: 14px; color: var(--ink); margin: 0; }
-  .empty-sub  { font-size: 12px; color: var(--ink-faded); margin: 0; }
+  .empty-text { font-family: 'Cinzel', serif; font-size: 14px; color: var(--parchment); margin: 0; }
+  .empty-sub  { font-size: 12px; color: rgba(247,240,221,0.4); margin: 0; }
 
   .results-count {
     margin-top: 16px; text-align: center;
     font-family: 'Cinzel', serif; font-size: 10px;
-    color: var(--ink-faded); letter-spacing: 0.05em; opacity: 0.6;
+    color: rgba(247,240,221,0.4); letter-spacing: 0.05em; opacity: 0.8;
   }
 
   /* ── MODAL ── */
   .modal-overlay {
     position: fixed; inset: 0;
-    background: rgba(44,24,16,0.7);
+    background: rgba(16,14,32,0.75);
     backdrop-filter: blur(4px);
     display: flex; align-items: center; justify-content: center;
     z-index: 200; padding: 16px;
@@ -1052,12 +1201,13 @@ const SPELLBOOK_CSS = `
 
   .spell-detail-modal {
     position: relative;
-    background: var(--parchment);
+    background: var(--panel);
     border: 2px solid var(--border-ornate);
     border-radius: 12px;
     width: 100%; max-width: 420px; max-height: 85vh;
     overflow-y: auto; padding: 24px;
-    box-shadow: 0 24px 64px rgba(44,24,16,0.4), inset 0 1px 0 rgba(255,255,255,0.3);
+    box-shadow: 0 24px 64px rgba(16,14,32,0.5), inset 0 1px 0 rgba(255,255,255,0.05);
+    color: var(--parchment);
   }
 
   .modal-bg-glow {
@@ -1069,121 +1219,100 @@ const SPELLBOOK_CSS = `
 
   .modal-close {
     position: absolute; top: 12px; right: 16px;
-    font-size: 20px; color: var(--ink-faded);
+    font-size: 20px; color: rgba(247,240,221,0.5);
     background: none; border: none; cursor: pointer;
     padding: 2px 6px; border-radius: 4px; transition: color 0.15s;
   }
-  .modal-close:hover { color: var(--ink); background: rgba(44,24,16,0.07); }
-
-  .modal-basic-badge {
-    display: inline-block;
-    font-family: 'Cinzel', serif;
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 0.1em;
-    color: var(--gold);
-    background: rgba(201,150,58,0.1);
-    border: 1px solid rgba(201,150,58,0.3);
-    padding: 2px 10px;
-    border-radius: 12px;
-    margin-bottom: 12px;
-  }
+  .modal-close:hover { color: var(--parchment); background: rgba(0,0,0,0.2); }
 
   .modal-header { margin-bottom: 16px; }
 
   .modal-element-badge {
     display: inline-flex; align-items: center; gap: 5px;
     font-family: 'Cinzel', serif; font-size: 11px;
-    color: var(--elem-color, var(--ink-faded));
+    color: var(--elem-color, var(--gold-soft));
     text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px;
   }
 
   .modal-spell-name {
     font-family: 'Cinzel', serif; font-size: 20px; font-weight: 700;
-    color: var(--ink); margin: 0 0 8px; line-height: 1.2;
+    color: var(--parchment); margin: 0 0 8px; line-height: 1.2;
   }
 
   .modal-meta-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .modal-rarity   { font-family: 'Cinzel', serif; font-size: 11px; font-weight: 600; }
-  .modal-sep      { color: rgba(44,24,16,0.3); }
-  .modal-pool, .modal-category { font-family: 'Cinzel', serif; font-size: 11px; color: var(--ink-faded); }
+  .modal-separator { color: rgba(247,240,221,0.25); }
+  .modal-pool, .modal-category { font-family: 'Cinzel', serif; font-size: 11px; color: rgba(247,240,221,0.5); }
 
   .modal-description {
-    background: rgba(44,24,16,0.04);
+    background: rgba(0,0,0,0.18);
     border-left: 3px solid var(--gold);
     padding: 10px 12px;
     border-radius: 0 6px 6px 0;
     margin-bottom: 14px;
   }
-  .modal-flavor { font-size: 14px; font-style: italic; color: var(--ink-faded); line-height: 1.6; margin: 0; }
+  .modal-flavor { font-size: 14px; font-style: italic; color: rgba(247,240,221,0.7); line-height: 1.6; margin: 0; }
 
   .modal-stats-grid { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
-  .modal-stat { background: rgba(44,24,16,0.06); border-radius: 6px; padding: 7px 10px; text-align: center; }
-  .modal-stat-label { display: block; font-family: 'Cinzel', serif; font-size: 9px; color: var(--ink-faded); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 2px; }
-  .modal-stat-value { font-family: 'Cinzel', serif; font-size: 15px; font-weight: 700; color: var(--ink); }
+  .modal-stat { background: rgba(0,0,0,0.2); border-radius: 6px; padding: 7px 10px; text-align: center; }
+  .modal-stat-label { display: block; font-family: 'Cinzel', serif; font-size: 9px; color: rgba(247,240,221,0.45); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 2px; }
+  .modal-stat-value { font-family: 'Cinzel', serif; font-size: 15px; font-weight: 700; color: var(--parchment); }
 
   .modal-section { margin-bottom: 12px; }
-  .modal-section-title { font-family: 'Cinzel', serif; font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-faded); margin: 0 0 7px; }
+  .modal-section-title { font-family: 'Cinzel', serif; font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: rgba(247,240,221,0.45); margin: 0 0 7px; }
   .modal-requirements, .modal-status-list { display: flex; flex-wrap: wrap; gap: 5px; }
   .modal-req-badge, .modal-status-badge {
     font-size: 11px; padding: 2px 7px; border-radius: 4px;
-    background: rgba(44,24,16,0.07); color: var(--ink-faded);
-    border: 1px solid rgba(139,104,64,0.2);
+    background: rgba(0,0,0,0.2); color: rgba(247,240,221,0.6);
+    border: 1px solid rgba(245,196,81,0.15);
   }
 
-  /* Sekcja zakupu w modalu */
-  .modal-learn-section {
+  /* Sekcja ekwipowania w modalu */
+  .modal-equip-section {
     margin-top: 16px;
     padding: 14px;
-    background: rgba(201,150,58,0.07);
-    border: 1px solid rgba(201,150,58,0.25);
+    background: rgba(89,212,208,0.06);
+    border: 1px solid rgba(89,212,208,0.2);
     border-radius: 8px;
     text-align: center;
   }
-  .modal-learn-cost {
+  .modal-equip-info {
     font-family: 'Cinzel', serif; font-size: 12px;
-    color: var(--ink-faded); margin: 0 0 10px;
+    color: var(--turquoise); margin: 0 0 10px;
   }
-  .modal-learn-cost strong { color: var(--ink); }
-  .modal-learn-btn {
+  .modal-equip-btn, .modal-unequip-btn {
     width: 100%; padding: 10px;
     font-family: 'Cinzel', serif; font-size: 13px; font-weight: 600;
-    letter-spacing: 0.07em; color: var(--gold-light);
-    background: var(--ink); border: 1px solid var(--gold);
+    letter-spacing: 0.07em;
     border-radius: 6px; cursor: pointer; transition: all 0.15s;
   }
-  .modal-learn-btn:hover:not(:disabled) {
-    background: #3d2410;
-    box-shadow: 0 0 12px rgba(201,150,58,0.35);
+  .modal-equip-btn {
+    color: var(--ink); background: var(--turquoise); border: 1px solid var(--turquoise);
   }
-  .modal-learn-btn:disabled { opacity: 0.5; cursor: default; }
+  .modal-equip-btn:hover:not(:disabled) {
+    background: #7be0dd; box-shadow: 0 0 12px rgba(89,212,208,0.4);
+  }
+  .modal-unequip-btn {
+    color: var(--cta); background: transparent; border: 1px solid var(--cta);
+  }
+  .modal-unequip-btn:hover:not(:disabled) {
+    background: rgba(244,106,78,0.1);
+  }
+  .modal-equip-btn:disabled, .modal-unequip-btn:disabled { opacity: 0.5; cursor: default; }
 
-  .modal-owned-badge {
-    margin-top: 14px; text-align: center;
-    font-family: 'Cinzel', serif; font-size: 12px; color: #16a34a;
-    padding: 6px 12px; background: rgba(22,163,74,0.08);
-    border: 1px solid rgba(22,163,74,0.2); border-radius: 6px;
+  .modal-equip-locked {
+    font-family: 'Cinzel', serif;
+    font-size: 11px;
+    color: var(--cta);
+    margin: 0 0 8px;
+    opacity: 0.9;
   }
 
-  .learn-btn.locked {
-  opacity: 0.4;
-  cursor: not-allowed;
-  border-color: rgba(139,104,64,0.3);
-  color: var(--ink-faded);
-}
-
-.modal-learn-locked {
-  font-family: 'Cinzel', serif;
-  font-size: 11px;
-  color: #dc2626;
-  margin: 0 0 8px;
-  opacity: 0.8;
-}
   .modal-discovery {
     display: flex; justify-content: space-between; align-items: center;
-    border-top: 1px solid rgba(139,104,64,0.2);
-    padding-top: 10px; margin-top: 10px;
+    border-top: 1px solid rgba(245,196,81,0.15);
+    padding-top: 10px; margin-top: 14px;
   }
-  .modal-discovery-source { font-family: 'Cinzel', serif; font-size: 10px; color: var(--ink-faded); }
-  .modal-discovery-date   { font-size: 11px; color: var(--ink-faded); opacity: 0.7; }
+  .modal-discovery-source { font-family: 'Cinzel', serif; font-size: 10px; color: rgba(247,240,221,0.5); }
+  .modal-discovery-date   { font-size: 11px; color: rgba(247,240,221,0.4); }
 `;

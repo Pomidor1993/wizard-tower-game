@@ -25,7 +25,6 @@ function randomChance(chance: number): boolean {
 }
 
 // ── REGENERACJA AKCJI ────────────────────────────────
-// Oblicza ile akcji powinno się odnowić od ostatniej regeneracji
 export function calculateRegenActions(
   currentActions: number,
   lastRegen: Date,
@@ -53,25 +52,22 @@ export async function startStudyAction(userId: number, level: number) {
   const config = STUDY_CONFIG[level - 1];
   if (!config) throw new Error("Nieprawidłowy poziom akcji");
 
-const character = await prisma.character.findUnique({
-  where: { userId },
-  include: {
-    spells: true,
-    tower: { include: { buildings: true } },
-  },
-});
+  const character = await prisma.character.findUnique({
+    where: { userId },
+    include: {
+      tower: { include: { buildings: true } },
+    },
+  });
 
   if (!character) throw new Error("Postać nie znaleziona");
   if (!character.tower) throw new Error("Brak wieży");
 
-  // Sprawdź poziom wieży
   if (character.tower.level < config.requiredTowerLevel) {
     throw new Error(
       `Wymagany poziom wieży: ${config.requiredTowerLevel} (masz: ${character.tower.level})`
     );
   }
 
-  // Przelicz regenerację akcji
   const { newActions, newLastRegen } = calculateRegenActions(
     character.studyActions,
     character.lastStudyRegen,
@@ -83,22 +79,20 @@ const character = await prisma.character.findUnique({
     throw new Error("Brak dostępnych akcji. Poczekaj na odnowienie.");
   }
 
-// Sprawdź czy nie ma już aktywnej akcji JAKIEGOKOLWIEK typu
-const activeAction = await prisma.characterAction.findFirst({
-  where: {
-    characterId: character.id,
-    status: "in_progress",
-  },
-});
+  const activeAction = await prisma.characterAction.findFirst({
+    where: {
+      characterId: character.id,
+      status: "in_progress",
+    },
+  });
 
-if (activeAction) {
-  const typeLabel = activeAction.actionType === "study" ? "studiów" : "eksploracji";
-  throw new Error(`Masz już aktywną akcję ${typeLabel}. Poczekaj na jej zakończenie.`);
-}
+  if (activeAction) {
+    const typeLabel = activeAction.actionType === "study" ? "studiów" : "eksploracji";
+    throw new Error(`Masz już aktywną akcję ${typeLabel}. Poczekaj na jej zakończenie.`);
+  }
 
   const finishesAt = new Date(Date.now() + config.durationSeconds * 1000);
 
-  // Zapisz akcję i pobierz akcję z puli
   const [action] = await prisma.$transaction([
     prisma.characterAction.create({
       data: {
@@ -131,7 +125,6 @@ export async function claimStudyAction(userId: number, actionId: number) {
   const character = await prisma.character.findUnique({
     where: { userId },
     include: {
-      spells: true,
       tower: { include: { buildings: true } },
     },
   });
@@ -152,42 +145,27 @@ export async function claimStudyAction(userId: number, actionId: number) {
   const xpEarned = randomInt(config.minPoints, config.maxPoints);
 
   let discoveredSpellName: string | null = null;
-  let spellDestination: string = "none";
-  let overflowSpellName: string | null = null;
 
   if (randomChance(config.spellChance)) {
-    const knownSpellIds = character.spells.map(cs => cs.spellId);
+    const discoveredEntries = await prisma.spellbookEntry.findMany({
+      where: { characterId: character.id },
+      select: { spellId: true },
+    });
+    const discoveredSpellIds = discoveredEntries.map(e => e.spellId);
 
     const availableSpells = await prisma.spell.findMany({
       where: {
-        id: knownSpellIds.length > 0 ? { notIn: knownSpellIds } : undefined,
+        id: discoveredSpellIds.length > 0 ? { notIn: discoveredSpellIds } : undefined,
       },
     });
 
     if (availableSpells.length > 0) {
       const chosen = availableSpells[randomInt(0, availableSpells.length - 1)];
-      const knownCount = character.spells.length;
-
-      if (knownCount < character.maxSpells) {
-        await prisma.characterSpell.create({
-          data: { characterId: character.id, spellId: chosen.id },
-        });
-        discoveredSpellName = chosen.name;
-        spellDestination = "library";
-      } else {
-        await prisma.chaosVaultItem.create({
-          data: { characterId: character.id, spellId: chosen.id },
-        });
-        discoveredSpellName = chosen.name;
-        spellDestination = "chaos_vault";
-      }
-      if (discoveredSpellName && chosen) {
-        await recordSpellbookEntry(character.id, chosen.id, "study");
-      }
+      await recordSpellbookEntry(character.id, chosen.id, "study");
+      discoveredSpellName = chosen.name;
     }
   }
 
-  // Zapis akcji jako odebranej — bez aktualizacji skillPoints, to teraz robi addExperience
   await prisma.characterAction.update({
     where: { id: action.id },
     data: {
@@ -203,15 +181,11 @@ export async function claimStudyAction(userId: number, actionId: number) {
   const report = {
     experienceEarned: xpEarned,
     discoveredSpell: discoveredSpellName,
-    spellDestination,
-    overflowSpellName,
     levelUp: levelResult.levelsGained > 0
       ? { newLevel: levelResult.level, skillPointsGained: levelResult.skillPointsGained }
       : null,
-    message: spellDestination === "library"
-      ? `Zdobyłeś ${xpEarned} pkt doświadczenia i odkryłeś czar: ${discoveredSpellName}!`
-      : spellDestination === "chaos_vault"
-      ? `Zdobyłeś ${xpEarned} pkt doświadczenia i odkryłeś czar: ${discoveredSpellName}! Niestety, wszystkie regały w Twojej bibliotece są już zajęte, więc postanowiłeś wrzucić pergamin do Komnaty Nieładu. Rozbuduj bibliotekę, aby uzyskać do niego dostęp!`
+    message: discoveredSpellName
+      ? `Zdobyłeś ${xpEarned} pkt doświadczenia. Odkryłeś ${discoveredSpellName}, jest od teraz dostępny w Twojej księdze czarów!`
       : `Zdobyłeś ${xpEarned} pkt doświadczenia.`,
   };
 
@@ -244,6 +218,7 @@ export async function claimStudyAction(userId: number, actionId: number) {
     xpToNextLevel: levelResult.xpToNextLevel,
   };
 }
+
 // ── STATUS AKTYWNYCH AKCJI ───────────────────────────
 export async function getActiveActions(userId: number) {
   const character = await prisma.character.findUnique({
@@ -269,7 +244,6 @@ export async function getActiveActions(userId: number) {
     EXPLORATION_REGEN_SECONDS
   );
 
-  // Zapisz zaktualizowane akcje do bazy jeśli się zmieniły
   if (
     newStudyActions !== character.studyActions ||
     newExplorationActions !== character.explorationActions
@@ -285,7 +259,6 @@ export async function getActiveActions(userId: number) {
     });
   }
 
-  // Auto-aktualizuj status zakończonych akcji
   await prisma.characterAction.updateMany({
     where: {
       characterId: character.id,
