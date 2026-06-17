@@ -2,6 +2,8 @@ import prisma from "../lib/prisma.js";
 import { archetypeTriggerService } from "./archetype/archetype-trigger.service.js";
 import { recordSpellbookEntry } from "./spellbook.service.js";
 import { addExperience } from "./character.service.js";
+import { getOrCreateTutorial, advanceTutorialStep } from "./tutorial/tutorial.service.js";
+import { TUTORIAL_STEPS, TUTORIAL_MESSAGES } from "./tutorial/tutorial.constants.js";
 
 // ── KONFIGURACJA AKCJI ───────────────────────────────
 const STUDY_CONFIG = [
@@ -146,25 +148,34 @@ export async function claimStudyAction(userId: number, actionId: number) {
 
   let discoveredSpellName: string | null = null;
 
-  if (randomChance(config.spellChance)) {
-    const discoveredEntries = await prisma.spellbookEntry.findMany({
-      where: { characterId: character.id },
-      select: { spellId: true },
-    });
-    const discoveredSpellIds = discoveredEntries.map(e => e.spellId);
+const tutorial = await getOrCreateTutorial(character.id);
+const isTutorialStudy = tutorial.step === TUTORIAL_STEPS.EXPLORATION_DONE;
 
-    const availableSpells = await prisma.spell.findMany({
-      where: {
-        id: discoveredSpellIds.length > 0 ? { notIn: discoveredSpellIds } : undefined,
-      },
-    });
-
-    if (availableSpells.length > 0) {
-      const chosen = availableSpells[randomInt(0, availableSpells.length - 1)];
-      await recordSpellbookEntry(character.id, chosen.id, "study");
-      discoveredSpellName = chosen.name;
-    }
+if (isTutorialStudy) {
+  // Tutorialowy czar — zawsze "Podstawowe Przywołanie"
+  const tutorialSpell = await prisma.spell.findFirst({
+    where: { isTutorialReward: true },
+  });
+  if (tutorialSpell) {
+    await recordSpellbookEntry(character.id, tutorialSpell.id, "study");
+    discoveredSpellName = tutorialSpell.name;
   }
+} else if (randomChance(config.spellChance)) {
+  // Normalny przebieg
+  const discoveredEntries = await prisma.spellbookEntry.findMany({
+    where: { characterId: character.id },
+    select: { spellId: true },
+  });
+  const discoveredSpellIds = discoveredEntries.map(e => e.spellId);
+  const availableSpells = await prisma.spell.findMany({
+    where: { id: discoveredSpellIds.length > 0 ? { notIn: discoveredSpellIds } : undefined },
+  });
+  if (availableSpells.length > 0) {
+    const chosen = availableSpells[randomInt(0, availableSpells.length - 1)];
+    await recordSpellbookEntry(character.id, chosen.id, "study");
+    discoveredSpellName = chosen.name;
+  }
+}
 
   await prisma.characterAction.update({
     where: { id: action.id },
@@ -211,11 +222,26 @@ export async function claimStudyAction(userId: number, actionId: number) {
     { allStudiesDone: allLevelsDone }
   );
 
+// ── TUTORIAL: pierwsza sesja studiów ──────────────────
+  let tutorialMessage: string | null = null;
+
+  if (tutorial.step === TUTORIAL_STEPS.EXPLORATION_DONE) {
+    const advanced = await advanceTutorialStep(
+      character.id,
+      TUTORIAL_STEPS.EXPLORATION_DONE,
+      TUTORIAL_STEPS.STUDY_DONE
+    );
+    if (advanced) {
+      tutorialMessage = TUTORIAL_MESSAGES.SPELL_GRANTED;
+    }
+  }
+
   return {
     ...report,
     level: levelResult.level,
     experience: levelResult.experience,
     xpToNextLevel: levelResult.xpToNextLevel,
+    tutorialMessage,  // <-- dodaj do istniejącego returna
   };
 }
 

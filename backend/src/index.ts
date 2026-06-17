@@ -26,16 +26,15 @@ app.use("/api/equipment", equipmentRoutes);
 app.use("/api/combat", combatRoutes);
 app.use("/api/tower", towerRoutes);
 app.use("/api/spellbook", spellbookRouter);
-app.use("/tutorial", tutorialRoutes)
-
+app.use("/api/tutorial", tutorialRoutes)
 
 // Health check
 app.get("/api/health", (req, res) => {
-  res.json({ status: "ok", message: "Wizard Tower backend works!" });
+  res.json({ status: "ok", message: "Magic Mess backend works!" });
 });
 
 app.listen(PORT, () => {
-  console.log(`✦ Wizard Tower backend running on http://localhost:${PORT}`);
+  console.log(`✦ Magic Mess backend running on http://localhost:${PORT}`);
 });
 
 setInterval(() => {

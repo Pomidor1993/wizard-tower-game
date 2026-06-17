@@ -2,6 +2,8 @@ import prisma from "../lib/prisma.js";
 import { getCharacterArchetypeBonus } from "./archetype/archetype-bonuses.constants.js";
 import { getSpellSlotCount } from "./tower.service.js";
 import { getVisibleChaosVaultItems } from "./chaos_vault.service.js";
+import { getOrCreateTutorial, advanceTutorialStep } from "./tutorial/tutorial.service.js";
+import { TUTORIAL_STEPS, TUTORIAL_MESSAGES } from "./tutorial/tutorial.constants.js";
 
 // ── HELPER — efektywne statystyki z bonusami ekwipunku ─────────────────────────
 
@@ -315,7 +317,30 @@ export async function equipSpell(userId: number, spellId: number, slotIndex: num
     create: { characterId: character.id, spellId, slotIndex },
   });
 
-  return { message: `Czar ${spell.name} przypisany do slotu ${slotIndex}` };
+// ── TUTORIAL: pierwszy wyekwipowany czar ──────────────
+  const tutorial = await getOrCreateTutorial(character.id);
+  let tutorialMessage: string | null = null;
+
+  if (tutorial.step === TUTORIAL_STEPS.STUDY_DONE) {
+    const advanced = await advanceTutorialStep(
+      character.id,
+      TUTORIAL_STEPS.STUDY_DONE,
+      TUTORIAL_STEPS.SPELL_EQUIPPED
+    );
+    if (advanced) {
+      // Odblokuj pierwsze zadanie budowy wieży
+      await prisma.homeRepairTask.update({
+        where: { characterId_taskCode: { characterId: character.id, taskCode: "FOUNDATIONS" } },
+        data: { status: "available" },
+      });
+      tutorialMessage = TUTORIAL_MESSAGES.WIZARD_REALIZATION;
+    }
+  }
+
+  return {
+    message: `Czar ${spell.name} przypisany do slotu ${slotIndex}`,
+    tutorialMessage,  // <-- rozszerz istniejący return
+  };
 }
 
 // ── EKWIPUJ CZAR AUTOMATYCZNIE (pierwszy wolny slot) ──────────────────────────

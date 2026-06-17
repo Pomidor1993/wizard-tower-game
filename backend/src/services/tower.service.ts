@@ -481,8 +481,7 @@ export const claimTowerUpgrade = async (userId: number) => {
 };
 
 export function getSpellSlotCount(libraryLevel: number, extraSlots: number = 0): number {
-  // poziom 0 = 0 slotów, 1=1, 2=2, 3=3, 4=4, 5=5 (max 5)
-  return Math.min(libraryLevel, 5) + extraSlots;
+  return Math.min(Math.max(libraryLevel, 1), 5) + extraSlots;
 }
 
 export const startPowerCollectorUpgrade   = (userId: number) => startBuildingUpgrade(userId, "power_collector");

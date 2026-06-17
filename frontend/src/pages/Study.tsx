@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import api from "../api/client";
 import { useCharacter } from "../contexts/CharacterContext";
+import { useTutorial } from "../contexts/TutorialContext";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // STAŁE
@@ -90,6 +91,7 @@ function Timer({ finishesAt, onDone }: { finishesAt: string; onDone: () => void 
 
 export default function StudyPanel() {
   const { refresh: refreshCharacter } = useCharacter();
+  const { refresh: refreshTutorial } = useTutorial();
 
   const [actions, setActions] = useState<any>(null);
   const [loading, setLoading] = useState<number | null>(null);
@@ -128,19 +130,20 @@ export default function StudyPanel() {
     }
   }
 
-  async function claimStudy(actionId: number) {
-    setClaiming(actionId);
-    try {
-      const res = await api.post(`/actions/study/claim/${actionId}`);
-      setReport(res.data);
-      await fetchActions();
-      await syncCharacter();
-    } catch (err: any) {
-      alert(err.response?.data?.error ?? "Błąd");
-    } finally {
-      setClaiming(null);
-    }
+async function claimStudy(actionId: number) {
+  setClaiming(actionId);
+  try {
+    const res = await api.post(`/actions/study/claim/${actionId}`);
+    setReport(res.data);
+    await fetchActions();
+    await syncCharacter();
+    await refreshTutorial();
+  } catch (err: any) {
+    alert(err.response?.data?.error ?? "Błąd");
+  } finally {
+    setClaiming(null);
   }
+}
 
   return (
     <div>

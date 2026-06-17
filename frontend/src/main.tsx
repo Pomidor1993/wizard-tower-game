@@ -1,14 +1,16 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { RouterProvider } from "react-router-dom";
-import { CharacterProvider } from "./contexts/CharacterContext";
 import { router } from "./router";
-import "./index.css";
+import { CharacterProvider } from "./contexts/CharacterContext";
+import { TutorialProvider } from "./contexts/TutorialContext";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <CharacterProvider>
-      <RouterProvider router={router} />
+      <TutorialProvider>
+        <RouterProvider router={router} />
+      </TutorialProvider>
     </CharacterProvider>
   </React.StrictMode>
 );

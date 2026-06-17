@@ -14,9 +14,10 @@ import Premium from "./pages/Premium";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import ProtectedRoute from "./components/ProtectedRoute";
+import HomeTutorial from "./pages/HomeTutorial";
 
 export const router = createBrowserRouter([
-  { path: "/login", element: <LoginPage /> },
+  { path: "/login",    element: <LoginPage /> },
   { path: "/register", element: <RegisterPage /> },
   {
     element: <ProtectedRoute />,
@@ -25,21 +26,21 @@ export const router = createBrowserRouter([
         path: "/",
         element: <AppLayout />,
         children: [
-          { index: true, element: <Navigate to="/overview" replace /> },
-          { path: "overview", element: <Overview /> },
-      { path: "training",    element: <Training /> },
-      { path: "vault",       element: <ChaosVault /> },
-      { path: "spellbook",   element: <Spellbook /> },
-      { path: "tower",       element: <Tower /> },
-      { path: "study",       element: <Study /> },
-      { path: "exploration", element: <Exploration /> },
-      { path: "combat",      element: <Combat /> },
-      { path: "school",      element: <MagicSchool /> },
-      { path: "settings",    element: <Settings /> },
-      { path: "premium",     element: <Premium /> },
+          { index: true,         element: <Navigate to="/overview" replace /> },
+          { path: "overview",    element: <Overview /> },
+          { path: "training",    element: <Training /> },
+          { path: "vault",       element: <ChaosVault /> },
+          { path: "spellbook",   element: <Spellbook /> },
+          { path: "tower",       element: <Tower /> },
+          { path: "study",       element: <Study /> },
+          { path: "exploration", element: <Exploration /> },
+          { path: "combat",      element: <Combat /> },
+          { path: "school",      element: <MagicSchool /> },
+          { path: "settings",    element: <Settings /> },
+          { path: "premium",     element: <Premium /> },
+          { path: "home",        element: <HomeTutorial /> },
         ],
       },
     ],
   },
 ]);
-

@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import api from "../api/client";
 import { useCharacter } from "../contexts/CharacterContext";
+import { useTutorial } from "../contexts/TutorialContext";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // STAŁE
@@ -672,6 +673,7 @@ export default function ExplorationPanel({
   towerLevel?: number;
 }) {
   const { refresh: refreshCharacter } = useCharacter();
+  const { refresh: refreshTutorial } = useTutorial();
 
   const [selected, setSelected] = useState(1);
   const [actions, setActions] = useState<any>(null);
@@ -712,19 +714,20 @@ export default function ExplorationPanel({
     finally { setLoading(false); }
   }
 
-  async function handleClaim(actionId: number) {
-    setClaiming(true);
-    setReport(null);
-    setReportSaved(false);
-    try {
-      const res = await api.post(`/actions/exploration/claim/${actionId}`);
-      setReport(res.data);
-      if (res.data.encounter?.fought) setBattleModalOpen(true);
-      await fetchActions();
-      await syncCharacter();
-    } catch (err: any) { alert(err.response?.data?.error ?? "Błąd"); }
-    finally { setClaiming(false); }
-  }
+async function handleClaim(actionId: number) {
+  setClaiming(true);
+  setReport(null);
+  setReportSaved(false);
+  try {
+    const res = await api.post(`/actions/exploration/claim/${actionId}`);
+    setReport(res.data);
+    if (res.data.encounter?.fought) setBattleModalOpen(true);
+    await fetchActions();
+    await syncCharacter();
+    await refreshTutorial();
+  } catch (err: any) { alert(err.response?.data?.error ?? "Błąd"); }
+  finally { setClaiming(false); }
+}
 
   function handleSaveReport() {
     if (!report) return;

@@ -225,7 +225,6 @@ export async function claimExploration(userId: number, actionId: number) {
     const { summary, droppedItem: tutorialDrop } = await resolveTutorialEncounter(character.id);
 
     messages.push(summary);
-    messages.push(TUTORIAL_MESSAGES.STUDY_UNLOCKED);
 
     if (tutorialDrop) droppedItem = tutorialDrop;
 

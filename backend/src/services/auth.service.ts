@@ -1,68 +1,71 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import prisma from "../lib/prisma.js";
+import { TUTORIAL_STEPS } from "./tutorial/tutorial.constants.js";
+
 
 const JWT_SECRET = process.env.JWT_SECRET!;
 const SALT_ROUNDS = 10;
 
-// ── REJESTRACJA ──────────────────────────────────────
-export async function registerUser(
-  username: string,
-  email: string,
-  password: string
-) {
-  // Sprawdź czy użytkownik już istnieje
+export async function registerUser(username: string, email: string, password: string) {
   const existing = await prisma.user.findFirst({
     where: { OR: [{ email }, { username }] },
   });
-
   if (existing) {
     throw new Error(
-      existing.email === email
-        ? "Email jest już zajęty"
-        : "Nazwa użytkownika jest już zajęta"
+      existing.email === email ? "Email jest już zajęty" : "Nazwa użytkownika jest już zajęta"
     );
   }
 
-  // Zaszyfruj hasło
   const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
 
-  // Stwórz użytkownika + postać + wieżę w jednej transakcji
+  // Krok 1: stwórz usera z postacią i wieżą
   const user = await prisma.user.create({
     data: {
       username,
       email,
       passwordHash,
-character: {
-  create: {
-    name: username,
-    studyActions: 30,
-    explorationActions: 15,
-    powerShards: 1,
-    equipment: {
-      create: {}
-    },
-    tower: {
-      create: {
-        level: 1,
-        buildings: {
-          create: [
-            { buildingType: "power_collector", level: 0 },
-            { buildingType: "library", level: 0 }, 
-            { buildingType: "chaos_vault", level: 1 },
-         ],
+      character: {
+        create: {
+          name: username,
+          studyActions: 30,
+          explorationActions: 15,
+          powerShards: 1,
+          equipment: { create: {} },
+          tower: {
+            create: {
+              level: 1,
+              buildings: {
+                create: [
+                  { buildingType: "power_collector", level: 0 },
+                  { buildingType: "library",         level: 0 },
+                  { buildingType: "chaos_vault",     level: 1 },
+                ],
+              },
+            },
+          },
         },
       },
     },
-  },
-},
-    },
+    include: { character: true }, // potrzebujemy character.id
   });
 
-  const token = jwt.sign({ userId: user.id }, JWT_SECRET, {
-    expiresIn: "7d",
+  const characterId = user.character!.id;
+
+  // Krok 2: inicjalizuj tutorial i zadania naprawcze
+  await prisma.characterTutorial.create({
+    data: { characterId, step: TUTORIAL_STEPS.INTRO },
   });
 
+  await prisma.homeRepairTask.createMany({
+    data: [
+      { characterId, taskCode: "FOUNDATIONS", status: "locked" },
+      { characterId, taskCode: "WALLS",       status: "locked" },
+      { characterId, taskCode: "FURNITURE",   status: "locked" },
+    ],
+  });
+
+  const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: "7d" });
   return { token, username: user.username };
 }
 
