@@ -45,6 +45,18 @@ const STAT_ICONS: Record<string, string> = {
   bloodMagic:     "🩸",
 };
 
+const STAT_DESCRIPTIONS: Record<string, string> = {
+  knowledge:      "Czarodziej musi być światowy! Twoja wiedza decyduje przede wszystkim o tym, jak bardzo będziesz w stanie rozbudować swoją wieżę. Wpływa też na zrozumienie działania odnajdywanych artefaktów.",
+  intelligence:   "Czarodziej musi być bystry! Nie osiągniesz w magicznym świecie niczego, jeśli nie będziesz rozwijać swojej inteligencji. Wpływa ona przede wszystkim na szanse wyczarowania czegokolwiek, ale także na możliwości stworzenia bardziej skomplikowanych struktur w Twojej wieży i na możliwość korzystania z niektórych artefaktów.",
+  power:          "Czarodziej musi być potężny! Co z tego, że wiesz, jak wyczarować deszcz, jeśli z chmurki kapnie co najwyżej kilka kropel? Twoja moc ma wpływ na obrażenia i efekty wywoływane przez wszystkie Twoje czary. Potężniejsze artefakty również wymagają posiadania potężnej mocy.",
+  endurance:      "Czarodziej musi być twardy! Aby naprawdę udowodnić swoją wartość, musi umieć wytrwać w boju. Wytrzymałość określa, ile Punktów Życia ma Twoja postać (1 pkt wytrzymałości = 5 pkt życia).",
+  resistance:     "Czarodziej musi być odporny! Skoro wszyscy potrafią posługiwać się magią, nigdy nie wiesz, czy akurat ktoś nie spróbuje potraktować Cię szczególnie okrutną klątwą. Odporność zmniejsza otrzymywane obrażenia z dowolnego źródła magii (1 pkt = 1% otrzymywanych obrażeń mniej).",
+  initiative:     "Czarodziej musi być szybki! Milisekundy mogą decydować o tym, czy Ty porazisz piorunem kogoś, czy ktoś porazi piorunem Ciebie. Inicjatywa określa, kto jako pierwszy wykona swój ruch w walce.",
+  elementalMagic: "Ogień, woda, ziemia i powietrze to fundamenty magicznego świata. Rozwijając magię żywiołów zwiększasz swoją kontrolę nad siłami natury oraz nad wszystkimi ich pochodnymi formami — lodem, piorunami, lawą, burzami, czy parą. Statystyka ta wpływa przede wszystkim na skuteczność oraz siłę czarów opartych na żywiołach, a także na możliwość korzystania z bardziej zaawansowanych zaklęć żywiołów i związanych z nimi artefaktów.",
+  astralMagic:    "Nie każda magia niszczy ciało. Niektóre czary potrafią wpływać na sam umysł i rzeczywistość. Magia astralna odpowiada za zdolności manipulowania energią astralną: wzmacniające aury i wszystkie te rzeczy, o których mogą marzyć młodzi magicy — kontrolę nad umysłem, teleportację, lewitację, iluzje, nawet zakrzywianie przestrzeni. Rozwijanie tej statystyki zwiększa skuteczność czarów wspierających i kontroli, a także pozwala korzystać z coraz bardziej złożonych technik astralnych i mistycznych artefaktów.",
+  bloodMagic:     "Życie i śmierć są ze sobą nierozerwalnie związane, a magia krwi pozwala czerpać moc z obu tych sił. Dzięki niej możliwe jest leczenie ran, wysysanie energii życiowej, nakładanie klątw, przyzywanie istot oraz manipulowanie esencją życia. Statystyka ta wpływa na skuteczność zaklęć związanych z regeneracją, drenażem życia i przyzywaniem, a także umożliwia korzystanie z coraz bardziej niebezpiecznych rytuałów oraz artefaktów powiązanych z krwią i duszami.",
+};
+
 function upgradeCostForLevel(level: number): number {
   return Math.floor(level / 20) + 1;
 }
@@ -87,9 +99,10 @@ export default function Training() {
   const [costs, setCosts] = useState<CostsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-
-  // Lokalny stan: delta per statystykę (ile chcemy dodać, zanim zatwierdzimy)
   const [pending, setPending] = useState<Record<string, number>>({});
+
+  // ── TOOLTIP — stan wewnątrz komponentu ──────────────────────────────────
+  const [tooltip, setTooltip] = useState<{ stat: string; x: number; y: number } | null>(null);
 
   async function fetchCosts() {
     try {
@@ -104,7 +117,6 @@ export default function Training() {
 
   useEffect(() => { fetchCosts(); }, []);
 
-  // Oblicz łączny koszt wszystkich pending zmian
   function totalPendingCost(): number {
     if (!costs) return 0;
     let total = 0;
@@ -118,7 +130,6 @@ export default function Training() {
     return total;
   }
 
-  // Dostępne punkty po odjęciu pending
   const remainingPoints = (costs?.skillPoints ?? 0) - totalPendingCost();
 
   function canIncrement(stat: string): boolean {
@@ -155,7 +166,6 @@ export default function Training() {
     if (!costs || Object.keys(pending).length === 0) return;
     setSaving(true);
     try {
-      // Wysyłamy każde ulepszenie po kolei
       for (const [stat, delta] of Object.entries(pending)) {
         for (let i = 0; i < delta; i++) {
           await api.post("/character/upgrade", { stat });
@@ -226,20 +236,27 @@ export default function Training() {
               return (
                 <div
                   key={cost.stat}
+onMouseMove={e => {
+  const tooltipWidth = 280;
+  const margin = 12;
+  const x = e.clientX + tooltipWidth + margin > window.innerWidth
+    ? e.clientX - tooltipWidth - margin
+    : e.clientX + margin;
+  setTooltip({ stat: cost.stat, x, y: e.clientY + 16 });
+}}
+onMouseLeave={() => setTooltip(null)}
                   style={{
                     display: "flex", alignItems: "center", gap: 12,
                     padding: "10px 12px",
                     background: delta > 0 ? "rgba(89,212,208,0.07)" : "rgba(0,0,0,0.15)",
                     borderRadius: 8,
+                    position: "relative",
                     border: delta > 0 ? "1px solid rgba(89,212,208,0.2)" : "1px solid transparent",
                     transition: "all 0.15s",
                   }}
                 >
-                  {/* Ikona + nazwa */}
                   <span style={{ fontSize: 16, width: 22, textAlign: "center", flexShrink: 0 }}>{icon}</span>
-                  <span style={{ fontSize: 13, color: "rgba(247,240,221,0.8)", flex: 1 }}>{label}</span>
-
-                  {/* Kontrolka */}
+<span className="stat-label-span" style={{ fontSize: 13, color: "rgba(247,240,221,0.8)", flex: 1 }}>{label}</span>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <button
                       onClick={() => decrement(cost.stat)}
@@ -257,7 +274,6 @@ export default function Training() {
                       −
                     </button>
 
-                    {/* Wartość */}
                     <div style={{ minWidth: 52, textAlign: "center" }}>
                       <span style={{ fontSize: 16, fontWeight: 700, color: "#F7F0DD" }}>
                         {cost.currentLevel}
@@ -289,7 +305,6 @@ export default function Training() {
                     </button>
                   </div>
 
-                  {/* Koszt następnego ulepszenia */}
                   <span style={{
                     fontSize: 10, color: "rgba(247,240,221,0.3)",
                     minWidth: 52, textAlign: "right", fontFamily: "Cinzel, serif",
@@ -371,6 +386,31 @@ export default function Training() {
         </Panel>
 
       </div>
+
+      {/* ── TOOLTIP — position:fixed, renderuje się nad wszystkim ── */}
+      {tooltip && (
+        <div
+          style={{
+            position: "fixed",
+            top: tooltip.y,
+            left: tooltip.x + 16,
+            zIndex: 9999,
+            width: 280,
+            background: "#161d38",
+            color: "#F7F0DD",
+            fontSize: 12,
+            lineHeight: 1.6,
+            fontFamily: "Inter, sans-serif",
+            padding: "12px 14px",
+            borderRadius: 8,
+            border: "1px solid rgba(245,196,81,0.3)",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+            pointerEvents: "none",
+          }}
+        >
+          {STAT_DESCRIPTIONS[tooltip.stat]}
+        </div>
+      )}
     </div>
   );
 }

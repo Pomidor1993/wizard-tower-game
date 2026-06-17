@@ -276,11 +276,18 @@ export async function getActiveActions(userId: number) {
     orderBy: { startedAt: "desc" },
   });
 
+  const tower = await prisma.tower.findUnique({
+  where: { characterId: character.id },
+  select: { level: true },
+});
+
+
   return {
     studyActionsAvailable: newStudyActions,
     studyActionsMax: STUDY_ACTION_MAX,
     explorationActionsAvailable: newExplorationActions,
     explorationActionsMax: EXPLORATION_MAX,
     activeActions,
+    towerLevel: tower?.level ?? 0,
   };
 }

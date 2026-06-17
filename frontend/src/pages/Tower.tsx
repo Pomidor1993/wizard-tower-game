@@ -1,9 +1,44 @@
 import { useEffect, useState, useCallback } from "react";
 import api from "../api/client";
+import { useCharacter } from "../contexts/CharacterContext";
 
-function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+// ── PALETA ───────────────────────────────────────────────────────────────────
+const C = {
+  bg:        "#161d38",
+  panel:     "#372b5d",
+  panelAlt:  "rgba(0,0,0,0.15)",
+  border:    "rgba(245,196,81,0.12)",
+  borderSoft:"rgba(247,240,221,0.08)",
+  gold:      "#F5C451",
+  teal:      "#59D4D0",
+  red:       "#F46A4E",
+  green:     "#7FCB7F",
+  text:      "#F7F0DD",
+  textDim:   "rgba(247,240,221,0.55)",
+  textFaint: "rgba(247,240,221,0.35)",
+  textGhost: "rgba(247,240,221,0.2)",
+};
+
+// ── ELEMENT CONFIG (Altair) ───────────────────────────────────────────────────
+const ELEMENT_LABELS: Record<string, { label: string; icon: string; color: string }> = {
+  fire:    { label: "Ogień",     icon: "🔥", color: "#F46A4E" },
+  water:   { label: "Woda",      icon: "💧", color: "#59D4D0" },
+  earth:   { label: "Ziemia",    icon: "🌿", color: "#8BAA5C" },
+  air:     { label: "Powietrze", icon: "🌪",  color: "#C9D6E8" },
+  chaos:   { label: "Chaos",     icon: "🌀", color: "#B681E0" },
+  harmony: { label: "Harmonia",  icon: "☯",  color: "#F5C451" },
+  life:    { label: "Życie",     icon: "✨", color: "#7FCB7F" },
+  death:   { label: "Śmierć",   icon: "💀", color: "#9C9CB0" },
+};
+
+// ── SHARED COMPONENTS ─────────────────────────────────────────────────────────
+
+function Panel({ children, style = {} }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
-    <div className={`bg-white rounded-xl border border-gray-200 p-5 ${className}`}>
+    <div style={{
+      background: C.panel, borderRadius: 12,
+      border: `1px solid ${C.border}`, padding: 20, ...style,
+    }}>
       {children}
     </div>
   );
@@ -11,44 +46,73 @@ function Card({ children, className = "" }: { children: React.ReactNode; classNa
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">
+    <p style={{
+      fontFamily: "Cinzel, serif", fontSize: 11, color: C.gold,
+      letterSpacing: "0.1em", textTransform: "uppercase", margin: "20px 0 10px",
+    }}>
       {children}
-    </h3>
+    </p>
   );
 }
 
-function BuildingPlaceholder({ title }: { title: string }) {
+function InfoRow({ label, value, warn }: { label: string; value: React.ReactNode; warn?: boolean }) {
   return (
-    <div className="flex items-center justify-center h-full min-h-[120px] border-2 border-dashed border-gray-100 rounded-lg bg-gray-50">
-      <p className="text-gray-300 text-xs text-center px-2">{title}</p>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "3px 0" }}>
+      <span style={{ fontSize: 11, color: C.textFaint, minWidth: 88, flexShrink: 0 }}>{label}</span>
+      <span style={{ fontSize: 12, fontWeight: 600, color: warn ? C.red : C.textDim }}>{value}</span>
     </div>
   );
 }
 
+// ── TIMER ─────────────────────────────────────────────────────────────────────
+
 function Timer({ finishesAt, onDone }: { finishesAt: string; onDone: () => void }) {
   const [timeLeft, setTimeLeft] = useState("");
-
   useEffect(() => {
     const interval = setInterval(() => {
       const diff = new Date(finishesAt).getTime() - Date.now();
-      if (diff <= 0) {
-        setTimeLeft("Gotowe!");
-        clearInterval(interval);
-        setTimeout(onDone, 500);
-      } else {
-        const m = Math.floor(diff / 60000);
-        const s = Math.floor((diff % 60000) / 1000);
-        setTimeLeft(`${m}:${s.toString().padStart(2, "0")}`);
-      }
+      if (diff <= 0) { setTimeLeft("Gotowe!"); clearInterval(interval); setTimeout(onDone, 500); }
+      else { const m = Math.floor(diff / 60000); const s = Math.floor((diff % 60000) / 1000); setTimeLeft(`${m}:${s.toString().padStart(2, "0")}`); }
     }, 1000);
     return () => clearInterval(interval);
   }, [finishesAt, onDone]);
-
-  return <span className="font-mono font-semibold text-gray-900">{timeLeft}</span>;
+  return <span style={{ fontFamily: "Cinzel, serif", fontWeight: 700, color: C.gold, fontSize: 15 }}>{timeLeft}</span>;
 }
 
-interface BuildingCardProps {
-  title: string;
+// ── ACTION BUTTON ─────────────────────────────────────────────────────────────
+
+function ActionButton({
+  label, onClick, disabled = false, variant = "primary",
+}: {
+  label: string; onClick: () => void; disabled?: boolean; variant?: "primary" | "success" | "danger";
+}) {
+  const bg =
+    disabled ? "rgba(245,196,81,0.12)" :
+    variant === "success" ? C.green :
+    variant === "danger"  ? C.red :
+    C.gold;
+  const color = disabled ? C.textGhost : C.bg;
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        padding: "9px 18px", borderRadius: 8, border: "none",
+        fontSize: 12, fontWeight: 700, fontFamily: "Cinzel, serif",
+        letterSpacing: "0.05em", cursor: disabled ? "not-allowed" : "pointer",
+        background: bg, color,
+        transition: "all 0.2s", width: "100%",
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+// ── BUILDING CARD ─────────────────────────────────────────────────────────────
+
+interface BuildingData {
   level: number;
   isUpgrading: boolean;
   upgradeFinishesAt: string | null;
@@ -59,183 +123,252 @@ interface BuildingCardProps {
   requiredTowerLevel: number;
   unmetReqs: string[];
   upgradeReqs: Record<string, any>;
-  description: string;
-  effectLabel: string;
-  placeholderLabel: string;
-  onStartUpgrade: () => Promise<void>;
-  onClaimUpgrade: () => Promise<void>;
 }
 
 function BuildingCard({
-  title,
-  level,
-  isUpgrading,
-  upgradeFinishesAt,
-  canUpgrade,
-  atMaxLevel,
-  maxLevel,
-  towerLevelMet,
-  requiredTowerLevel,
-  unmetReqs,
-  upgradeReqs,
-  description,
-  effectLabel,
-  placeholderLabel,
-  onStartUpgrade,
-  onClaimUpgrade,
-}: BuildingCardProps) {
+  title, icon, description, effectLabel, data, onStart, onClaim, children,
+}: {
+  title: string;
+  icon: string;
+  description: string;
+  effectLabel?: string;
+  data: BuildingData;
+  onStart: () => Promise<void>;
+  onClaim: () => Promise<void>;
+  children?: React.ReactNode;
+}) {
   const [loading, setLoading] = useState(false);
+  const { level, isUpgrading, upgradeFinishesAt, canUpgrade, atMaxLevel, towerLevelMet, requiredTowerLevel, unmetReqs, upgradeReqs, maxLevel } = data;
 
   const isReady = isUpgrading && upgradeFinishesAt && new Date() >= new Date(upgradeFinishesAt);
-  const nextLevel = level + 1;
-
   const durationMin = upgradeReqs.durationSeconds ? Math.round(upgradeReqs.durationSeconds / 60) : null;
-  const costShards = upgradeReqs.costShards ?? 0;
-  const costGold = upgradeReqs.costGold ?? 0;
-  const reqKnowledge = upgradeReqs.reqKnowledge ?? upgradeReqs.knowledge ?? 0;
-  const reqIntelligence = upgradeReqs.reqIntelligence ?? upgradeReqs.intelligence ?? 0;
-  const reqPower = upgradeReqs.reqPower ?? 0;
-  const reqFire = upgradeReqs.reqFire ?? 0;
-
-  function isMet(keyword: string): boolean {
-    return !unmetReqs.some(r => r.toLowerCase().includes(keyword.toLowerCase()));
-  }
 
   async function handleStart() {
-    if (!canUpgrade) return;
     setLoading(true);
-    try { await onStartUpgrade(); }
-    finally { setLoading(false); }
+    try { await onStart(); } finally { setLoading(false); }
   }
-
   async function handleClaim() {
     setLoading(true);
-    try { await onClaimUpgrade(); }
-    finally { setLoading(false); }
+    try { await onClaim(); } finally { setLoading(false); }
   }
 
   return (
-    <Card>
-      <div className="grid grid-cols-[1fr_140px] gap-4">
-        <div className="space-y-3">
-
-          <div>
-            <p className="font-semibold text-gray-900">{title}</p>
-            <p className="text-xs text-gray-400 mt-0.5">Poziom {level}</p>
+    <Panel>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 14 }}>
+        <div style={{
+          width: 44, height: 44, borderRadius: 10, flexShrink: 0,
+          background: "rgba(0,0,0,0.25)", border: `1px solid ${C.borderSoft}`,
+          display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22,
+        }}>
+          {icon}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <p style={{ fontFamily: "Cinzel, serif", fontSize: 14, fontWeight: 700, color: C.text, margin: 0 }}>{title}</p>
+            <span style={{
+              fontSize: 10, padding: "2px 8px", borderRadius: 6,
+              background: level > 0 ? "rgba(89,212,208,0.12)" : C.panelAlt,
+              color: level > 0 ? C.teal : C.textFaint,
+              fontFamily: "Cinzel, serif", fontWeight: 700,
+            }}>
+              {level > 0 ? `Poziom ${level}${maxLevel ? `/${maxLevel}` : ""}` : "Niewybudowany"}
+            </span>
           </div>
+          <p style={{ fontSize: 12, color: C.textDim, margin: "4px 0 0", lineHeight: 1.5 }}>{description}</p>
+        </div>
+      </div>
 
-          <div className="p-2.5 bg-gray-50 rounded-lg">
-            <p className="text-xs text-gray-500 font-medium mb-0.5">Opis</p>
-            <p className="text-xs text-gray-700">{description}</p>
+      {effectLabel && (
+        <div style={{
+          padding: "8px 12px", borderRadius: 8, marginBottom: 14,
+          background: C.panelAlt, border: `1px solid ${C.borderSoft}`,
+        }}>
+          <span style={{ fontSize: 11, color: C.textFaint }}>Efekt: </span>
+          <span style={{ fontSize: 12, fontWeight: 600, color: C.teal }}>{effectLabel}</span>
+        </div>
+      )}
+
+      {children}
+
+      {!towerLevelMet ? (
+        <div style={{ padding: "8px 12px", borderRadius: 8, background: "rgba(244,106,78,0.08)", border: "1px solid rgba(244,106,78,0.2)" }}>
+          <p style={{ fontSize: 11, color: C.red, margin: 0 }}>🔒 Dostępne od poziomu {requiredTowerLevel} wieży</p>
+        </div>
+      ) : isUpgrading ? (
+        isReady ? (
+          <ActionButton label={loading ? "..." : "Odbierz rozbudowę ✓"} onClick={handleClaim} variant="success" disabled={loading} />
+        ) : (
+          <div style={{
+            padding: "12px 16px", borderRadius: 8,
+            background: "rgba(89,212,208,0.06)", border: "1px solid rgba(89,212,208,0.2)",
+            display: "flex", justifyContent: "space-between", alignItems: "center",
+          }}>
+            <p style={{ fontSize: 12, color: C.teal, margin: 0 }}>Trwa rozbudowa do poziomu {level + 1}...</p>
+            {upgradeFinishesAt && <Timer finishesAt={upgradeFinishesAt} onDone={handleClaim} />}
           </div>
-
-          {!towerLevelMet ? (
-            <p className="text-xs text-gray-400 italic">
-              Dostępne od poziomu {requiredTowerLevel} wieży
-            </p>
-          ) : isUpgrading ? (
-            isReady ? (
-              <button
-                onClick={handleClaim}
-                disabled={loading}
-                className="w-full text-xs px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 transition-colors"
-              >
-                {loading ? "..." : "Odbierz rozbudowę ✓"}
-              </button>
-            ) : (
-              <div className="p-3 border border-gray-100 rounded-lg">
-                <p className="text-xs text-gray-400 mb-1">Trwa rozbudowa do poziomu {nextLevel}...</p>
-                {upgradeFinishesAt && <Timer finishesAt={upgradeFinishesAt} onDone={handleClaim} />}
-              </div>
-            )
-          ) : atMaxLevel ? (
-            <p className="text-xs text-gray-400 italic">
-              Budynek osiągnął maksymalny poziom ({maxLevel})
-            </p>
-          ) : (
-            <div className="space-y-2">
-              <button
-                onClick={handleStart}
-                disabled={loading || !canUpgrade}
-                className={`w-full text-left text-xs font-medium px-3 py-2 rounded-lg border transition-colors ${
-                  !canUpgrade
-                    ? "border-red-100 text-red-400 bg-red-50 cursor-not-allowed"
-                    : "border-gray-200 text-gray-700 hover:bg-gray-50 cursor-pointer"
-                }`}
-              >
-                {loading ? "..." : `Rozbudowa do poziomu ${nextLevel}`}
-              </button>
-
-              {(costShards > 0 || costGold > 0) && (
-                <div className="flex items-center gap-2 px-1">
-                  <span className="text-xs text-gray-400 w-20 shrink-0">Koszt:</span>
-                  <span className="text-xs font-medium flex flex-wrap gap-x-3">
-                    {costShards > 0 && (
-                      <span className={isMet("okruchy") ? "text-gray-700" : "text-red-500"}>
-                        {costShards} okruchów mocy
-                      </span>
-                    )}
-                    {costGold > 0 && (
-                      <span className={isMet("złoto") ? "text-gray-700" : "text-red-500"}>
-                        {costGold} złota
-                      </span>
-                    )}
-                  </span>
-                </div>
-              )}
-
-              {(reqKnowledge > 0 || reqIntelligence > 0 || reqPower > 0 || reqFire > 0) && (
-                <div className="flex items-start gap-2 px-1">
-                  <span className="text-xs text-gray-400 w-20 shrink-0 pt-0.5">Wymagania:</span>
-                  <span className="text-xs font-medium flex flex-wrap gap-x-3 gap-y-0.5">
-                    {reqKnowledge > 0 && (
-                      <span className={isMet("wiedza") ? "text-gray-700" : "text-red-500"}>
-                        Wiedza {reqKnowledge}
-                      </span>
-                    )}
-                    {reqIntelligence > 0 && (
-                      <span className={isMet("inteligencja") ? "text-gray-700" : "text-red-500"}>
-                        Inteligencja {reqIntelligence}
-                      </span>
-                    )}
-                    {reqPower > 0 && (
-                      <span className={isMet("moc") ? "text-gray-700" : "text-red-500"}>
-                        Moc {reqPower}
-                      </span>
-                    )}
-                    {reqFire > 0 && (
-                      <span className={isMet("ognia") ? "text-gray-700" : "text-red-500"}>
-                        Żywioł ognia {reqFire}
-                      </span>
-                    )}
-                  </span>
-                </div>
-              )}
-
-              {durationMin !== null && (
-                <div className="flex items-center gap-2 px-1">
-                  <span className="text-xs text-gray-400 w-20 shrink-0">Czas budowy:</span>
-                  <span className="text-xs font-medium text-gray-700">{durationMin} min</span>
-                </div>
-              )}
-
-              {effectLabel && (
-                <div className="flex items-center gap-2 px-1">
-                  <span className="text-xs text-gray-400 w-20 shrink-0">Efekt:</span>
-                  <span className="text-xs font-medium text-gray-700">{effectLabel}</span>
-                </div>
-              )}
+        )
+      ) : atMaxLevel ? (
+        <p style={{ fontSize: 11, color: C.textFaint, fontStyle: "italic", margin: 0 }}>
+          Budynek osiągnął maksymalny poziom ({maxLevel})
+        </p>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {unmetReqs.length > 0 && (
+            <div style={{ padding: "8px 12px", borderRadius: 8, background: "rgba(244,106,78,0.06)", border: "1px solid rgba(244,106,78,0.15)" }}>
+              {unmetReqs.map((r, i) => (
+                <p key={i} style={{ fontSize: 11, color: C.red, margin: 0 }}>✕ {r}</p>
+              ))}
             </div>
           )}
-        </div>
+<div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+            {upgradeReqs.costShards > 0 && (
+              <InfoRow
+                label="Koszt"
+                value={`${upgradeReqs.costShards} okruchów mocy`}
+                warn={unmetReqs.some(r => r.includes("kruch"))}
+              />
+            )}
+            {(() => {
+              const reqs = [
+                upgradeReqs.reqKnowledge > 0 && { label: "Wiedza", val: upgradeReqs.reqKnowledge, warn: unmetReqs.some(r => r.toLowerCase().includes("wiedza")) },
+                upgradeReqs.reqIntelligence > 0 && { label: "Int.", val: upgradeReqs.reqIntelligence, warn: unmetReqs.some(r => r.toLowerCase().includes("intelig")) },
+                upgradeReqs.reqPower > 0 && { label: "Moc", val: upgradeReqs.reqPower, warn: unmetReqs.some(r => r.toLowerCase().includes("moc")) },
+              ].filter(Boolean) as { label: string; val: number; warn: boolean }[];
 
-        <BuildingPlaceholder title={placeholderLabel} />
-      </div>
-    </Card>
+              if (reqs.length === 0) return null;
+              return (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "3px 0" }}>
+                  <span style={{ fontSize: 11, color: C.textFaint, minWidth: 88, flexShrink: 0 }}>Wymagania</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                    {reqs.map(r => (
+                      <span key={r.label} style={{ color: r.warn ? C.red : C.textDim }}>
+                        {r.label} {r.val}
+                      </span>
+                    ))}
+                  </span>
+                </div>
+              );
+            })()}
+            {durationMin !== null && (
+              <InfoRow label="Czas budowy" value={`${durationMin} min`} />
+            )}
+          </div>
+
+          <ActionButton
+            label={loading ? "..." : `Rozbuduj do poziomu ${level + 1}`}
+            onClick={handleStart}
+            disabled={loading || !canUpgrade}
+          />
+        </div>
+      )}
+    </Panel>
   );
 }
 
-export default function TowerView({ onResourcesUpdated }: { onResourcesUpdated?: () => void }) {
+// ── ALTAIR CARD ───────────────────────────────────────────────────────────────
+
+const ALTAIR_PAIRS: [string, string][] = [
+  ["water", "fire"],
+  ["earth", "air"],
+  ["chaos", "harmony"],
+  ["life",  "death"],
+];
+
+function AltairCard({
+  data, onStart, onClaim, onRefresh,
+}: {
+  data: BuildingData & { unlockedPairs?: number; pairs?: [string, string][]; selections?: (string | null)[] };
+  onStart: () => Promise<void>;
+  onClaim: () => Promise<void>;
+  onRefresh: () => void;
+}) {
+  const [selecting, setSelecting] = useState(false);
+  const unlockedPairs = data.unlockedPairs ?? 0;
+  const selections: (string | null)[] = data.selections ?? ALTAIR_PAIRS.map(() => null);
+
+  async function handleSelectElement(pairIndex: number, element: string) {
+    setSelecting(true);
+    try {
+      await api.post("/tower/altair/select-element", { pairIndex, element });
+      onRefresh();
+    } catch (err: any) {
+      alert(err.response?.data?.error ?? "Błąd wyboru żywiołu");
+    } finally {
+      setSelecting(false);
+    }
+  }
+
+  const pairUI = data.level > 0 && (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
+      {ALTAIR_PAIRS.map((pair, i) => {
+        const unlocked = i < unlockedPairs;
+        const selected = selections[i];
+        return (
+          <div
+            key={i}
+            style={{
+              padding: "10px 14px", borderRadius: 10,
+              background: unlocked ? "rgba(0,0,0,0.2)" : "rgba(0,0,0,0.1)",
+              border: `1px solid ${unlocked ? C.borderSoft : "rgba(247,240,221,0.04)"}`,
+              opacity: unlocked ? 1 : 0.45,
+            }}
+          >
+            <p style={{ fontSize: 10, color: C.textFaint, fontFamily: "Cinzel, serif", letterSpacing: "0.06em", textTransform: "uppercase", margin: "0 0 8px" }}>
+              {unlocked ? `Para ${i + 1}` : `🔒 Odblokowuje się na poziomie ${i * 10 + 1} Altaira`}
+            </p>
+            <div style={{ display: "flex", gap: 8 }}>
+              {pair.map(element => {
+                const cfg = ELEMENT_LABELS[element];
+                const isSelected = selected === element;
+                return (
+                  <button
+                    key={element}
+                    onClick={() => unlocked && !selecting && handleSelectElement(i, element)}
+                    disabled={!unlocked || selecting}
+                    style={{
+                      flex: 1, padding: "8px 6px", borderRadius: 8,
+                      border: `1px solid ${isSelected ? cfg.color : C.borderSoft}`,
+                      background: isSelected ? `${cfg.color}22` : "rgba(0,0,0,0.2)",
+                      color: isSelected ? cfg.color : C.textDim,
+                      fontSize: 12, fontWeight: isSelected ? 700 : 400,
+                      cursor: unlocked ? "pointer" : "not-allowed",
+                      display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
+                      transition: "all 0.15s",
+                    }}
+                  >
+                    <span style={{ fontSize: 16 }}>{cfg.icon}</span>
+                    <span style={{ fontSize: 10, fontFamily: "Cinzel, serif" }}>{cfg.label}</span>
+                    {isSelected && <span style={{ fontSize: 9, color: cfg.color }}>▲ +2% obrażeń</span>}
+                    {!isSelected && selected && selected !== element && <span style={{ fontSize: 9, color: C.textGhost }}>▼ −1% obrażeń</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  return (
+    <BuildingCard
+      title="Altair"
+      icon="⚗️"
+      description="Mistyczna instalacja wzmacniająca wybrany żywioł kosztem osłabienia jego przeciwieństwa. Każda para żywiołów odblokowuje się co 10 poziomów."
+      effectLabel={data.level > 0 ? `${unlockedPairs} para/y żywiołów aktywna` : "+2% do wybranego żywiołu, −1% do przeciwnego"}
+      data={data}
+      onStart={onStart}
+      onClaim={onClaim}
+    >
+      {pairUI}
+    </BuildingCard>
+  );
+}
+
+// ── GŁÓWNY KOMPONENT ──────────────────────────────────────────────────────────
+
+export default function TowerView() {
+  const { refresh: refreshCharacter } = useCharacter();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -243,241 +376,233 @@ export default function TowerView({ onResourcesUpdated }: { onResourcesUpdated?:
     try {
       const res = await api.get("/tower");
       setData(res.data);
-      onResourcesUpdated?.();
+      await refreshCharacter();
     } catch (err: any) {
       alert(err.response?.data?.error ?? "Błąd ładowania wieży");
     } finally {
       setLoading(false);
     }
-  }, [onResourcesUpdated]);
+  }, [refreshCharacter]);
 
   useEffect(() => { fetchTower(); }, [fetchTower]);
 
-  const make = (start: string, claim: string) => ({
-    start: async () => { await api.post(start); await fetchTower(); },
-    claim: async () => { await api.post(claim); await fetchTower(); },
-  });
+  function make(start: string, claim: string) {
+    return {
+      start: async () => { await api.post(start); await fetchTower(); },
+      claim: async () => { await api.post(claim); await fetchTower(); },
+    };
+  }
 
-  const actions = {
-    tower:          make("/tower/upgrade/start",         "/tower/upgrade/claim"),
-    powerCollector: make("/tower/power-collector/start", "/tower/power-collector/claim"),
-    storage:        make("/tower/storage/start",         "/tower/storage/claim"),
-    library:        make("/tower/library/start",         "/tower/library/claim"),
-    magicHands:     make("/tower/magic-hands/start",     "/tower/magic-hands/claim"),
-    spyOrb:         make("/tower/spy-orb/start",         "/tower/spy-orb/claim"),
-    candles:        make("/tower/candles/start",         "/tower/candles/claim"),
-    chaosVault:     make("/tower/chaos-vault/start",     "/tower/chaos-vault/claim"),
-    disintegrator: make("/tower/disintegrator/start", "/tower/disintegrator/claim"),
-  };
-
-  if (loading) return <p className="text-sm text-gray-400">Ładowanie...</p>;
+  if (loading) return <p style={{ color: C.textFaint, fontSize: 13 }}>Ładowanie...</p>;
   if (!data) return null;
 
   const { tower, buildings, resources } = data;
   const pc = buildings.power_collector;
-  const st = buildings.storage;
   const lb = buildings.library;
   const mh = buildings.magic_hands;
   const so = buildings.spy_orb;
-  const ca = buildings.candles;
+  const al = buildings.Altair;
   const cv = buildings.chaos_vault;
   const di = buildings.disintegrator;
 
+  const acts = {
+    tower:          make("/tower/upgrade/start",         "/tower/upgrade/claim"),
+    powerCollector: make("/tower/power-collector/start", "/tower/power-collector/claim"),
+    library:        make("/tower/library/start",         "/tower/library/claim"),
+    magicHands:     make("/tower/magic-hands/start",     "/tower/magic-hands/claim"),
+    spyOrb:         make("/tower/spy-orb/start",         "/tower/spy-orb/claim"),
+    altair:         make("/tower/altair/start",          "/tower/altair/claim"),
+    chaosVault:     make("/tower/chaos-vault/start",     "/tower/chaos-vault/claim"),
+    disintegrator:  make("/tower/disintegrator/start",   "/tower/disintegrator/claim"),
+  };
+
   return (
-    <div className="space-y-4">
-      <Card>
-        <div className="flex items-center gap-8">
+    <div>
+      <h1 style={{ fontFamily: "Cinzel, serif", color: C.gold, fontSize: 22, marginBottom: 24, letterSpacing: "0.06em" }}>
+        Wieża
+      </h1>
+
+      {/* Zasoby */}
+      <Panel style={{ marginBottom: 4 }}>
+        <div style={{ display: "flex", gap: 32, flexWrap: "wrap" }}>
           <div>
-            <p className="text-xs text-gray-500">Okruchy mocy</p>
-            <p className="text-2xl font-bold text-gray-900">{resources.powerShards}</p>
-            <p className="text-xs text-gray-400">+{resources.productionPerHour}/godz.</p>
+            <p style={{ fontSize: 10, color: C.textFaint, fontFamily: "Cinzel, serif", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px" }}>Okruchy mocy</p>
+            <p style={{ fontSize: 26, fontWeight: 700, color: C.gold, fontFamily: "Cinzel, serif", margin: 0 }}>{resources.powerShards}</p>
+            <p style={{ fontSize: 11, color: C.textFaint, margin: "2px 0 0" }}>+{resources.productionPerHour}/godz.</p>
           </div>
-          <div>
-            <p className="text-xs text-gray-500">Złoto</p>
-            <p className="text-2xl font-bold text-gray-900">{resources.gold}</p>
-            <p className="text-xs text-gray-400">+{resources.goldPerHour}/godz.</p>
+          {resources.gold != null && (
+            <div>
+              <p style={{ fontSize: 10, color: C.textFaint, fontFamily: "Cinzel, serif", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px" }}>Złoto</p>
+              <p style={{ fontSize: 26, fontWeight: 700, color: C.teal, fontFamily: "Cinzel, serif", margin: 0 }}>{resources.gold}</p>
+              {resources.goldPerHour != null && (
+                <p style={{ fontSize: 11, color: C.textFaint, margin: "2px 0 0" }}>+{resources.goldPerHour}/godz.</p>
+              )}
+            </div>
+          )}
+        </div>
+      </Panel>
+
+      {/* ── WIEŻA GŁÓWNA ── */}
+      <SectionTitle>Wieża główna</SectionTitle>
+      <Panel>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 14 }}>
+          <div style={{
+            width: 44, height: 44, borderRadius: 10, flexShrink: 0,
+            background: "rgba(0,0,0,0.25)", border: `1px solid ${C.borderSoft}`,
+            display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22,
+          }}>
+            🗼
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <p style={{ fontFamily: "Cinzel, serif", fontSize: 14, fontWeight: 700, color: C.text, margin: 0 }}>Wieża Magów</p>
+              <span style={{
+                fontSize: 10, padding: "2px 8px", borderRadius: 6,
+                background: "rgba(245,196,81,0.12)", color: C.gold,
+                fontFamily: "Cinzel, serif", fontWeight: 700,
+              }}>
+                Poziom {tower.level}
+              </span>
+            </div>
+            <p style={{ fontSize: 12, color: C.textDim, margin: "4px 0 0", lineHeight: 1.5 }}>
+              Centrum Twojego królestwa magii. Wyższy poziom wieży odblokowuje rozbudowę pozostałych budynków i podnosi prestiż.
+            </p>
           </div>
         </div>
-      </Card>
 
-      <SectionTitle>Wieża główna</SectionTitle>
-      <BuildingCard
-        title="Wieża Magów"
-        level={tower.level}
-        isUpgrading={tower.isUpgrading}
-        upgradeFinishesAt={tower.upgradeFinishesAt}
-        canUpgrade={tower.canUpgrade}
-        atMaxLevel={false}
-        maxLevel={null}
-        towerLevelMet={true}
-        requiredTowerLevel={1}
-        unmetReqs={tower.unmetReqs}
-        upgradeReqs={tower.upgradeReqs}
-        description="Centrum Twojego królestwa magii. Wyższy poziom wieży odblokowuje rozbudowę pozostałych budynków i podnosi prestiż."
-        effectLabel=""
-        placeholderLabel="Grafika wieży"
-        onStartUpgrade={actions.tower.start}
-        onClaimUpgrade={actions.tower.claim}
-      />
+        {tower.unmetReqs?.length > 0 && (
+          <div style={{ padding: "8px 12px", borderRadius: 8, marginBottom: 10, background: "rgba(244,106,78,0.06)", border: "1px solid rgba(244,106,78,0.15)" }}>
+            {tower.unmetReqs.map((r: string, i: number) => (
+              <p key={i} style={{ fontSize: 11, color: C.red, margin: 0 }}>✕ {r}</p>
+            ))}
+          </div>
+        )}
 
+        <div style={{ display: "flex", flexDirection: "column", gap: 3, marginBottom: 12 }}>
+{(() => {
+          const reqs = [
+            tower.upgradeReqs?.knowledge > 0 && { label: "Wiedza", val: tower.upgradeReqs.knowledge, warn: tower.unmetReqs?.some((r: string) => r.toLowerCase().includes("wiedza")) },
+            tower.upgradeReqs?.intelligence > 0 && { label: "Int.", val: tower.upgradeReqs.intelligence, warn: tower.unmetReqs?.some((r: string) => r.toLowerCase().includes("intelig")) },
+          ].filter(Boolean) as { label: string; val: number; warn: boolean }[];
+
+          return reqs.length > 0 ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "3px 0" }}>
+              <span style={{ fontSize: 11, color: C.textFaint, minWidth: 88, flexShrink: 0 }}>Wymagania</span>
+              <span style={{ fontSize: 12, fontWeight: 600, display: "flex", gap: 10 }}>
+                {reqs.map(r => (
+                  <span key={r.label} style={{ color: r.warn ? C.red : C.textDim }}>{r.label} {r.val}</span>
+                ))}
+              </span>
+            </div>
+          ) : null;
+        })()}
+        {tower.upgradeReqs?.durationSeconds > 0 && (
+          <InfoRow label="Czas budowy" value={`${Math.round(tower.upgradeReqs.durationSeconds / 60)} min`} />
+        )}
+        </div>
+
+        {tower.isUpgrading ? (
+          new Date() >= new Date(tower.upgradeFinishesAt) ? (
+            <ActionButton
+              label="Odbierz rozbudowę ✓"
+              onClick={async () => { await acts.tower.claim(); }}
+              variant="success"
+            />
+          ) : (
+            <div style={{
+              padding: "12px 16px", borderRadius: 8,
+              background: "rgba(89,212,208,0.06)", border: "1px solid rgba(89,212,208,0.2)",
+              display: "flex", justifyContent: "space-between", alignItems: "center",
+            }}>
+              <p style={{ fontSize: 12, color: C.teal, margin: 0 }}>Trwa rozbudowa do poziomu {tower.level + 1}...</p>
+              <Timer finishesAt={tower.upgradeFinishesAt} onDone={acts.tower.claim} />
+            </div>
+          )
+        ) : (
+          <ActionButton
+            label={`Rozbuduj do poziomu ${tower.level + 1}`}
+            onClick={acts.tower.start}
+            disabled={!tower.canUpgrade}
+          />
+        )}
+      </Panel>
+
+      {/* ── BUDYNKI ── */}
       <SectionTitle>Budynki</SectionTitle>
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
-      <BuildingCard
-        title="Zbieracz mocy"
-        level={pc.level}
-        isUpgrading={pc.isUpgrading}
-        upgradeFinishesAt={pc.upgradeFinishesAt}
-        canUpgrade={pc.canUpgrade}
-        atMaxLevel={pc.atMaxLevel}
-        maxLevel={pc.maxLevel}
-        towerLevelMet={pc.towerLevelMet}
-        requiredTowerLevel={pc.requiredTowerLevel}
-        unmetReqs={pc.unmetReqs}
-        upgradeReqs={pc.upgradeReqs}
-        description={pc.level > 0
-          ? `Generuje okruchy mocy — ${pc.currentProduction} na godzinę.`
-          : "Pasywnie generuje okruchy mocy. Wymaga wybudowania."}
-        effectLabel={`+${pc.upgradeReqs?.productionAfter ?? 2} okruchów mocy / godz.`}
-        placeholderLabel="Grafika zbieracza"
-        onStartUpgrade={actions.powerCollector.start}
-        onClaimUpgrade={actions.powerCollector.claim}
-      />
+        <BuildingCard
+          title="Zbieracz mocy"
+          icon="⚡"
+          description={pc.level > 0
+            ? `Generuje okruchy mocy — ${pc.currentProduction} na godzinę.`
+            : "Pasywnie generuje okruchy mocy. Wymaga wybudowania."}
+          effectLabel={`+${pc.upgradeReqs?.productionAfter ?? 2} okruchów mocy / godz.`}
+          data={pc}
+          onStart={acts.powerCollector.start}
+          onClaim={acts.powerCollector.claim}
+        />
 
-      <BuildingCard
-        title="Graciarnia"
-        level={st.level}
-        isUpgrading={st.isUpgrading}
-        upgradeFinishesAt={st.upgradeFinishesAt}
-        canUpgrade={st.canUpgrade}
-        atMaxLevel={st.atMaxLevel}
-        maxLevel={st.maxLevel}
-        towerLevelMet={st.towerLevelMet}
-        requiredTowerLevel={st.requiredTowerLevel}
-        unmetReqs={st.unmetReqs}
-        upgradeReqs={st.upgradeReqs}
-        description="Gdzieś trzeba składować te wszystkie magiczne rupiecie."
-        effectLabel="+10 do maksymalnej ilości posiadanych artefaktów"
-        placeholderLabel="Grafika graciarni"
-        onStartUpgrade={actions.storage.start}
-        onClaimUpgrade={actions.storage.claim}
-      />
+        <BuildingCard
+          title="Biblioteka"
+          icon="📚"
+          description="Jeśli nie wiesz, jak coś wyczarować, to jest najlepsze miejsce do poszukiwań."
+          effectLabel="+1 aktywny slot czaru bojowego"
+          data={lb}
+          onStart={acts.library.start}
+          onClaim={acts.library.claim}
+        />
 
-      <BuildingCard
-        title="Biblioteka"
-        level={lb.level}
-        isUpgrading={lb.isUpgrading}
-        upgradeFinishesAt={lb.upgradeFinishesAt}
-        canUpgrade={lb.canUpgrade}
-        atMaxLevel={lb.atMaxLevel}
-        maxLevel={lb.maxLevel}
-        towerLevelMet={lb.towerLevelMet}
-        requiredTowerLevel={lb.requiredTowerLevel}
-        unmetReqs={lb.unmetReqs}
-        upgradeReqs={lb.upgradeReqs}
-        description="Jeśli nie wiesz, jak coś wyczarować, to jest najlepsze miejsce do poszukiwań."
-        effectLabel="+2 do maksymalnej ilości znanych czarów"
-        placeholderLabel="Grafika biblioteki"
-        onStartUpgrade={actions.library.start}
-        onClaimUpgrade={actions.library.claim}
-      />
+        <BuildingCard
+          title="Sztuczne ręce"
+          icon="🦾"
+          description="Prosta ruchoma konstrukcja, która powtarza odpowiednie ruchy, wytwarzając przy tym małe, lśniące grudki złota."
+          effectLabel="Jeszcze nie wiadomo"
+          data={mh}
+          onStart={acts.magicHands.start}
+          onClaim={acts.magicHands.claim}
+        />
 
-      <BuildingCard
-        title="Sztuczne ręce"
-        level={mh.level}
-        isUpgrading={mh.isUpgrading}
-        upgradeFinishesAt={mh.upgradeFinishesAt}
-        canUpgrade={mh.canUpgrade}
-        atMaxLevel={mh.atMaxLevel}
-        maxLevel={mh.maxLevel}
-        towerLevelMet={mh.towerLevelMet}
-        requiredTowerLevel={mh.requiredTowerLevel}
-        unmetReqs={mh.unmetReqs}
-        upgradeReqs={mh.upgradeReqs}
-        description="Prosta ruchoma konstrukcja, która powtarza odpowiednie ruchy, wytwarzając przy tym małe, lśniące grudki złota."
-        effectLabel="+1 złota / godz."
-        placeholderLabel="Grafika sztucznych rąk"
-        onStartUpgrade={actions.magicHands.start}
-        onClaimUpgrade={actions.magicHands.claim}
-      />
+        <BuildingCard
+          title="Kula szpiegula"
+          icon="🔮"
+          description="Interesuje Cię, co się dzieje w magicznym świecie? Wystarczy spojrzeć."
+          effectLabel="Umożliwia wykonanie akcji Podglądanie"
+          data={so}
+          onStart={acts.spyOrb.start}
+          onClaim={acts.spyOrb.claim}
+        />
 
-      <BuildingCard
-        title="Kula szpiegula"
-        level={so.level}
-        isUpgrading={so.isUpgrading}
-        upgradeFinishesAt={so.upgradeFinishesAt}
-        canUpgrade={so.canUpgrade}
-        atMaxLevel={so.atMaxLevel}
-        maxLevel={so.maxLevel}
-        towerLevelMet={so.towerLevelMet}
-        requiredTowerLevel={so.requiredTowerLevel}
-        unmetReqs={so.unmetReqs}
-        upgradeReqs={so.upgradeReqs}
-        description="Interesuje Cię, co się dzieje w magicznym świecie? Wystarczy spojrzeć.."
-        effectLabel="Umożliwia wykonanie akcji Podglądanie"
-        placeholderLabel="Grafika kuli szpieguli"
-        onStartUpgrade={actions.spyOrb.start}
-        onClaimUpgrade={actions.spyOrb.claim}
-      />
+        <AltairCard
+          data={al}
+          onStart={acts.altair.start}
+          onClaim={acts.altair.claim}
+          onRefresh={fetchTower}
+        />
 
-      <BuildingCard
-        title="Świeczki"
-        level={ca.level}
-        isUpgrading={ca.isUpgrading}
-        upgradeFinishesAt={ca.upgradeFinishesAt}
-        canUpgrade={ca.canUpgrade}
-        atMaxLevel={ca.atMaxLevel}
-        maxLevel={ca.maxLevel}
-        towerLevelMet={ca.towerLevelMet}
-        requiredTowerLevel={ca.requiredTowerLevel}
-        unmetReqs={ca.unmetReqs}
-        upgradeReqs={ca.upgradeReqs}
-        description="Każdy szanujący się mag powinien roztaczać wokół siebie odpowiednią aurę. Świeczki powinny w tym pomóc."
-        effectLabel={ca.level > 0
-          ? `+${ca.currentBonus}% szansy na odkrycie czaru podczas studiów`
-          : "+1% szansy na odkrycie czaru za każdy poziom"}
-        placeholderLabel="Grafika świeczek"
-        onStartUpgrade={actions.candles.start}
-        onClaimUpgrade={actions.candles.claim}
-      />
+        <BuildingCard
+          title="Komnata nieładu"
+          icon="🗄️"
+          description="Gdzieś trzeba składować te wszystkie magiczne rupiecie."
+          effectLabel={cv.level > 0
+            ? `Widocznych slotów: ${cv.visibleSlots}`
+            : "+10 widocznych slotów na nadmiarowe przedmioty"}
+          data={cv}
+          onStart={acts.chaosVault.start}
+          onClaim={acts.chaosVault.claim}
+        />
 
-<BuildingCard
-  title="Komnata nieładu"
-  level={cv.level}
-  isUpgrading={cv.isUpgrading}
-  upgradeFinishesAt={cv.upgradeFinishesAt}
-  canUpgrade={cv.canUpgrade}
-  atMaxLevel={cv.atMaxLevel}
-  maxLevel={cv.maxLevel}
-  towerLevelMet={cv.towerLevelMet}
-  requiredTowerLevel={cv.requiredTowerLevel}
-  unmetReqs={cv.unmetReqs}
-  upgradeReqs={cv.upgradeReqs}
-  description="Graciarnia zajęta? Nie ma miejsca w bibliotece? Po prostu wrzuć wszystko tutaj i udawaj, że problemu nie ma!"
-  effectLabel={cv.level > 0
-    ? `Przechowuje nadmiarowe przedmioty i czary. Widocznych slotów: ${cv.visibleSlots}`
-    : "+5 widocznych slotów na nadmiarowe przedmioty i czary"}
-  placeholderLabel="Grafika komnaty"
-  onStartUpgrade={actions.chaosVault.start}
-  onClaimUpgrade={actions.chaosVault.claim}
-/>
-<BuildingCard
-  title="Dezintegrator"
-  level={di.level}
-  isUpgrading={di.isUpgrading}
-  upgradeFinishesAt={di.upgradeFinishesAt}
-  canUpgrade={di.canUpgrade}
-  atMaxLevel={di.atMaxLevel}
-  maxLevel={di.maxLevel}
-  towerLevelMet={di.towerLevelMet}
-  requiredTowerLevel={di.requiredTowerLevel}
-  unmetReqs={di.unmetReqs}
-  upgradeReqs={di.upgradeReqs}
-  description="Nie podoba Ci się jakiś artefakt? Gardzisz jakimś rodzajem magii? Nie krępuj się, wrzuć ustrojstwo tutaj i patrz z satysfakcją jak wyparowuje."
-  effectLabel="Umożliwia wymianę przedmiotów na okruchy mocy"
-  placeholderLabel="Grafika dezintegratora"
-  onStartUpgrade={actions.disintegrator.start}
-  onClaimUpgrade={actions.disintegrator.claim}
-/>
+        <BuildingCard
+          title="Dezintegrator"
+          icon="💥"
+          description="Nie podoba Ci się jakiś artefakt? Gardzisz jakimś rodzajem magii? Nie krępuj się, wrzuć ustrojstwo tutaj i patrz z satysfakcją jak wyparowuje."
+          effectLabel="Umożliwia wymianę przedmiotów na okruchy mocy"
+          data={di}
+          onStart={acts.disintegrator.start}
+          onClaim={acts.disintegrator.claim}
+        />
+
+      </div>
     </div>
   );
 }

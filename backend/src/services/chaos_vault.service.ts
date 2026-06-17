@@ -1,6 +1,6 @@
 import prisma from "../lib/prisma.js";
 
-// ── POJEMNOŚĆ KOMNATY NIEŁADU ────────────────────────
+// ── POJEMNOŚĆ KOMNATY NIEŁADU ─────────────────────────────────────────────────
 // Każdy poziom Komnaty Nieładu daje +10 dostępnych ("widocznych") slotów
 export function getVaultCapacity(buildingLevel: number): number {
   return buildingLevel * 10;
@@ -15,44 +15,45 @@ async function getChaosVaultLevel(characterId: number): Promise<number> {
   return building?.level ?? 0;
 }
 
-// ── DODAJ PRZEDMIOT DO KOMNATY ───────────────────────
-// Wywoływane np. przez exploration/item.service przy znalezieniu przedmiotu
+// ── DODAJ PRZEDMIOT ────────────────────────────────────────────────────────────
+// Tworzy nową instancję (OwnedItem) + wpis w Komnacie Nieładu
 export async function addItemToChaosVault(characterId: number, itemId: number) {
-  return prisma.chaosVaultItem.create({
+  const owned = await prisma.ownedItem.create({
     data: { characterId, itemId },
+  });
+  return prisma.chaosVaultItem.create({
+    data: { ownedItemId: owned.id },
   });
 }
 
-
-// ── WIDOCZNE / SCHOWANE PRZEDMIOTY ───────────────────
-// "Widoczne" = najnowsze `capacity` przedmiotów — tylko te są interaktywne
-// (można je założyć, sprzedać, zniszczyć). Reszta to "nadstan" — niedostępny,
-// dopóki gracz nie rozbuduje Komnaty albo nie zwolni miejsca.
+// ── WIDOCZNE / SCHOWANE PRZEDMIOTY ─────────────────────────────────────────────
+// "Widoczne" = najnowsze `capacity` przedmiotów w Komnacie — tylko te są
+// interaktywne (można je założyć, sprzedać, zniszczyć). Reszta to "nadstan".
 export async function getVisibleChaosVaultItems(characterId: number) {
   const vaultLevel = await getChaosVaultLevel(characterId);
   const capacity = getVaultCapacity(vaultLevel);
 
-  const allItems = await prisma.chaosVaultItem.findMany({
-    where: { characterId, itemId: { not: null } },
-    include: { item: true },
-    orderBy: { addedAt: "asc" },
+  const allEntries = await prisma.chaosVaultItem.findMany({
+    where: { ownedItem: { characterId } },
+    include: { ownedItem: { include: { item: true } } },
+    orderBy: { addedAt: "desc" },
   });
 
   return {
     vaultLevel,
     capacity,
-    total: allItems.length,
-    visible: allItems.slice(0, capacity),
-    hidden: allItems.slice(capacity),
+    total: allEntries.length,
+    visible: allEntries.slice(0, capacity),
+    hidden: allEntries.slice(capacity),
   };
 }
 
-// ── DODAJ PRZEDMIOT + KOMUNIKAT ──────────────────────
+// ── DODAJ PRZEDMIOT + KOMUNIKAT ────────────────────────────────────────────────
 export async function addItemToChaosVaultWithMessage(
   characterId: number,
   itemId: number,
   itemName: string
-): Promise<{ message: string; overCapacity: boolean; chaosVaultItemId: number }> {
+): Promise<{ message: string; overCapacity: boolean; chaosVaultItemId: number; ownedItemId: number }> {
   const { total, capacity } = await getVisibleChaosVaultItems(characterId);
 
   const created = await addItemToChaosVault(characterId, itemId);
@@ -64,10 +65,10 @@ export async function addItemToChaosVaultWithMessage(
     ? `${itemName} trafia do Twojej komnaty nieładu. Masz już za dużo artefaktów! Rozbuduj komnatę lub zniszcz bezużyteczne rzeczy w dezintegratorze, aby uzyskać dostęp do najnowszych przedmiotów.`
     : `${itemName} trafia do Twojej komnaty nieładu.`;
 
-  return { message, overCapacity, chaosVaultItemId: created.id };
+  return { message, overCapacity, chaosVaultItemId: created.id, ownedItemId: created.ownedItemId };
 }
 
-// ── POBIERZ KOMNATĘ (widok dla frontu) ───────────────
+// ── POBIERZ KOMNATĘ (widok dla frontu) ─────────────────────────────────────────
 export async function getChaosVault(userId: number) {
   const character = await prisma.character.findUnique({ where: { userId } });
   if (!character) throw new Error("Postać nie znaleziona");
@@ -79,6 +80,11 @@ export async function getChaosVault(userId: number) {
     capacity,
     totalCount: total,
     hiddenCount: hidden.length,
-    items: visible,
+    items: visible.map(entry => ({
+      chaosVaultItemId: entry.id,
+      ownedItemId: entry.ownedItemId,
+      item: entry.ownedItem.item,
+      addedAt: entry.addedAt,
+    })),
   };
 }

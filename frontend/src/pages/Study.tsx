@@ -1,35 +1,126 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import api from "../api/client";
+import { useCharacter } from "../contexts/CharacterContext";
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// STAŁE
+// ═══════════════════════════════════════════════════════════════════════════════
 
 const STUDY_LEVELS = [
-  { level: 1, name: "Chaotyczne machanie rękoma",   duration: "1 min",  points: "1–4 pkt",    chance: "20%" },
-  { level: 2, name: "Opanowane ruchy dłońmi",       duration: "2 min",  points: "5–10 pkt",   chance: "30%" },
-  { level: 3, name: "Skupiona inkantacja",           duration: "3 min",  points: "11–22 pkt",  chance: "40%" },
-  { level: 4, name: "Podstawowa inkantacja",         duration: "4 min",  points: "23–50 pkt",  chance: "40%" },
-  { level: 5, name: "Zaawansowana inkantacja",       duration: "5 min",  points: "51–100 pkt", chance: "50%" },
+  { level: 1, name: "Chaotyczne machanie rękoma", duration: "1 min", points: "1–4 pkt",     chance: "20%", requiredTowerLevel: 1  },
+  { level: 2, name: "Opanowane ruchy dłońmi",     duration: "2 min", points: "5–10 pkt",   chance: "30%", requiredTowerLevel: 3  },
+  { level: 3, name: "Skupiona inkantacja",         duration: "3 min", points: "11–22 pkt",  chance: "40%", requiredTowerLevel: 6  },
+  { level: 4, name: "Podstawowa inkantacja",       duration: "4 min", points: "23–50 pkt",  chance: "40%", requiredTowerLevel: 10 },
+  { level: 5, name: "Zaawansowana inkantacja",     duration: "5 min", points: "51–100 pkt", chance: "50%", requiredTowerLevel: 15 },
 ];
 
-interface Props {
-  studyActions: number;
-  studyActionsMax: number;
-  activeActions: any[];
-  onRefresh: () => void;
+// ── PALETA (zgodna z Training.tsx / ExplorationPanel.tsx) ────────────────────
+const COLORS = {
+  bg:        "#161d38",
+  panel:     "#372b5d",
+  panelAlt:  "rgba(0,0,0,0.15)",
+  border:    "rgba(245,196,81,0.12)",
+  borderSoft:"rgba(247,240,221,0.08)",
+  gold:      "#F5C451",
+  teal:      "#59D4D0",
+  red:       "#F46A4E",
+  text:      "#F7F0DD",
+  textDim:   "rgba(247,240,221,0.55)",
+  textFaint: "rgba(247,240,221,0.35)",
+  textGhost: "rgba(247,240,221,0.2)",
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SHARED — Panel / SectionTitle / pillButton (jak w Training.tsx / ExplorationPanel.tsx)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function Panel({ children, style = {} }: { children: React.ReactNode; style?: React.CSSProperties }) {
+  return (
+    <div style={{
+      background: COLORS.panel,
+      borderRadius: 12,
+      border: `1px solid ${COLORS.border}`,
+      padding: 20,
+      ...style,
+    }}>
+      {children}
+    </div>
+  );
 }
 
+function SectionTitle({ children, style = {} }: { children: React.ReactNode; style?: React.CSSProperties }) {
+  return (
+    <p style={{
+      fontFamily: "Cinzel, serif",
+      fontSize: 13,
+      color: COLORS.gold,
+      letterSpacing: "0.08em",
+      marginBottom: 16,
+      ...style,
+    }}>
+      {children}
+    </p>
+  );
+}
 
-export default function StudyPanel({ studyActions, studyActionsMax, activeActions, onRefresh }: Props) {
+// ═══════════════════════════════════════════════════════════════════════════════
+// TIMER
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function Timer({ finishesAt, onDone }: { finishesAt: string; onDone: () => void }) {
+  const [timeLeft, setTimeLeft] = useState("");
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const diff = new Date(finishesAt).getTime() - Date.now();
+      if (diff <= 0) { setTimeLeft("Gotowe!"); clearInterval(interval); setTimeout(onDone, 500); }
+      else { const m = Math.floor(diff / 60000); const s = Math.floor((diff % 60000) / 1000); setTimeLeft(`${m}:${s.toString().padStart(2, "0")}`); }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [finishesAt, onDone]);
+  return (
+    <span style={{ fontFamily: "Cinzel, serif", fontWeight: 700, color: COLORS.gold, fontSize: 14 }}>
+      {timeLeft}
+    </span>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// GŁÓWNY KOMPONENT
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export default function StudyPanel() {
+  const { refresh: refreshCharacter } = useCharacter();
+
+  const [actions, setActions] = useState<any>(null);
   const [loading, setLoading] = useState<number | null>(null);
   const [claiming, setClaiming] = useState<number | null>(null);
   const [report, setReport] = useState<any>(null);
 
-  const activeStudy = activeActions.find(a => a.actionType === "study" && a.status === "in_progress");
-  const completedStudy = activeActions.find(a => a.actionType === "study" && a.status === "completed");
+  const fetchActions = useCallback(async () => {
+    try { const res = await api.get("/actions"); setActions(res.data); } catch {}
+  }, []);
+
+  useEffect(() => { fetchActions(); }, [fetchActions]);
+
+  const studyActions    = actions?.studyActionsAvailable ?? 0;
+  const studyActionsMax = actions?.studyActionsMax ?? 30;
+  const activeActions   = actions?.activeActions ?? [];
+  const towerLevel = actions?.towerLevel ?? 0;
+
+  const activeStudy    = activeActions.find((a: any) => a.actionType === "study" && a.status === "in_progress");
+  const completedStudy = activeActions.find((a: any) => a.actionType === "study" && a.status === "completed");
+
+  // Odśwież dane postaci (pasek nick/poziom/XP w AppLayout) po każdej akcji.
+  const syncCharacter = useCallback(async () => {
+    await refreshCharacter();
+  }, [refreshCharacter]);
 
   async function startStudy(level: number) {
     setLoading(level);
     try {
       await api.post("/actions/study/start", { level });
-      onRefresh();
+      await fetchActions();
+      await syncCharacter();
     } catch (err: any) {
       alert(err.response?.data?.error ?? "Błąd");
     } finally {
@@ -42,7 +133,8 @@ export default function StudyPanel({ studyActions, studyActionsMax, activeAction
     try {
       const res = await api.post(`/actions/study/claim/${actionId}`);
       setReport(res.data);
-      onRefresh();
+      await fetchActions();
+      await syncCharacter();
     } catch (err: any) {
       alert(err.response?.data?.error ?? "Błąd");
     } finally {
@@ -50,95 +142,145 @@ export default function StudyPanel({ studyActions, studyActionsMax, activeAction
     }
   }
 
-function TimeLeft({ finishesAt }: { finishesAt: string }) {
-  const [timeLeft, setTimeLeft] = useState("");
+  return (
+    <div>
+      <h1 style={{ fontFamily: "Cinzel, serif", color: COLORS.gold, fontSize: 22, marginBottom: 24, letterSpacing: "0.06em" }}>
+        Studia
+      </h1>
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const diff = new Date(finishesAt).getTime() - Date.now();
-      if (diff <= 0) {
-        setTimeLeft("Gotowe!");
-        clearInterval(interval);
-        setTimeout(() => onRefresh(), 500);
-      } else {
-        const m = Math.floor(diff / 60000);
-        const s = Math.floor((diff % 60000) / 1000);
-        setTimeLeft(`${m}:${s.toString().padStart(2, "0")}`);
-      }
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [finishesAt]);
+      <Panel>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <SectionTitle style={{ marginBottom: 0 }}>Szalone studia</SectionTitle>
+          <span style={{ fontSize: 11, color: COLORS.textFaint }}>
+            Akcje: <span style={{ fontWeight: 700, color: COLORS.textDim }}>{studyActions}/{studyActionsMax}</span>
+          </span>
+        </div>
 
-  return <span className="font-mono text-sm font-semibold text-gray-900">{timeLeft}</span>;
-}
+        {/* Aktywna akcja */}
+        {activeStudy && (
+          <div style={{
+            marginBottom: 16, padding: "12px 16px", borderRadius: 10,
+            background: "rgba(89,212,208,0.06)", border: "1px solid rgba(89,212,208,0.2)",
+            display: "flex", justifyContent: "space-between", alignItems: "center",
+          }}>
+            <div>
+              <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.teal, margin: 0 }}>Trwa nauka...</p>
+              <p style={{ fontSize: 11, color: COLORS.textFaint, margin: "2px 0 0" }}>Poziom {activeStudy.actionLevel}</p>
+            </div>
+            <Timer finishesAt={activeStudy.finishesAt} onDone={fetchActions} />
+          </div>
+        )}
+
+        {/* Gotowa do odebrania */}
+        {completedStudy && (
+          <div style={{
+            marginBottom: 16, padding: "12px 16px", borderRadius: 10,
+            background: "rgba(245,196,81,0.07)", border: "1px solid rgba(245,196,81,0.25)",
+            display: "flex", justifyContent: "space-between", alignItems: "center",
+          }}>
+            <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.gold, margin: 0 }}>
+              Nauka zakończona! Odbierz wynik.
+            </p>
+            <button
+              onClick={() => claimStudy(completedStudy.id)}
+              disabled={claiming === completedStudy.id}
+              style={{
+                padding: "8px 18px", borderRadius: 8,
+                background: COLORS.gold, color: COLORS.bg,
+                border: "none", fontSize: 12, fontWeight: 700,
+                fontFamily: "Cinzel, serif", letterSpacing: "0.05em",
+                cursor: claiming === completedStudy.id ? "not-allowed" : "pointer",
+                opacity: claiming === completedStudy.id ? 0.6 : 1,
+              }}
+            >
+              {claiming === completedStudy.id ? "..." : "Odbierz"}
+            </button>
+          </div>
+        )}
+
+        {/* Raport */}
+        {report && (
+          <div style={{
+            marginBottom: 16, padding: "12px 16px", borderRadius: 10,
+            background: COLORS.panelAlt, border: `1px solid ${COLORS.borderSoft}`,
+          }}>
+            <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.text, margin: "0 0 4px" }}>Wynik nauki:</p>
+            <p style={{ fontSize: 13, color: COLORS.textDim, margin: 0 }}>{report.message}</p>
+            <button
+              onClick={() => setReport(null)}
+              style={{
+                marginTop: 8, background: "none", border: "none",
+                color: COLORS.textGhost, fontSize: 11, cursor: "pointer", padding: 0,
+              }}
+              onMouseEnter={e => (e.currentTarget.style.color = COLORS.red)}
+              onMouseLeave={e => (e.currentTarget.style.color = COLORS.textGhost)}
+            >
+              Zamknij
+            </button>
+          </div>
+        )}
+
+        {/* Lista poziomów */}
+{!activeStudy && !completedStudy && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+{STUDY_LEVELS.map(lvl => {
+  const towerOk = towerLevel >= lvl.requiredTowerLevel;
+  const canStart = studyActions > 0 && actions !== null && towerOk;
+  const lockedByTower = actions !== null && !towerOk;
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-6">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="font-semibold text-gray-900">Szalone studia</h2>
-        <span className="text-sm text-gray-500">
-          Akcje: <span className="font-semibold text-gray-900">{studyActions}/{studyActionsMax}</span>
-        </span>
+    <div
+      key={lvl.level}
+      style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "12px 16px", borderRadius: 10,
+        border: `1px solid ${COLORS.borderSoft}`,
+        background: COLORS.panelAlt,
+        opacity: lockedByTower ? 0.45 : canStart ? 1 : 0.5,
+        transition: "background 0.15s",
+      }}
+      onMouseEnter={e => { if (canStart) e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}
+      onMouseLeave={e => (e.currentTarget.style.background = COLORS.panelAlt)}
+    >
+      <div>
+        <p style={{ fontSize: 13, fontWeight: 600, color: lockedByTower ? COLORS.textDim : COLORS.text, margin: 0 }}>
+          {lvl.name}
+        </p>
+        <p style={{ fontSize: 11, color: COLORS.textFaint, margin: "2px 0 0" }}>
+          {lvl.duration} · {lvl.points} · {lvl.chance} na czar
+        </p>
+        {lockedByTower && (
+          <p style={{ fontSize: 11, color: COLORS.red, margin: "4px 0 0" }}>
+            Dostępne od poziomu {lvl.requiredTowerLevel} wieży
+          </p>
+        )}
+        {!lockedByTower && !canStart && (
+          <p style={{ fontSize: 11, color: COLORS.red, margin: "4px 0 0" }}>
+            Brak dostępnych akcji — odnawia się co 30 minut
+          </p>
+        )}
       </div>
-
-      {/* Aktywna akcja */}
-      {activeStudy && (
-        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex justify-between items-center">
-          <div>
-            <p className="text-sm font-medium text-blue-900">Trwa nauka...</p>
-            <p className="text-xs text-blue-600 mt-0.5">Poziom {activeStudy.actionLevel}</p>
+      <button
+        onClick={() => canStart ? startStudy(lvl.level) : undefined}
+        disabled={loading === lvl.level || !canStart}
+        style={{
+          padding: "8px 18px", borderRadius: 8,
+          border: "none", fontSize: 12, fontWeight: 700,
+          fontFamily: "Cinzel, serif", letterSpacing: "0.05em",
+          background: (!canStart || loading === lvl.level) ? "rgba(245,196,81,0.15)" : COLORS.gold,
+          color: (!canStart || loading === lvl.level) ? COLORS.textGhost : COLORS.bg,
+          cursor: (!canStart || loading === lvl.level) ? "not-allowed" : "pointer",
+          transition: "all 0.2s",
+        }}
+      >
+        {loading === lvl.level ? "..." : lockedByTower ? "Zablokowane" : "Ucz się"}
+      </button>
+    </div>
+  );
+})}
           </div>
-          <TimeLeft finishesAt={activeStudy.finishesAt} />
-        </div>
-      )}
-
-      {/* Gotowa do odebrania */}
-      {completedStudy && (
-        <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg flex justify-between items-center">
-          <p className="text-sm font-medium text-green-900">Nauka zakończona! Odbierz wynik.</p>
-          <button
-            onClick={() => claimStudy(completedStudy.id)}
-            disabled={claiming === completedStudy.id}
-            className="text-xs px-3 py-1.5 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
-          >
-            {claiming === completedStudy.id ? "..." : "Odbierz"}
-          </button>
-        </div>
-      )}
-
-      {/* Raport */}
-      {report && (
-        <div className="mb-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
-          <p className="text-sm font-medium text-gray-900 mb-1">Wynik nauki:</p>
-          <p className="text-sm text-gray-700">{report.message}</p>
-          <button onClick={() => setReport(null)} className="text-xs text-gray-400 mt-2 hover:text-gray-600">
-            Zamknij
-          </button>
-        </div>
-      )}
-
-      {/* Lista poziomów */}
-      {!activeStudy && !completedStudy && (
-        <div className="space-y-2">
-          {STUDY_LEVELS.map(lvl => (
-            <div key={lvl.level} className="flex items-center justify-between p-3 border border-gray-100 rounded-lg hover:bg-gray-50">
-              <div>
-                <p className="text-sm font-medium text-gray-900">{lvl.name}</p>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {lvl.duration} · {lvl.points} · {lvl.chance} na czar
-                </p>
-              </div>
-              <button
-                onClick={() => startStudy(lvl.level)}
-                disabled={studyActions <= 0 || loading === lvl.level}
-                className="text-xs px-3 py-1.5 bg-gray-900 text-white rounded-md hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                {loading === lvl.level ? "..." : "Ucz się"}
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
+        )}
+      </Panel>
     </div>
   );
 }

@@ -3,18 +3,17 @@ import { getCharacterArchetypeBonus } from "./archetype/archetype-bonuses.consta
 import { getSpellSlotCount } from "./tower.service.js";
 import { getVisibleChaosVaultItems } from "./chaos_vault.service.js";
 
-// ── HELPER — efektywne statystyki z bonusami ekwipunku ──
+// ── HELPER — efektywne statystyki z bonusami ekwipunku ─────────────────────────
+
 async function getEffectiveCharacter(userId: number) {
   const character = await prisma.character.findUnique({
     where: { userId },
-    include: {
-      equipment: true,
-    },
+    include: { equipment: true },
   });
   if (!character) throw new Error("Postać nie znaleziona");
 
   const eq = character.equipment;
-  const equippedItemIds = [
+  const equippedOwnedIds = [
     eq?.robeId, eq?.bootsId, eq?.hatId,
     eq?.amuletId, eq?.mainHandId, eq?.offHandId, eq?.offHand2Id,
   ].filter(Boolean) as number[];
@@ -23,11 +22,13 @@ async function getEffectiveCharacter(userId: number) {
       bonusEndurance = 0, bonusResistance = 0, bonusInitiative = 0,
       bonusElementalMagic = 0, bonusAstralMagic = 0, bonusBloodMagic = 0;
 
-  if (equippedItemIds.length > 0) {
-    const equippedItems = await prisma.item.findMany({
-      where: { id: { in: equippedItemIds } },
+  if (equippedOwnedIds.length > 0) {
+    const ownedEntries = await prisma.ownedItem.findMany({
+      where: { id: { in: equippedOwnedIds } },
+      include: { item: true },
     });
-    for (const item of equippedItems) {
+    for (const entry of ownedEntries) {
+      const item = entry.item;
       bonusKnowledge      += item.bonusKnowledge;
       bonusIntelligence   += item.bonusIntelligence;
       bonusPower          += item.bonusPower;
@@ -54,7 +55,7 @@ async function getEffectiveCharacter(userId: number) {
   };
 }
 
-// ── WALIDACJA WYMAGAŃ ────────────────────────────────
+// ── WALIDACJA WYMAGAŃ ────────────────────────────────────────────────────────
 
 function checkItemRequirements(item: any, character: any, reqModifier: number = 0) {
   const mod = (req: number) => Math.floor(req * (1 + reqModifier));
@@ -94,7 +95,7 @@ function checkSpellRequirements(spell: any, character: any, reqModifier: number 
     throw new Error(`Nie spełniasz wymagań: ${errors.join(", ")}`);
 }
 
-// ── POBIERZ EKWIPUNEK ────────────────────────────────
+// ── POBIERZ EKWIPUNEK ───────────────────────────────────────────────────────
 
 export async function getEquipment(userId: number) {
   const character = await prisma.character.findUnique({
@@ -107,56 +108,67 @@ export async function getEquipment(userId: number) {
   });
   if (!character) throw new Error("Postać nie znaleziona");
 
-  const libraryLevel = character.tower?.buildings.find(b => b.buildingType === "library")?.level ?? 0;
-  const archetypeBonus = await getCharacterArchetypeBonus(character.id);
-  const maxSlots = getSpellSlotCount(libraryLevel, archetypeBonus?.extraActiveSpellSlots ?? 0);
   const eq = character.equipment;
-  const equippedItemIds = [
+  const equippedOwnedIds = [
     eq?.robeId, eq?.bootsId, eq?.hatId,
     eq?.amuletId, eq?.mainHandId, eq?.offHandId, eq?.offHand2Id,
   ].filter(Boolean) as number[];
 
-  const equippedItems = equippedItemIds.length > 0
-    ? await prisma.item.findMany({ where: { id: { in: equippedItemIds } } })
+  const equippedEntries = equippedOwnedIds.length > 0
+    ? await prisma.ownedItem.findMany({
+        where: { id: { in: equippedOwnedIds } },
+        include: { item: true },
+      })
     : [];
 
-  const itemById = Object.fromEntries(equippedItems.map(i => [i.id, i]));
+  // mapa: OwnedItem.id -> { ...Item, ownedItemId }
+  const entryById = Object.fromEntries(
+    equippedEntries.map(e => [e.id, { ...e.item, ownedItemId: e.id }])
+  );
+
+  const libraryLevel = character.tower?.buildings.find(b => b.buildingType === "library")?.level ?? 0;
+  const archetypeBonus = await getCharacterArchetypeBonus(character.id);
+  const maxSlots = getSpellSlotCount(libraryLevel, archetypeBonus?.extraActiveSpellSlots ?? 0);
 
   const { capacity, total, visible, hidden } = await getVisibleChaosVaultItems(character.id);
 
   return {
     equipped: {
-      robe:     eq?.robeId     ? itemById[eq.robeId]     : null,
-      boots:    eq?.bootsId    ? itemById[eq.bootsId]    : null,
-      hat:      eq?.hatId      ? itemById[eq.hatId]      : null,
-      amulet:   eq?.amuletId   ? itemById[eq.amuletId]   : null,
-      mainHand: eq?.mainHandId ? itemById[eq.mainHandId] : null,
-      offHand:  eq?.offHandId  ? itemById[eq.offHandId]  : null,
-      offHand2: eq?.offHand2Id ? itemById[eq.offHand2Id] : null,
+      robe:     eq?.robeId     ? entryById[eq.robeId]     ?? null : null,
+      boots:    eq?.bootsId    ? entryById[eq.bootsId]    ?? null : null,
+      hat:      eq?.hatId      ? entryById[eq.hatId]      ?? null : null,
+      amulet:   eq?.amuletId   ? entryById[eq.amuletId]   ?? null : null,
+      mainHand: eq?.mainHandId ? entryById[eq.mainHandId] ?? null : null,
+      offHand:  eq?.offHandId  ? entryById[eq.offHandId]  ?? null : null,
+      offHand2: eq?.offHand2Id ? entryById[eq.offHand2Id] ?? null : null,
     },
     spellSlots: character.spellSlots,
     maxSlots,
     chaosVault: {
       capacity,
       total,
-      visible: visible.map(cv => ({ chaosVaultItemId: cv.id, item: cv.item, addedAt: cv.addedAt })),
+      visible: visible.map(entry => ({
+        chaosVaultItemId: entry.id,
+        ownedItemId: entry.ownedItemId,
+        item: entry.ownedItem.item,
+        addedAt: entry.addedAt,
+      })),
       hiddenCount: hidden.length,
     },
   };
 }
 
-// ── ZAŁÓŻ PRZEDMIOT ──────────────────────────────────
+// ── ZAŁÓŻ PRZEDMIOT ──────────────────────────────────────────────────────────
 
-export async function equipItem(userId: number, itemId: number) {
+export async function equipItem(userId: number, ownedItemId: number) {
   const character = await getEffectiveCharacter(userId);
 
   // Przedmiot musi być w "widocznej" części Komnaty Nieładu
   const { visible } = await getVisibleChaosVaultItems(character.id);
-  const owned = visible.some(cv => cv.itemId === itemId);
-  if (!owned) throw new Error("Ten przedmiot nie jest dostępny — rozbuduj Komnatę Nieładu lub zwolnij miejsce.");
+  const vaultEntry = visible.find(v => v.ownedItemId === ownedItemId);
+  if (!vaultEntry) throw new Error("Ten przedmiot nie jest dostępny — rozbuduj Komnatę Nieładu lub zwolnij miejsce.");
 
-  const item = await prisma.item.findUnique({ where: { id: itemId } });
-  if (!item) throw new Error("Przedmiot nie istnieje");
+  const item = vaultEntry.ownedItem.item;
 
   const archetypeBonus = await getCharacterArchetypeBonus(character.id);
   checkItemRequirements(item, character, archetypeBonus?.spellReqModifier ?? 0);
@@ -173,9 +185,12 @@ export async function equipItem(userId: number, itemId: number) {
   const slotField = slotMap[item.slot];
   if (!slotField) throw new Error("Nieznany typ przedmiotu");
 
-  const updateData: Record<string, number | null> = { [slotField]: itemId };
+  const updateData: Record<string, number | null> = { [slotField]: ownedItemId };
+  const ownedIdsToReturn: number[] = []; // OwnedItem.id zdejmowanych przedmiotów -> wracają do komnaty
 
   if (item.weaponType === "two_handed") {
+    if (character.equipment?.offHandId)  ownedIdsToReturn.push(character.equipment.offHandId);
+    if (character.equipment?.offHand2Id) ownedIdsToReturn.push(character.equipment.offHand2Id);
     updateData.offHandId = null;
     updateData.offHand2Id = null;
   }
@@ -184,25 +199,42 @@ export async function equipItem(userId: number, itemId: number) {
     const hasThirdHand = archetypeBonus?.thirdWeaponHand ?? false;
 
     if (character.equipment?.mainHandId) {
-      const mainHandItem = await prisma.item.findUnique({
+      const currentMainHand = await prisma.ownedItem.findUnique({
         where: { id: character.equipment.mainHandId },
+        include: { item: true },
       });
 
-      if (mainHandItem?.weaponType === "two_handed") {
-        updateData.mainHandId = itemId;
+      if (currentMainHand?.item?.weaponType === "two_handed") {
+        // Zdejmujemy dwuręczną broń, wkładamy nową jednoręczną do mainHand
+        ownedIdsToReturn.push(character.equipment.mainHandId);
+        updateData.mainHandId = ownedItemId;
         updateData.offHandId = null;
         updateData.offHand2Id = null;
       } else if (!character.equipment.offHandId) {
-        updateData.offHandId = itemId;
+        updateData.offHandId = ownedItemId;
         delete updateData.mainHandId;
       } else if (hasThirdHand && !character.equipment.offHand2Id) {
-        updateData.offHand2Id = itemId;
+        updateData.offHand2Id = ownedItemId;
         delete updateData.mainHandId;
       } else {
-        updateData.offHandId = itemId;
+        // Wszystkie ręce zajęte — nowy przedmiot zajmuje offHand, stary offHand wraca do komnaty
+        ownedIdsToReturn.push(character.equipment.offHandId);
+        updateData.offHandId = ownedItemId;
         delete updateData.mainHandId;
       }
     }
+  } else {
+    // Standardowy slot (robe/boots/hat/amulet) — jeśli coś tam już jest, wraca do komnaty
+    const currentInSlot = (character.equipment as any)?.[slotField] as number | null | undefined;
+    if (currentInSlot) ownedIdsToReturn.push(currentInSlot);
+  }
+
+  // Usuń założony przedmiot z Komnaty Nieładu (jest teraz "na sobie")
+  await prisma.chaosVaultItem.delete({ where: { id: vaultEntry.id } });
+
+  // Przedmioty zdjęte w procesie wracają do Komnaty Nieładu
+  for (const returnedOwnedId of ownedIdsToReturn) {
+    await prisma.chaosVaultItem.create({ data: { ownedItemId: returnedOwnedId } });
   }
 
   await prisma.characterEquipment.upsert({
@@ -214,7 +246,7 @@ export async function equipItem(userId: number, itemId: number) {
   return { message: `Założono: ${item.name}`, slot: item.slot };
 }
 
-// ── ZDEJMIJ PRZEDMIOT ────────────────────────────────
+// ── ZDEJMIJ PRZEDMIOT ────────────────────────────────────────────────────────
 
 export async function unequipItem(userId: number, slot: string) {
   const character = await prisma.character.findUnique({
@@ -236,16 +268,21 @@ export async function unequipItem(userId: number, slot: string) {
   const slotField = slotMap[slot];
   if (!slotField) throw new Error("Nieznany slot");
 
-  await prisma.characterEquipment.upsert({
-    where:  { characterId: character.id },
-    update: { [slotField]: null },
-    create: { characterId: character.id },
+  const ownedItemId = (character.equipment as any)?.[slotField] as number | null | undefined;
+  if (!ownedItemId) throw new Error("Ten slot jest już pusty");
+
+  // Przedmiot wraca do Komnaty Nieładu
+  await prisma.chaosVaultItem.create({ data: { ownedItemId } });
+
+  await prisma.characterEquipment.update({
+    where: { characterId: character.id },
+    data: { [slotField]: null },
   });
 
   return { message: `Slot ${slot} opróżniony` };
 }
 
-// ── DODAJ CZAR DO SLOTU ──────────────────────────────
+// ── DODAJ CZAR DO SLOTU ──────────────────────────────────────────────────────
 
 export async function equipSpell(userId: number, spellId: number, slotIndex: number) {
   const character = await getEffectiveCharacter(userId);
@@ -262,7 +299,6 @@ export async function equipSpell(userId: number, spellId: number, slotIndex: num
   if (maxSlots === 0) throw new Error("Wybuduj Bibliotekę aby aktywować czary bojowe");
   if (slotIndex >= maxSlots) throw new Error(`Biblioteka poziomu ${libraryLevel} daje tylko ${maxSlots} slot(y) aktywnych czarów`);
 
-  // Czar musi być odkryty w Księdze Magii
   const discovered = await prisma.spellbookEntry.findUnique({
     where: { characterId_spellId: { characterId: character.id, spellId } },
   });
@@ -281,6 +317,8 @@ export async function equipSpell(userId: number, spellId: number, slotIndex: num
 
   return { message: `Czar ${spell.name} przypisany do slotu ${slotIndex}` };
 }
+
+// ── EKWIPUJ CZAR AUTOMATYCZNIE (pierwszy wolny slot) ──────────────────────────
 
 export async function equipSpellAuto(userId: number, spellId: number) {
   const character = await prisma.character.findUnique({ where: { userId } });
@@ -310,7 +348,7 @@ export async function equipSpellAuto(userId: number, spellId: number) {
   return equipSpell(userId, spellId, freeSlot);
 }
 
-// ── USUŃ CZAR ZE SLOTU ───────────────────────────────
+// ── USUŃ CZAR ZE SLOTU ─────────────────────────────────────────────────────────
 
 export async function unequipSpell(userId: number, slotIndex: number) {
   const character = await prisma.character.findUnique({ where: { userId } });
@@ -321,4 +359,140 @@ export async function unequipSpell(userId: number, slotIndex: number) {
   });
 
   return { message: `Slot czaru ${slotIndex} opróżniony` };
+}
+
+
+// ── ZESTAWY EKWIPUNKU ────────────────────────────────────────────────────────
+
+export async function saveEquipmentPreset(userId: number, slotIndex: number, name: string) {
+  if (slotIndex < 0 || slotIndex > 9) throw new Error("Nieprawidłowy indeks zestawu");
+  if (!name.trim()) throw new Error("Podaj nazwę zestawu");
+
+  const character = await prisma.character.findUnique({
+    where: { userId },
+    include: { equipment: true },
+  });
+  if (!character) throw new Error("Postać nie znaleziona");
+
+  const eq = character.equipment;
+
+  // Zapisujemy itemId (typ przedmiotu), nie ownedItemId (konkretna instancja)
+  async function getItemId(ownedId: number | null | undefined): Promise<number | null> {
+    if (!ownedId) return null;
+    const owned = await prisma.ownedItem.findUnique({ where: { id: ownedId } });
+    return owned?.itemId ?? null;
+  }
+
+  const [hatItemId, robeItemId, bootsItemId, amuletItemId, mainHandItemId, offHandItemId] =
+    await Promise.all([
+      getItemId(eq?.hatId),
+      getItemId(eq?.robeId),
+      getItemId(eq?.bootsId),
+      getItemId(eq?.amuletId),
+      getItemId(eq?.mainHandId),
+      getItemId(eq?.offHandId),
+    ]);
+
+  await prisma.equipmentPreset.upsert({
+    where: { characterId_slotIndex: { characterId: character.id, slotIndex } },
+    update: { name: name.trim().slice(0, 8), hatItemId, robeItemId, bootsItemId, amuletItemId, mainHandItemId, offHandItemId, updatedAt: new Date() },
+    create: { characterId: character.id, slotIndex, name: name.trim().slice(0, 8), hatItemId, robeItemId, bootsItemId, amuletItemId, mainHandItemId, offHandItemId },
+  });
+
+  return { slotIndex, name };
+}
+
+export async function getEquipmentPresets(userId: number) {
+  const character = await prisma.character.findUnique({ where: { userId } });
+  if (!character) throw new Error("Postać nie znaleziona");
+
+  const presets = await prisma.equipmentPreset.findMany({
+    where: { characterId: character.id },
+    orderBy: { slotIndex: "asc" },
+  });
+
+  return presets;
+}
+
+export async function applyEquipmentPreset(userId: number, slotIndex: number) {
+  const character = await prisma.character.findUnique({
+    where: { userId },
+    include: { equipment: true },
+  });
+  if (!character) throw new Error("Postać nie znaleziona");
+
+  const preset = await prisma.equipmentPreset.findUnique({
+    where: { characterId_slotIndex: { characterId: character.id, slotIndex } },
+  });
+  if (!preset) throw new Error("Zestaw nie istnieje");
+
+  // Zdejmij wszystko co jest założone
+  const eq = character.equipment;
+  const currentlyEquipped = [
+    eq?.hatId, eq?.robeId, eq?.bootsId,
+    eq?.amuletId, eq?.mainHandId, eq?.offHandId,
+  ].filter(Boolean) as number[];
+
+  for (const ownedId of currentlyEquipped) {
+    await prisma.chaosVaultItem.upsert({
+      where: { ownedItemId: ownedId },
+      update: {},
+      create: { ownedItemId: ownedId },
+    });
+  }
+
+  await prisma.characterEquipment.upsert({
+    where: { characterId: character.id },
+    update: { hatId: null, robeId: null, bootsId: null, amuletId: null, mainHandId: null, offHandId: null },
+    create: { characterId: character.id },
+  });
+
+  // Dla każdego slotu w zestawie znajdź pierwszy pasujący OwnedItem w komnacie
+  const slotDefs: { itemId: number | null; field: string }[] = [
+    { itemId: preset.hatItemId,      field: "hatId"      },
+    { itemId: preset.robeItemId,     field: "robeId"     },
+    { itemId: preset.bootsItemId,    field: "bootsId"    },
+    { itemId: preset.amuletItemId,   field: "amuletId"   },
+    { itemId: preset.mainHandItemId, field: "mainHandId" },
+    { itemId: preset.offHandItemId,  field: "offHandId"  },
+  ];
+
+  const missing: string[] = [];
+  const updateData: Record<string, number> = {};
+
+  for (const { itemId, field } of slotDefs) {
+    if (!itemId) continue;
+
+    // Szukaj w komnacie
+    const vaultEntry = await prisma.chaosVaultItem.findFirst({
+      where: { ownedItem: { characterId: character.id, itemId } },
+      include: { ownedItem: { include: { item: true } } },
+    });
+
+    if (!vaultEntry) {
+      const item = await prisma.item.findUnique({ where: { id: itemId } });
+      missing.push(item?.name ?? `ID ${itemId}`);
+      continue;
+    }
+
+    // Wyjmij z komnaty i załóż
+    await prisma.chaosVaultItem.delete({ where: { id: vaultEntry.id } });
+    updateData[field] = vaultEntry.ownedItemId;
+  }
+
+  if (Object.keys(updateData).length > 0) {
+    await prisma.characterEquipment.update({
+      where: { characterId: character.id },
+      data: updateData,
+    });
+  }
+
+  return {
+    applied: Object.keys(updateData).length,
+    missing,
+    outdated: missing.length > 0,
+    message: missing.length > 0
+      ? `Twój zestaw jest nieaktualny! Brakuje: ${missing.join(", ")}`
+      : `Założono zestaw "${preset.name}"`,
+  };
 }

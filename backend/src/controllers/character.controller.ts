@@ -79,19 +79,22 @@ export async function getEffectiveStats(req: Request, res: Response) {
       astralMagic: 0, bloodMagic: 0,
     };
 
-    if (itemIds.length > 0) {
-      const items = await prisma.item.findMany({ where: { id: { in: itemIds } } });
-      for (const item of items) {
-        bonuses.knowledge  += item.bonusKnowledge;
-        bonuses.intelligence += item.bonusIntelligence;
-        bonuses.power      += item.bonusPower;
-        bonuses.endurance  += item.bonusEndurance;
-        bonuses.resistance += item.bonusResistance;
-        bonuses.initiative += item.bonusInitiative;
+if (itemIds.length > 0) {
+      const ownedEntries = await prisma.ownedItem.findMany({
+        where: { id: { in: itemIds } },
+        include: { item: true },
+      });
+      for (const entry of ownedEntries) {
+        const item = entry.item;
+        bonuses.knowledge      += item.bonusKnowledge;
+        bonuses.intelligence   += item.bonusIntelligence;
+        bonuses.power          += item.bonusPower;
+        bonuses.endurance      += item.bonusEndurance;
+        bonuses.resistance     += item.bonusResistance;
+        bonuses.initiative     += item.bonusInitiative;
         bonuses.elementalMagic += item.bonusElementalMagic;
-        bonuses.astralMagic += item.bonusAstralMagic;
-        bonuses.bloodMagic += item.bonusBloodMagic;
-
+        bonuses.astralMagic    += item.bonusAstralMagic;
+        bonuses.bloodMagic     += item.bonusBloodMagic;
       }
     }
 

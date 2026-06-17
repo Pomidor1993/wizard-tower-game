@@ -31,9 +31,9 @@ export const router = createBrowserRouter([
       { path: "vault",       element: <ChaosVault /> },
       { path: "spellbook",   element: <Spellbook /> },
       { path: "tower",       element: <Tower /> },
-      { path: "study",       element: <Study studyActions={0} studyActionsMax={0} activeActions={[]} onRefresh={() => {}} /> },
-      { path: "exploration", element: <Exploration onRefresh={() => {}} /> },
-      { path: "combat",      element: <Combat onRefresh={() => {}} /> },
+      { path: "study",       element: <Study /> },
+      { path: "exploration", element: <Exploration /> },
+      { path: "combat",      element: <Combat /> },
       { path: "school",      element: <MagicSchool /> },
       { path: "settings",    element: <Settings /> },
       { path: "premium",     element: <Premium /> },
@@ -42,3 +42,4 @@ export const router = createBrowserRouter([
     ],
   },
 ]);
+

@@ -9,8 +9,8 @@ import vault4 from "../assets/chaosvault4.png";
 // ── TYPY ────────────────────────────────────────────────────────────────────
 
 interface VaultItem {
-  id: number;
-  itemId: number;
+  chaosVaultItemId: number;
+  ownedItemId: number;
   addedAt: string;
   item: {
     id: number;
@@ -56,22 +56,33 @@ interface CharacterStats {
   elementalMagic: number; astralMagic: number; bloodMagic: number;
 }
 
+interface EquipmentPreset {
+  slotIndex: number;
+  name: string;
+  hatItemId: number | null;
+  robeItemId: number | null;
+  bootsItemId: number | null;
+  amuletItemId: number | null;
+  mainHandItemId: number | null;
+  offHandItemId: number | null;
+}
+
 // ── KONFIGURACJE ─────────────────────────────────────────────────────────────
 
 const RARITY_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  common:   { label: "Pospolity",  color: "#94a3b8", bg: "rgba(148,163,184,0.12)" },
-  uncommon: { label: "Nietypowy",  color: "#4ade80", bg: "rgba(74,222,128,0.12)"  },
-  rare:     { label: "Rzadki",     color: "#60a5fa", bg: "rgba(96,165,250,0.12)"  },
-  unique:   { label: "Unikalny",   color: "#fbbf24", bg: "rgba(251,191,36,0.12)"  },
+  common:   { label: "Pospolity",  color: "#94a3b8", bg: "rgba(148,163,184,0.18)" },
+  uncommon: { label: "Nietypowy",  color: "#4ade80", bg: "rgba(74,222,128,0.18)"  },
+  rare:     { label: "Rzadki",     color: "#60a5fa", bg: "rgba(96,165,250,0.18)"  },
+  unique:   { label: "Unikalny",   color: "#fbbf24", bg: "rgba(251,191,36,0.18)"  },
 };
 
 const SLOT_CONFIG: Record<string, { label: string; icon: string }> = {
-  hat:        { label: "Okrycia głowy",  icon: "🎩" },
-  robe:       { label: "Szaty",   icon: "👘" },
-  boots:      { label: "Buty",    icon: "👢" },
-  amulet:     { label: "Amulety", icon: "📿" },
-  weapon_one: { label: "Broń jednoręczna",    icon: "⚔️" },
-  weapon_two: { label: "Broń dwuręczna",      icon: "⚔️" },
+  hat:        { label: "Okrycia głowy", icon: "🎩" },
+  robe:       { label: "Szaty",         icon: "👘" },
+  boots:      { label: "Buty",          icon: "👢" },
+  amulet:     { label: "Amulety",       icon: "📿" },
+  weapon_one: { label: "Broń jednoręczna", icon: "⚔️" },
+  weapon_two: { label: "Broń dwuręczna",   icon: "⚔️" },
 };
 
 const BODY_SLOTS: { key: keyof EquippedSlots; label: string; icon: string; top: string; left: string }[] = [
@@ -83,6 +94,10 @@ const BODY_SLOTS: { key: keyof EquippedSlots; label: string; icon: string; top: 
   { key: "boots",    label: "Buty",       icon: "👢", top: "78%", left: "50%" },
 ];
 
+const RARITY_VALUE: Record<string, number> = {
+  common: 10, uncommon: 25, rare: 50, unique: 100,
+};
+
 const ALL_SLOTS = Object.keys(SLOT_CONFIG);
 
 function getVaultBackground(total: number): string {
@@ -90,6 +105,10 @@ function getVaultBackground(total: number): string {
   if (total >= 25) return vault3;
   if (total >= 10) return vault2;
   return vault1;
+}
+
+function isEntryEquipped(entry: VaultItem, equipped: EquippedSlots): boolean {
+  return Object.values(equipped).some((eq: any) => eq?.ownedItemId === entry.ownedItemId);
 }
 
 function meetsRequirements(item: VaultItem["item"], stats: CharacterStats | null): boolean {
@@ -107,30 +126,113 @@ function meetsRequirements(item: VaultItem["item"], stats: CharacterStats | null
   );
 }
 
+// ── LOGIKA EKWIPOWANIA ZAZNACZONYCH ─────────────────────────────────────────
+
+function canEquipSelected(
+  selected: Set<number>,
+  allItems: VaultItem[],
+  equipped: EquippedSlots | null,
+): { canEquip: boolean; reason: string } {
+  if (selected.size === 0) return { canEquip: false, reason: "Nic nie zaznaczono" };
+
+  const selectedItems = allItems.filter(e => selected.has(e.chaosVaultItemId));
+
+  // Sprawdź każdy slot osobno
+const slotGroups: Record<string, VaultItem[]> = {};
+for (const item of selectedItems) {
+  const s = item.item.slot;
+  if (!slotGroups[s]) slotGroups[s] = [];
+  slotGroups[s].push(item);
+}
+
+// ← tutaj, przed pętlą for...of
+if (slotGroups["weapon_one"] && slotGroups["weapon_two"]) {
+  return { canEquip: false, reason: "Nie możesz założyć jednocześnie broni jednoręcznej i dwuręcznej" };
+}
+
+for (const [slot, items] of Object.entries(slotGroups)) {
+    if (slot === "weapon_one") {
+      if (items.length > 2) return { canEquip: false, reason: "Możesz trzymać maksymalnie 2 bronie jednoręczne" };
+      if (items.length === 2 && (!equipped || equipped.mainHand || equipped.offHand)) {
+        return { canEquip: false, reason: "Nie masz 2 wolnych slotów na broń" };
+      }
+      if (items.length === 1 && equipped && equipped.mainHand && equipped.offHand) {
+        return { canEquip: false, reason: "Zdejmij najpierw broń" };
+      }
+    } else {
+      if (items.length > 1) return { canEquip: false, reason: `Za dużo przedmiotów kategorii: ${SLOT_CONFIG[slot]?.label ?? slot}` };
+      const slotToEquipKey: Record<string, keyof EquippedSlots> = {
+        robe: "robe", boots: "boots", hat: "hat", amulet: "amulet", weapon_two: "mainHand",
+      };
+      const equipKey = slotToEquipKey[slot];
+      if (equipKey && equipped?.[equipKey]) {
+        return { canEquip: false, reason: `Zdejmij najpierw założony przedmiot (${SLOT_CONFIG[slot]?.label ?? slot})` };
+      }
+    }
+  }
+
+  return { canEquip: true, reason: "" };
+}
+
+// ── SHARED ───────────────────────────────────────────────────────────────────
+
+function Tag({ children, color = "rgba(247,240,221,0.5)" }: { children: React.ReactNode; color?: string }) {
+  return (
+    <span style={{
+      fontSize: 11, padding: "2px 8px", borderRadius: 8,
+      background: "rgba(0,0,0,0.2)", color,
+      border: "1px solid rgba(247,240,221,0.1)",
+    }}>
+      {children}
+    </span>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <p style={{ fontSize: 10, color: "rgba(247,240,221,0.35)", fontFamily: "Cinzel, serif", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 }}>
+        {title}
+      </p>
+      {children}
+    </div>
+  );
+}
+
+function btnStyle(bg: string, color: string, disabled = false): React.CSSProperties {
+  return {
+    flex: 1, padding: "10px 0",
+    background: bg, color, border: "none", borderRadius: 8,
+    fontSize: 13, fontWeight: 700, fontFamily: "Cinzel, serif",
+    cursor: disabled ? "not-allowed" : "pointer", letterSpacing: "0.05em",
+    opacity: disabled ? 0.6 : 1,
+  };
+}
+
 // ── POPUP PRZEDMIOTU ──────────────────────────────────────────────────────────
 
 function ItemPopup({
-  entry,
-  equipped,
-  meetsReqs,
-  onClose,
-  onEquip,
-  onUnequip,
-  equipping,
+  entry, equipped, meetsReqs, onClose, onEquip, onUnequip, equipping,
 }: {
   entry: VaultItem;
   equipped: EquippedSlots;
   meetsReqs: boolean;
   onClose: () => void;
-  onEquip: (itemId: number) => Promise<void>;
+  onEquip: (ownedItemId: number) => Promise<void>;
   onUnequip: (slot: string) => Promise<void>;
   equipping: boolean;
 }) {
   const item = entry.item;
   const rar  = RARITY_CONFIG[item.rarity] ?? RARITY_CONFIG.common;
 
-  const isEquipped = Object.values(equipped).some((eq: any) => eq?.id === item.id);
-  const equippedSlotKey = Object.entries(equipped).find(([, eq]: any) => eq?.id === item.id)?.[0];
+  const isEquipped = Object.entries(equipped).some(([, eq]: any) => eq?.ownedItemId === entry.ownedItemId);
+  const equippedSlotKey = Object.entries(equipped).find(([, eq]: any) => eq?.ownedItemId === entry.ownedItemId)?.[0];
+
+  const slotToEquipmentKey: Record<string, keyof EquippedSlots> = {
+    robe: "robe", boots: "boots", hat: "hat", amulet: "amulet",
+    weapon_one: "mainHand", weapon_two: "mainHand",
+  };
+  const slotOccupied = !isEquipped && !!equipped[slotToEquipmentKey[item.slot]];
 
   const bonuses = [
     { label: "Wiedza",         val: item.bonusKnowledge },
@@ -169,12 +271,9 @@ function ItemPopup({
       <div
         onClick={e => e.stopPropagation()}
         style={{
-          background: "#2D2450",
-          border: `1px solid ${rar.color}`,
-          borderRadius: 14,
-          width: 360, maxHeight: "85vh", overflowY: "auto",
-          padding: 24,
-          boxShadow: `0 0 40px ${rar.bg}`,
+          background: "#2D2450", border: `1px solid ${rar.color}`,
+          borderRadius: 14, width: 360, maxHeight: "85vh", overflowY: "auto",
+          padding: 24, boxShadow: `0 0 40px ${rar.bg}`,
         }}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
@@ -205,7 +304,6 @@ function ItemPopup({
         <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
           <Tag>{SLOT_CONFIG[item.slot]?.label ?? item.slot}</Tag>
           {item.element && <Tag color="#59D4D0">{item.element}</Tag>}
-          {item.weaponType && <Tag>{item.weaponType}</Tag>}
         </div>
 
         {bonuses.length > 0 && (
@@ -239,20 +337,24 @@ function ItemPopup({
           </Section>
         )}
 
-        <div style={{ marginTop: 20, display: "flex", gap: 10 }}>
+        <div style={{ marginTop: 20, display: "flex", gap: 10, flexDirection: "column" }}>
           {isEquipped ? (
             <button
               onClick={() => equippedSlotKey && onUnequip(equippedSlotKey)}
               disabled={equipping}
-              style={btnStyle("#F46A4E", "#161d38")}
+              style={btnStyle("#F46A4E", "#161d38", equipping)}
             >
               {equipping ? "..." : "Zdejmij"}
             </button>
+          ) : slotOccupied ? (
+            <button disabled style={btnStyle("rgba(247,240,221,0.08)", "rgba(247,240,221,0.3)", true)}>
+              Najpierw zdejmij założony przedmiot
+            </button>
           ) : (
             <button
-              onClick={() => onEquip(item.id)}
+              onClick={() => onEquip(entry.ownedItemId)}
               disabled={equipping || !meetsReqs}
-              style={btnStyle(meetsReqs ? "#F5C451" : "rgba(245,196,81,0.2)", meetsReqs ? "#161d38" : "rgba(247,240,221,0.3)")}
+              style={btnStyle(meetsReqs ? "#F5C451" : "rgba(245,196,81,0.2)", meetsReqs ? "#161d38" : "rgba(247,240,221,0.3)", equipping || !meetsReqs)}
             >
               {equipping ? "..." : meetsReqs ? "Załóż" : "Nie spełniasz wymagań"}
             </button>
@@ -263,81 +365,305 @@ function ItemPopup({
   );
 }
 
-function Tag({ children, color = "rgba(247,240,221,0.5)" }: { children: React.ReactNode; color?: string }) {
-  return (
-    <span style={{
-      fontSize: 11, padding: "2px 8px", borderRadius: 8,
-      background: "rgba(0,0,0,0.2)", color,
-      border: "1px solid rgba(247,240,221,0.1)",
-    }}>
-      {children}
-    </span>
-  );
-}
+// ── POPUP DEZINTEGRATORA ──────────────────────────────────────────────────────
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function DisintegratorPopup({
+  items,
+  totalShards,
+  onConfirm,
+  onClose,
+  loading,
+}: {
+  items: { chaosVaultItemId: number; name: string; rarity: string; value: number }[];
+  totalShards: number;
+  onConfirm: () => void;
+  onClose: () => void;
+  loading: boolean;
+}) {
   return (
-    <div style={{ marginBottom: 14 }}>
-      <p style={{ fontSize: 10, color: "rgba(247,240,221,0.35)", fontFamily: "Cinzel, serif", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 }}>
-        {title}
-      </p>
-      {children}
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0,
+        background: "rgba(16,14,32,0.80)", backdropFilter: "blur(6px)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        zIndex: 400, padding: 16,
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: "#2D2450",
+          border: "1px solid rgba(244,106,78,0.5)",
+          borderRadius: 14, width: 400, maxHeight: "80vh",
+          display: "flex", flexDirection: "column",
+          padding: 24, boxShadow: "0 0 40px rgba(244,106,78,0.15)",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <div>
+            <p style={{ fontFamily: "Cinzel, serif", fontSize: 16, fontWeight: 700, color: "#F46A4E", margin: 0 }}>
+              💥 Dezintegrator
+            </p>
+            <p style={{ fontSize: 11, color: "rgba(247,240,221,0.4)", margin: "4px 0 0" }}>
+              Ta operacja jest nieodwracalna
+            </p>
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "rgba(247,240,221,0.4)", fontSize: 22, cursor: "pointer" }}>×</button>
+        </div>
+
+        <div style={{ flex: 1, overflowY: "auto", marginBottom: 16 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {items.map(item => {
+              const rar = RARITY_CONFIG[item.rarity] ?? RARITY_CONFIG.common;
+              return (
+                <div
+                  key={item.chaosVaultItemId}
+                  style={{
+                    display: "flex", justifyContent: "space-between", alignItems: "center",
+                    padding: "8px 12px", borderRadius: 8,
+                    background: rar.bg, border: `1px solid ${rar.color}44`,
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: rar.color, flexShrink: 0 }} />
+                    <span style={{ fontSize: 13, color: "#F7F0DD", fontWeight: 500 }}>{item.name}</span>
+                  </div>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "#F5C451" }}>+{item.value} ✦</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div style={{
+          padding: "12px 16px", borderRadius: 10,
+          background: "rgba(245,196,81,0.08)", border: "1px solid rgba(245,196,81,0.2)",
+          marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center",
+        }}>
+          <span style={{ fontSize: 13, color: "rgba(247,240,221,0.7)" }}>Łączny zysk:</span>
+          <span style={{ fontSize: 18, fontWeight: 700, color: "#F5C451", fontFamily: "Cinzel, serif" }}>
+            {totalShards} okruchów mocy
+          </span>
+        </div>
+
+        <div style={{ display: "flex", gap: 10 }}>
+          <button
+            onClick={onClose}
+            style={{ flex: 1, padding: "10px 0", background: "rgba(247,240,221,0.08)", color: "rgba(247,240,221,0.6)", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, fontFamily: "Cinzel, serif", cursor: "pointer" }}
+          >
+            Anuluj
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={loading}
+            style={btnStyle(loading ? "rgba(244,106,78,0.3)" : "#F46A4E", "#fff", loading)}
+          >
+            {loading ? "Niszczę..." : `Zniszcz ${items.length} przedmiot${items.length === 1 ? "" : items.length < 5 ? "y" : "ów"}`}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
 
-function btnStyle(bg: string, color: string): React.CSSProperties {
-  return {
-    flex: 1, padding: "10px 0",
-    background: bg, color, border: "none", borderRadius: 8,
-    fontSize: 13, fontWeight: 700, fontFamily: "Cinzel, serif",
-    cursor: "pointer", letterSpacing: "0.05em",
-  };
-}
-
-// ── KARTA PRZEDMIOTU (na grafice) ─────────────────────────────────────────────
+// ── KARTA PRZEDMIOTU ──────────────────────────────────────────────────────────
 
 function ItemCard({
-  entry,
-  isEquipped,
-  meetsReqs,
-  onClick,
+  entry, isEquipped, meetsReqs, isSelected, onToggleSelect, onOpenDetail,
 }: {
   entry: VaultItem;
   isEquipped: boolean;
   meetsReqs: boolean;
-  onClick: () => void;
+  isSelected: boolean;
+  onToggleSelect: (id: number) => void;
+  onOpenDetail: (entry: VaultItem) => void;
 }) {
   const item = entry.item;
   const rar  = RARITY_CONFIG[item.rarity] ?? RARITY_CONFIG.common;
 
+  const bonuses = [
+    { label: "Wie", val: item.bonusKnowledge },
+    { label: "Int", val: item.bonusIntelligence },
+    { label: "Moc", val: item.bonusPower },
+    { label: "Wyt", val: item.bonusEndurance },
+    { label: "Odp", val: item.bonusResistance },
+    { label: "Ini", val: item.bonusInitiative },
+    { label: "MŻ",  val: item.bonusElementalMagic },
+    { label: "MA",  val: item.bonusAstralMagic },
+    { label: "MK",  val: item.bonusBloodMagic },
+  ].filter(b => b.val > 0);
+
   return (
     <div
-      onClick={onClick}
       style={{
-        padding: "8px 10px",
-        borderRadius: 8,
-        cursor: "pointer",
-        background: isEquipped ? "rgba(89,212,208,0.18)" : "rgba(16,14,32,0.72)",
-        border: `1px solid ${isEquipped ? "#59D4D0" : rar.color + "55"}`,
-        backdropFilter: "blur(2px)",
+        borderRadius: 8, flexShrink: 0,
+        background: isSelected
+          ? "rgba(245,196,81,0.18)"
+          : isEquipped
+          ? "rgba(89,212,208,0.22)"
+          : rar.bg,
+        border: `1px solid ${isSelected ? "#F5C451" : isEquipped ? "#59D4D0" : rar.color + "66"}`,
         opacity: meetsReqs ? 1 : 0.55,
         transition: "transform 0.12s, background 0.12s",
-        flexShrink: 0,
+        overflow: "hidden",
       }}
       onMouseEnter={e => (e.currentTarget.style.transform = "translateX(2px)")}
       onMouseLeave={e => (e.currentTarget.style.transform = "translateX(0)")}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
-        <span style={{ width: 6, height: 6, borderRadius: "50%", background: rar.color, flexShrink: 0 }} />
-        <span style={{ fontSize: 11.5, fontWeight: 600, color: "#F7F0DD", lineHeight: 1.2 }}>
+      {/* Wiersz górny: checkbox + nazwa */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 8px 4px" }}>
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={() => onToggleSelect(entry.chaosVaultItemId)}
+          onClick={e => e.stopPropagation()}
+          style={{ accentColor: "#F5C451", width: 13, height: 13, flexShrink: 0, cursor: "pointer" }}
+        />
+        <span
+          onClick={() => onOpenDetail(entry)}
+          style={{
+            fontSize: 11.5, fontWeight: 600, color: "#F7F0DD", lineHeight: 1.2,
+            flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            cursor: "pointer", textDecoration: "underline", textDecorationColor: "rgba(247,240,221,0.2)",
+          }}
+        >
           {item.name}
         </span>
+        {isEquipped && <span style={{ fontSize: 9, color: "#59D4D0", flexShrink: 0 }}>●</span>}
+        {!meetsReqs && !isEquipped && <span style={{ fontSize: 9, color: "#F46A4E", flexShrink: 0 }}>✕</span>}
       </div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ fontSize: 9, color: rar.color, fontFamily: "Cinzel, serif" }}>{rar.label}</span>
-        {isEquipped && <span style={{ fontSize: 9, color: "#59D4D0" }}>● Założony</span>}
-        {!meetsReqs && !isEquipped && <span style={{ fontSize: 9, color: "#F46A4E" }}>✕</span>}
+
+      {/* Bonusy — nie klikalne */}
+      <div style={{ padding: "0 8px 7px" }}>
+        {bonuses.length > 0 ? (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "2px 8px" }}>
+            {bonuses.map(b => (
+              <span key={b.label} style={{ fontSize: 10, color: "#59D4D0", fontWeight: 600 }}>
+                +{b.val} {b.label}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <span style={{ fontSize: 10, color: "rgba(247,240,221,0.3)", fontStyle: "italic" }}>brak bonusów</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+function SavePresetModal({ presets, onSave, onClose }: {
+  presets: EquipmentPreset[];
+  onSave: (slotIndex: number, name: string) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
+  const [name, setName] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function handleSave() {
+    if (selectedSlot === null || !name.trim()) return;
+    setSaving(true);
+    try { await onSave(selectedSlot, name.trim()); }
+    finally { setSaving(false); }
+  }
+
+  const presetMap = Object.fromEntries(presets.map(p => [p.slotIndex, p]));
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(16,14,32,0.8)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 400, padding: 16 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: "#2D2450", border: "1px solid rgba(245,196,81,0.3)", borderRadius: 14, width: 420, padding: 24 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+          <p style={{ fontFamily: "Cinzel, serif", fontSize: 15, fontWeight: 700, color: "#F5C451", margin: 0 }}>Zapisz zestaw</p>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "rgba(247,240,221,0.4)", fontSize: 22, cursor: "pointer" }}>×</button>
+        </div>
+
+        <p style={{ fontSize: 11, color: "rgba(247,240,221,0.4)", margin: "0 0 12px" }}>Wybierz slot (1–10):</p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, marginBottom: 20 }}>
+          {Array.from({ length: 10 }, (_, i) => {
+            const existing = presetMap[i];
+            const isSelected = selectedSlot === i;
+            return (
+              <button
+                key={i}
+                onClick={() => { setSelectedSlot(i); if (existing) setName(existing.name); }}
+                style={{
+                  padding: "10px 4px", borderRadius: 8, border: `1px solid ${isSelected ? "#F5C451" : "rgba(247,240,221,0.15)"}`,
+                  background: isSelected ? "rgba(245,196,81,0.15)" : existing ? "rgba(89,212,208,0.08)" : "rgba(0,0,0,0.2)",
+                  color: isSelected ? "#F5C451" : existing ? "#59D4D0" : "rgba(247,240,221,0.4)",
+                  cursor: "pointer", fontSize: 11, fontFamily: "Cinzel, serif",
+                  display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
+                }}
+              >
+                <span style={{ fontWeight: 700 }}>{i + 1}</span>
+                {existing && <span style={{ fontSize: 9, maxWidth: 48, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{existing.name}</span>}
+              </button>
+            );
+          })}
+        </div>
+
+        {selectedSlot !== null && (
+          <>
+            <p style={{ fontSize: 11, color: "rgba(247,240,221,0.4)", margin: "0 0 8px" }}>Nazwa zestawu (max 8 znaków):</p>
+            <input
+              value={name}
+              onChange={e => setName(e.target.value.slice(0, 8))}
+              placeholder="np. Ogień"
+              maxLength={8}
+              style={{
+                width: "100%", padding: "10px 12px", borderRadius: 8, marginBottom: 16,
+                background: "rgba(0,0,0,0.3)", border: "1px solid rgba(247,240,221,0.2)",
+                color: "#F7F0DD", fontSize: 13, fontFamily: "Inter, sans-serif",
+                boxSizing: "border-box",
+              }}
+            />
+            <button
+              onClick={handleSave}
+              disabled={!name.trim() || saving}
+              style={{
+                width: "100%", padding: "11px 0", borderRadius: 8, border: "none",
+                background: name.trim() ? "#F5C451" : "rgba(245,196,81,0.2)",
+                color: name.trim() ? "#161d38" : "rgba(247,240,221,0.3)",
+                fontSize: 13, fontWeight: 700, fontFamily: "Cinzel, serif", cursor: name.trim() ? "pointer" : "not-allowed",
+              }}
+            >
+              {saving ? "Zapisuję..." : `Zapisz w slocie ${selectedSlot + 1}`}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ApplyPresetConfirm({ preset, onConfirm, onClose }: {
+  preset: EquipmentPreset;
+  onConfirm: () => Promise<void>;
+  onClose: () => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(16,14,32,0.8)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 400, padding: 16 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: "#2D2450", border: "1px solid rgba(89,212,208,0.3)", borderRadius: 14, width: 360, padding: 24 }}>
+        <p style={{ fontFamily: "Cinzel, serif", fontSize: 15, fontWeight: 700, color: "#F7F0DD", margin: "0 0 12px" }}>
+          Założyć zestaw „{preset.name}"?
+        </p>
+        <p style={{ fontSize: 12, color: "rgba(247,240,221,0.5)", margin: "0 0 20px" }}>
+          Aktualny ekwipunek zostanie zdjęty i zastąpiony zapisanym zestawem. Brakujące przedmioty zostaną pominięte.
+        </p>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={onClose} style={{ flex: 1, padding: "10px 0", background: "rgba(247,240,221,0.08)", color: "rgba(247,240,221,0.6)", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, fontFamily: "Cinzel, serif", cursor: "pointer" }}>
+            Nie
+          </button>
+          <button
+            onClick={async () => { setLoading(true); await onConfirm(); setLoading(false); }}
+            disabled={loading}
+            style={{ flex: 1, padding: "10px 0", background: loading ? "rgba(89,212,208,0.2)" : "#59D4D0", color: "#161d38", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, fontFamily: "Cinzel, serif", cursor: loading ? "not-allowed" : "pointer" }}
+          >
+            {loading ? "..." : "Tak, załóż"}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -346,12 +672,20 @@ function ItemCard({
 // ── GŁÓWNY KOMPONENT ─────────────────────────────────────────────────────────
 
 export default function ChaosVault() {
-  const [vaultData, setVaultData] = useState<any>(null);
-  const [equipped, setEquipped]   = useState<EquippedSlots | null>(null);
-  const [charStats, setCharStats] = useState<CharacterStats | null>(null);
-  const [loading, setLoading]     = useState(true);
-  const [selected, setSelected]   = useState<VaultItem | null>(null);
-  const [equipping, setEquipping] = useState(false);
+  const [vaultData, setVaultData]   = useState<any>(null);
+  const [equipped, setEquipped]     = useState<EquippedSlots | null>(null);
+  const [charStats, setCharStats]   = useState<CharacterStats | null>(null);
+  const [loading, setLoading]       = useState(true);
+  const [selected, setSelected]     = useState<VaultItem | null>(null);
+  const [equipping, setEquipping]   = useState(false);
+
+  const [checkedIds, setCheckedIds]       = useState<Set<number>>(new Set());
+  const [disintPreview, setDisintPreview] = useState<{ items: any[]; totalShards: number } | null>(null);
+  const [disintLoading, setDisintLoading] = useState(false);
+
+  const [presets, setPresets] = useState<EquipmentPreset[]>([]);
+  const [savePresetModal, setSavePresetModal] = useState(false);
+  const [applyConfirm, setApplyConfirm] = useState<EquipmentPreset | null>(null);
 
   const [filters, setFilters] = useState({
     rarity: "all",
@@ -361,11 +695,13 @@ export default function ChaosVault() {
 
   const fetchAll = useCallback(async () => {
     try {
-      const [vaultRes, eqRes, statsRes] = await Promise.all([
-        api.get("/tower/chaos-vault"),
-        api.get("/equipment"),
-        api.get("/character/effective-stats"),
-      ]);
+const [vaultRes, eqRes, statsRes, presetsRes] = await Promise.all([
+  api.get("/tower/chaos-vault"),
+  api.get("/equipment"),
+  api.get("/character/effective-stats"),
+  api.get("/equipment/presets"),
+]);
+setPresets(presetsRes.data);
       setVaultData(vaultRes.data);
       setEquipped(eqRes.data.equipped);
       setCharStats(statsRes.data.effective);
@@ -375,17 +711,22 @@ export default function ChaosVault() {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  async function handleEquip(itemId: number) {
+  // Odznacz przedmioty których już nie ma po odświeżeniu
+  useEffect(() => {
+    if (!vaultData) return;
+    const ids = new Set((vaultData.items as VaultItem[]).map(i => i.chaosVaultItemId));
+    setCheckedIds(prev => new Set([...prev].filter(id => ids.has(id))));
+  }, [vaultData]);
+
+  async function handleEquip(ownedItemId: number) {
     setEquipping(true);
     try {
-      await api.post("/equipment/item/equip", { itemId });
+      await api.post("/equipment/item/equip", { ownedItemId });
       await fetchAll();
       setSelected(null);
     } catch (err: any) {
       alert(err.response?.data?.error ?? "Błąd zakładania przedmiotu");
-    } finally {
-      setEquipping(false);
-    }
+    } finally { setEquipping(false); }
   }
 
   async function handleUnequip(slot: string) {
@@ -396,14 +737,66 @@ export default function ChaosVault() {
       setSelected(null);
     } catch (err: any) {
       alert(err.response?.data?.error ?? "Błąd zdejmowania przedmiotu");
-    } finally {
-      setEquipping(false);
+    } finally { setEquipping(false); }
+  }
+
+  async function handleEquipSelected() {
+    const selectedItems = allItems.filter(e => checkedIds.has(e.chaosVaultItemId));
+    for (const entry of selectedItems) {
+      await handleEquip(entry.ownedItemId);
+    }
+    setCheckedIds(new Set());
+  }
+
+  async function handleDisintegratePreview() {
+    if (checkedIds.size === 0) return;
+    setDisintLoading(true);
+    try {
+      const res = await api.post("/tower/disintegrator/preview", { targets: [...checkedIds] });
+      setDisintPreview(res.data);
+    } catch (err: any) {
+      alert(err.response?.data?.error ?? "Błąd dezintegratora");
+    } finally { setDisintLoading(false); }
+  }
+
+  async function handleDisintegrateConfirm() {
+    if (!disintPreview) return;
+    setDisintLoading(true);
+    try {
+      await api.post("/tower/disintegrator/confirm", { targets: [...checkedIds] });
+      setCheckedIds(new Set());
+      setDisintPreview(null);
+      await fetchAll();
+    } catch (err: any) {
+      alert(err.response?.data?.error ?? "Błąd dezintegratora");
+    } finally { setDisintLoading(false); }
+  }
+
+  function toggleCheck(id: number) {
+    setCheckedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    const visibleIds = filtered.map(e => e.chaosVaultItemId);
+    const allChecked = visibleIds.every(id => checkedIds.has(id));
+    if (allChecked) {
+      setCheckedIds(prev => {
+        const next = new Set(prev);
+        visibleIds.forEach(id => next.delete(id));
+        return next;
+      });
+    } else {
+      setCheckedIds(prev => new Set([...prev, ...visibleIds]));
     }
   }
 
   const allItems: VaultItem[] = vaultData?.items ?? [];
-  const total = vaultData?.totalCount ?? 0;
-  const capacity = vaultData?.capacity ?? 0;
+  const total      = vaultData?.totalCount ?? 0;
+  const capacity   = vaultData?.capacity ?? 0;
   const hiddenCount = vaultData?.hiddenCount ?? 0;
 
   const filtered = allItems.filter(entry => {
@@ -418,82 +811,260 @@ export default function ChaosVault() {
     acc[slot] = filtered.filter(e => e.item.slot === slot);
     return acc;
   }, {});
-  const usedSlots = ALL_SLOTS.filter(s => slotGroups[s].length > 0);
+
+  const filteringBySlot = filters.slot !== "all";
+  const visibleIds = filtered.map(e => e.chaosVaultItemId);
+  const allVisibleChecked = visibleIds.length > 0 && visibleIds.every(id => checkedIds.has(id));
+
+  const equipCheck = equipped ? canEquipSelected(checkedIds, allItems, equipped) : { canEquip: false, reason: "Ładowanie..." };
+
+const checkedShardsPreview = allItems
+  .filter(e => checkedIds.has(e.chaosVaultItemId))
+  .reduce((sum, e) => sum + (RARITY_VALUE[e.item.rarity] ?? 10), 0);
 
   if (loading) return <p style={{ color: "rgba(247,240,221,0.4)" }}>Ładowanie...</p>;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
-      {/* ── FILTRY (góra) ── */}
-      <div style={{
-        background: "#372b5d",
-        borderRadius: 10,
-        padding: "12px 16px",
-        border: "1px solid rgba(245,196,81,0.1)",
-        display: "flex", gap: 20, flexWrap: "wrap", alignItems: "center",
-      }}>
-        <span style={{ fontFamily: "Cinzel, serif", fontSize: 13, color: "#F5C451", letterSpacing: "0.06em" }}>
-          Komnata Nieładu
-        </span>
+      {/* ── GÓRNY PASEK: WYEKWIPOWANE + FILTRY ── */}
+      <div style={{ display: "flex", gap: 16, alignItems: "stretch" }}>
 
-        <div style={{ width: 1, height: 20, background: "rgba(247,240,221,0.1)" }} />
+        {/* BOX: Wyekwipowane (35%) */}
+        <div style={{
+          flex: "0 0 35%",
+          background: "#372b5d",
+          borderRadius: 10,
+          border: "1px solid rgba(245,196,81,0.1)",
+          padding: "12px 16px",
+          minHeight: 420,
+        }}>
+          <p style={{ fontFamily: "Cinzel, serif", fontSize: 11, color: "rgba(245,196,81,0.7)", letterSpacing: "0.08em", textTransform: "uppercase", margin: "0 0 10px" }}>
+            Wyekwipowane
+          </p>
+          <div style={{ position: "relative", width: "100%", height: 360 }}>
+            <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <span style={{ fontSize: 140, opacity: 0.06 }}>🧙</span>
+            </div>
 
-        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          <span style={{ fontSize: 11, color: "rgba(247,240,221,0.4)" }}>Jakość:</span>
-          {["all", ...Object.keys(RARITY_CONFIG)].map(r => (
-            <button
-              key={r}
-              onClick={() => setFilters(f => ({ ...f, rarity: r }))}
-              style={{
+            {equipped && BODY_SLOTS.map(slot => {
+              const item = equipped[slot.key];
+              const rar = item ? (RARITY_CONFIG[item.rarity] ?? RARITY_CONFIG.common) : null;
+              return (
+                <div
+                  key={slot.key}
+                  title={item ? item.name : slot.label}
+                  onClick={() => item && setSelected({ chaosVaultItemId: -1, ownedItemId: item.ownedItemId, addedAt: "", item })}
+                  style={{
+                    position: "absolute",
+                    top: slot.top, left: slot.left,
+                    transform: "translate(-50%, -50%)",
+                    width: 52, height: 52, borderRadius: 10,
+                    background: item ? rar!.bg : "rgba(0,0,0,0.35)",
+                    border: `1px solid ${item ? rar!.color + "99" : "rgba(247,240,221,0.15)"}`,
+                    display: "flex", flexDirection: "column",
+                    alignItems: "center", justifyContent: "center",
+                    cursor: item ? "pointer" : "default",
+                    transition: "transform 0.12s",
+                    zIndex: 5, gap: 2,
+                    boxShadow: item ? `0 0 12px ${rar!.color}33` : "none",
+                  }}
+                  onMouseEnter={e => { if (item) e.currentTarget.style.transform = "translate(-50%, -50%) scale(1.1)"; }}
+                  onMouseLeave={e => { e.currentTarget.style.transform = "translate(-50%, -50%)"; }}
+                >
+                  <span style={{ fontSize: item ? 22 : 18, opacity: item ? 1 : 0.2 }}>{slot.icon}</span>
+                  {item && (
+                    <span style={{
+                      fontSize: 8, color: rar!.color, fontWeight: 700,
+                      maxWidth: 48, overflow: "hidden", textOverflow: "ellipsis",
+                      whiteSpace: "nowrap", textAlign: "center", lineHeight: 1.2,
+                    }}>
+                      {item.name}
+                    </span>
+                  )}
+                  {!item && (
+                    <span style={{ fontSize: 8, color: "rgba(247,240,221,0.2)", textAlign: "center" }}>{slot.label}</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          {/* Zestawy */}
+<div style={{ marginTop: 12, borderTop: "1px solid rgba(247,240,221,0.08)", paddingTop: 10 }}>
+  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+    <span style={{ fontSize: 9, color: "rgba(247,240,221,0.3)", fontFamily: "Cinzel, serif", letterSpacing: "0.06em", textTransform: "uppercase" }}>Zestawy</span>
+    <button
+      onClick={() => setSavePresetModal(true)}
+      style={{ fontSize: 10, padding: "3px 8px", borderRadius: 6, background: "rgba(245,196,81,0.12)", border: "1px solid rgba(245,196,81,0.25)", color: "#F5C451", cursor: "pointer", fontFamily: "Cinzel, serif" }}
+    >
+      + Zapisz zestaw
+    </button>
+  </div>
+  <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 4 }}>
+    {Array.from({ length: 10 }, (_, i) => {
+      const preset = presets.find(p => p.slotIndex === i);
+      return (
+        <button
+          key={i}
+          onClick={() => preset && setApplyConfirm(preset)}
+          disabled={!preset}
+          title={preset ? `Założyć zestaw "${preset.name}"?` : `Slot ${i + 1} — pusty`}
+          style={{
+            padding: "6px 4px", borderRadius: 6,
+            background: preset ? "rgba(89,212,208,0.1)" : "rgba(0,0,0,0.2)",
+            border: `1px solid ${preset ? "rgba(89,212,208,0.3)" : "rgba(247,240,221,0.06)"}`,
+            color: preset ? "#59D4D0" : "rgba(247,240,221,0.2)",
+            fontSize: 9, fontFamily: "Cinzel, serif", cursor: preset ? "pointer" : "default",
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            transition: "all 0.15s",
+          }}
+          onMouseEnter={e => { if (preset) e.currentTarget.style.background = "rgba(89,212,208,0.2)"; }}
+          onMouseLeave={e => { if (preset) e.currentTarget.style.background = "rgba(89,212,208,0.1)"; }}
+        >
+          {preset ? preset.name : `${i + 1}`}
+        </button>
+      );
+    })}
+  </div>
+</div>
+        </div>
+
+        {/* BOX: Filtry + akcje (65%) */}
+        <div style={{
+          flex: "0 0 65%",
+          background: "#372b5d",
+          borderRadius: 10,
+          border: "1px solid rgba(245,196,81,0.1)",
+          padding: "12px 16px",
+          display: "flex", flexDirection: "column", gap: 12,
+          minHeight: 420,
+        }}>
+          <p style={{ fontFamily: "Cinzel, serif", fontSize: 11, color: "rgba(245,196,81,0.7)", letterSpacing: "0.08em", textTransform: "uppercase", margin: 0 }}>
+            Filtry i akcje
+          </p>
+
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+            <span style={{ fontSize: 11, color: "rgba(247,240,221,0.4)", minWidth: 52 }}>Jakość:</span>
+            {["all", ...Object.keys(RARITY_CONFIG)].map(r => (
+              <button key={r} onClick={() => setFilters(f => ({ ...f, rarity: r }))} style={{
                 padding: "3px 9px", borderRadius: 6, fontSize: 11, cursor: "pointer",
                 background: filters.rarity === r ? "#F5C451" : "rgba(0,0,0,0.2)",
                 color: filters.rarity === r ? "#161d38" : "rgba(247,240,221,0.5)",
                 border: "1px solid rgba(245,196,81,0.15)",
                 fontWeight: filters.rarity === r ? 700 : 400,
-              }}
-            >
-              {r === "all" ? "Wszystkie" : RARITY_CONFIG[r].label}
-            </button>
-          ))}
-        </div>
+              }}>
+                {r === "all" ? "Wszystkie" : RARITY_CONFIG[r].label}
+              </button>
+            ))}
+          </div>
 
-        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          <span style={{ fontSize: 11, color: "rgba(247,240,221,0.4)" }}>Typ:</span>
-          {["all", ...ALL_SLOTS].map(s => (
-            <button
-              key={s}
-              onClick={() => setFilters(f => ({ ...f, slot: s }))}
-              style={{
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+            <span style={{ fontSize: 11, color: "rgba(247,240,221,0.4)", minWidth: 52 }}>Typ:</span>
+            {["all", ...ALL_SLOTS].map(s => (
+              <button key={s} onClick={() => setFilters(f => ({ ...f, slot: s }))} style={{
                 padding: "3px 9px", borderRadius: 6, fontSize: 11, cursor: "pointer",
                 background: filters.slot === s ? "#59D4D0" : "rgba(0,0,0,0.2)",
                 color: filters.slot === s ? "#161d38" : "rgba(247,240,221,0.5)",
                 border: "1px solid rgba(89,212,208,0.15)",
                 fontWeight: filters.slot === s ? 700 : 400,
+              }}>
+                {s === "all" ? "Wszystkie" : SLOT_CONFIG[s]?.label ?? s}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={filters.onlyMeetsReqs}
+                onChange={e => setFilters(f => ({ ...f, onlyMeetsReqs: e.target.checked }))}
+                style={{ accentColor: "#F5C451", width: 14, height: 14, cursor: "pointer" }}
+              />
+              <span style={{ fontSize: 11, color: "rgba(247,240,221,0.6)" }}>Spełniasz wymagania</span>
+            </label>
+            <span style={{ fontSize: 11, color: "rgba(247,240,221,0.4)", marginLeft: "auto" }}>
+              {total} / {capacity}
+              {hiddenCount > 0 && <span style={{ color: "#F46A4E", marginLeft: 6 }}>({hiddenCount} ukrytych)</span>}
+            </span>
+          </div>
+
+          {/* Separator */}
+          <div style={{ height: 1, background: "rgba(247,240,221,0.08)" }} />
+
+          {/* Zaznaczanie */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={allVisibleChecked}
+                onChange={toggleSelectAll}
+                style={{ accentColor: "#F5C451", width: 14, height: 14, cursor: "pointer" }}
+              />
+              <span style={{ fontSize: 11, color: "rgba(247,240,221,0.6)" }}>
+                Zaznacz wszystkie ({visibleIds.length})
+              </span>
+            </label>
+            {checkedIds.size > 0 && (
+              <span style={{ fontSize: 11, color: "#F5C451", marginLeft: "auto" }}>
+                Zaznaczono: {checkedIds.size}
+              </span>
+            )}
+          </div>
+
+          {/* Przyciski akcji */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: "auto" }}>
+            {/* Ekwipuj zaznaczone */}
+            <div style={{ position: "relative" }}>
+              <button
+                onClick={handleEquipSelected}
+                disabled={checkedIds.size === 0 || !equipCheck.canEquip || equipping}
+                style={{
+                  width: "100%", padding: "10px 0", borderRadius: 8, border: "none",
+                  fontSize: 12, fontWeight: 700, fontFamily: "Cinzel, serif",
+                  cursor: (checkedIds.size === 0 || !equipCheck.canEquip || equipping) ? "not-allowed" : "pointer",
+                  background: (checkedIds.size === 0 || !equipCheck.canEquip || equipping)
+                    ? "rgba(245,196,81,0.1)" : "#F5C451",
+                  color: (checkedIds.size === 0 || !equipCheck.canEquip || equipping)
+                    ? "rgba(247,240,221,0.3)" : "#161d38",
+                  transition: "all 0.2s",
+                }}
+              >
+                {equipping ? "Zakładam..." : "Załóż zaznaczone"}
+              </button>
+              {checkedIds.size > 0 && !equipCheck.canEquip && (
+                <p style={{ fontSize: 10, color: "#F46A4E", margin: "4px 0 0", textAlign: "center" }}>
+                  {equipCheck.reason}
+                </p>
+              )}
+            </div>
+
+            {/* Dezintegrator */}
+            <button
+              onClick={handleDisintegratePreview}
+              disabled={checkedIds.size === 0 || disintLoading}
+              style={{
+                width: "100%", padding: "10px 0", borderRadius: 8, border: "none",
+                fontSize: 12, fontWeight: 700, fontFamily: "Cinzel, serif",
+                cursor: (checkedIds.size === 0 || disintLoading) ? "not-allowed" : "pointer",
+                background: (checkedIds.size === 0 || disintLoading)
+                  ? "rgba(244,106,78,0.1)" : "rgba(244,106,78,0.85)",
+                color: (checkedIds.size === 0 || disintLoading)
+                  ? "rgba(247,240,221,0.3)" : "#fff",
+                transition: "all 0.2s",
               }}
             >
-              {s === "all" ? "Wszystkie" : SLOT_CONFIG[s]?.label ?? s}
-            </button>
-          ))}
-        </div>
-
-        <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", marginLeft: "auto" }}>
-          <input
-            type="checkbox"
-            checked={filters.onlyMeetsReqs}
-            onChange={e => setFilters(f => ({ ...f, onlyMeetsReqs: e.target.checked }))}
-            style={{ accentColor: "#F5C451", width: 14, height: 14, cursor: "pointer" }}
-          />
-          <span style={{ fontSize: 11, color: "rgba(247,240,221,0.6)" }}>Spełniasz wymagania</span>
-        </label>
-
-        <div style={{ fontSize: 11, color: "rgba(247,240,221,0.4)" }}>
-          {total} / {capacity} przedmiotów
-          {hiddenCount > 0 && <span style={{ color: "#F46A4E", marginLeft: 6 }}>({hiddenCount} ukrytych)</span>}
+{disintLoading
+  ? "Obliczam..."
+  : checkedIds.size > 0
+  ? `💥 Wrzuć do dezintegratora (${checkedIds.size}) — +${checkedShardsPreview} ✦`
+  : "💥 Wrzuć zaznaczone do dezintegratora"
+}            </button>
+          </div>
         </div>
       </div>
 
-      {/* ── GRAFIKA + KOLUMNY PRZEDMIOTÓW + POSTAĆ ── */}
+      {/* ── GRAFIKA ZBROJOWNI ── */}
       <div style={{
         position: "relative",
         borderRadius: 16,
@@ -507,139 +1078,117 @@ export default function ChaosVault() {
           alt="Komnata Nieładu"
           style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
         />
-
-        {/* Gradient u dołu dla czytelności */}
         <div style={{
           position: "absolute", inset: 0,
           background: "linear-gradient(to top, rgba(16,14,32,0.55) 0%, transparent 45%)",
           pointerEvents: "none",
         }} />
 
-        {/* ── POSTAĆ Z EKWIPUNKIEM (lewy panel, nałożony) ── */}
         <div style={{
-          position: "absolute", top: 16, left: 16,
-          width: 180, height: "60%",
-          background: "rgba(16,14,32,0.55)",
-          borderRadius: 12,
-          border: "1px solid rgba(245,196,81,0.15)",
-          backdropFilter: "blur(3px)",
+          position: "absolute",
+          top: 16, right: 16, bottom: 16, left: 16,
         }}>
-          <p style={{ fontFamily: "Cinzel, serif", fontSize: 10, color: "rgba(245,196,81,0.7)", textAlign: "center", padding: "8px 0 0", letterSpacing: "0.06em" }}>
-            EKWIPUNEK
-          </p>
-          <div style={{ position: "relative", width: "100%", height: "calc(100% - 24px)" }}>
-            <div style={{
-              position: "absolute", inset: "10px 10px",
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}>
-              <span style={{ fontSize: 48, opacity: 0.15 }}>🧙</span>
-            </div>
-            {equipped && BODY_SLOTS.map(slot => {
-              const item = equipped[slot.key];
-              return (
-                <div
-                  key={slot.key}
-                  title={item ? item.name : slot.label}
-                  onClick={() => {
-                    if (item) {
-                      const entry = allItems.find(e => e.item.id === item.id);
-                      if (entry) setSelected(entry);
-                    }
-                  }}
-                  style={{
-                    position: "absolute",
-                    top: slot.top, left: slot.left,
-                    transform: "translate(-50%, -50%)",
-                    width: 30, height: 30, borderRadius: 7,
-                    background: item ? "rgba(89,212,208,0.25)" : "rgba(0,0,0,0.4)",
-                    border: item ? "1px solid #59D4D0" : "1px dashed rgba(247,240,221,0.2)",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 13, cursor: item ? "pointer" : "default", zIndex: 5,
-                  }}
-                >
-                  {item ? SLOT_CONFIG[item.slot]?.icon ?? "◆" : slot.icon}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* ── KOLUMNY PRZEDMIOTÓW ── */}
-        {allItems.length === 0 ? (
-          <div style={{
-            position: "absolute", bottom: 24, left: 220, right: 24,
-            textAlign: "center",
-          }}>
-            <p style={{ fontSize: 14, color: "rgba(247,240,221,0.5)", fontStyle: "italic", background: "rgba(16,14,32,0.5)", display: "inline-block", padding: "8px 20px", borderRadius: 8 }}>
-              Komnata jest pusta — znajdź przedmioty podczas eksploracji
-            </p>
-          </div>
-        ) : usedSlots.length === 0 ? (
-          <div style={{
-            position: "absolute", bottom: 24, left: 220, right: 24,
-            textAlign: "center",
-          }}>
-            <p style={{ fontSize: 14, color: "rgba(247,240,221,0.5)", fontStyle: "italic", background: "rgba(16,14,32,0.5)", display: "inline-block", padding: "8px 20px", borderRadius: 8 }}>
-              Brak przedmiotów pasujących do filtrów
-            </p>
-          </div>
-        ) : (
-          <div style={{
-            position: "absolute",
-            top: 16, right: 16, bottom: 16,
-            left: 212,
-            display: "flex", gap: 10,
-          }}>
-            {usedSlots.map(slot => (
-              <div
-                key={slot}
-                style={{
+          {/* Widok wszystkich slotów — 6 kolumn */}
+          {!filteringBySlot && (
+            <div style={{ display: "flex", gap: 10, height: "100%" }}>
+              {ALL_SLOTS.map(slot => (
+                <div key={slot} style={{
                   flex: 1, minWidth: 0,
                   display: "flex", flexDirection: "column",
                   background: "rgba(16,14,32,0.35)",
                   borderRadius: 10,
                   border: "1px solid rgba(245,196,81,0.08)",
                   overflow: "hidden",
-                }}
-              >
-                {/* Nagłówek kolumny */}
-                <div style={{
-                  padding: "8px 10px",
-                  background: "rgba(0,0,0,0.3)",
-                  borderBottom: "1px solid rgba(245,196,81,0.1)",
-                  display: "flex", alignItems: "center", gap: 6, flexShrink: 0,
                 }}>
-                  <span style={{ fontSize: 13 }}>{SLOT_CONFIG[slot]?.icon}</span>
-                  <span style={{ fontFamily: "Cinzel, serif", fontSize: 10.5, color: "#F5C451", letterSpacing: "0.05em", textTransform: "uppercase" }}>
-                    {SLOT_CONFIG[slot]?.label ?? slot}
-                  </span>
-                  <span style={{ fontSize: 10, color: "rgba(247,240,221,0.35)", marginLeft: "auto" }}>
-                    {slotGroups[slot].length}
-                  </span>
+                  <div style={{
+                    padding: "8px 10px",
+                    background: "rgba(0,0,0,0.3)",
+                    borderBottom: "1px solid rgba(245,196,81,0.1)",
+                    display: "flex", alignItems: "center", gap: 6, flexShrink: 0,
+                  }}>
+                    <span style={{ fontSize: 13 }}>{SLOT_CONFIG[slot]?.icon}</span>
+                    <span style={{ fontFamily: "Cinzel, serif", fontSize: 10.5, color: "#F5C451", letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                      {SLOT_CONFIG[slot]?.label ?? slot}
+                    </span>
+                    <span style={{ fontSize: 10, color: "rgba(247,240,221,0.35)", marginLeft: "auto" }}>
+                      {slotGroups[slot].length}
+                    </span>
+                  </div>
+                  <div style={{ flex: 1, overflowY: "auto", padding: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+                    {slotGroups[slot].length === 0 ? (
+                      <p style={{ fontSize: 11, color: "rgba(247,240,221,0.25)", fontStyle: "italic", textAlign: "center", padding: "12px 4px" }}>
+                        Brak przedmiotów
+                      </p>
+                    ) : (
+                      slotGroups[slot].map(entry => (
+                        <ItemCard
+                          key={entry.chaosVaultItemId}
+                          entry={entry}
+                          isEquipped={isEntryEquipped(entry, equipped!)}
+                          meetsReqs={meetsRequirements(entry.item, charStats)}
+                          isSelected={checkedIds.has(entry.chaosVaultItemId)}
+                          onToggleSelect={toggleCheck}
+                          onOpenDetail={setSelected}
+                        />
+                      ))
+                    )}
+                  </div>
                 </div>
+              ))}
+            </div>
+          )}
 
-                {/* Lista — scrollowalna */}
-                <div style={{
-                  flex: 1, overflowY: "auto",
-                  padding: 8, display: "flex", flexDirection: "column", gap: 6,
-                }}>
-                  {slotGroups[slot].map(entry => (
-                    <ItemCard
-                      key={entry.id}
-                      entry={entry}
-                      isEquipped={Object.values(equipped ?? {}).some((eq: any) => eq?.id === entry.item.id)}
-                      meetsReqs={meetsRequirements(entry.item, charStats)}
-                      onClick={() => setSelected(entry)}
-                    />
-                  ))}
-                </div>
+          {/* Widok pojedynczego slotu — siatka */}
+          {filteringBySlot && (
+            <div style={{
+              height: "100%",
+              background: "rgba(16,14,32,0.35)",
+              borderRadius: 10,
+              border: "1px solid rgba(245,196,81,0.08)",
+              overflow: "hidden",
+              display: "flex", flexDirection: "column",
+            }}>
+              <div style={{
+                padding: "8px 14px",
+                background: "rgba(0,0,0,0.3)",
+                borderBottom: "1px solid rgba(245,196,81,0.1)",
+                display: "flex", alignItems: "center", gap: 8, flexShrink: 0,
+              }}>
+                <span style={{ fontSize: 16 }}>{SLOT_CONFIG[filters.slot]?.icon}</span>
+                <span style={{ fontFamily: "Cinzel, serif", fontSize: 12, color: "#F5C451", letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                  {SLOT_CONFIG[filters.slot]?.label ?? filters.slot}
+                </span>
+                <span style={{ fontSize: 11, color: "rgba(247,240,221,0.35)", marginLeft: "auto" }}>
+                  {filtered.length} przedmiotów
+                </span>
               </div>
-            ))}
-          </div>
-        )}
+              <div style={{ flex: 1, overflowY: "auto", padding: 12 }}>
+                {filtered.length === 0 ? (
+                  <p style={{ fontSize: 13, color: "rgba(247,240,221,0.25)", fontStyle: "italic", textAlign: "center", padding: "32px 0" }}>
+                    Brak przedmiotów w tej kategorii
+                  </p>
+                ) : (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 8 }}>
+                    {filtered.map(entry => (
+                      <ItemCard
+                        key={entry.chaosVaultItemId}
+                        entry={entry}
+                        isEquipped={isEntryEquipped(entry, equipped!)}
+                        meetsReqs={meetsRequirements(entry.item, charStats)}
+                        isSelected={checkedIds.has(entry.chaosVaultItemId)}
+                        onToggleSelect={toggleCheck}
+                        onOpenDetail={setSelected}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* ── POPUP ── */}
+      {/* ── POPUP PRZEDMIOTU ── */}
       {selected && equipped && (
         <ItemPopup
           entry={selected}
@@ -651,6 +1200,43 @@ export default function ChaosVault() {
           equipping={equipping}
         />
       )}
+
+      {/* ── POPUP DEZINTEGRATORA ── */}
+      {disintPreview && (
+        <DisintegratorPopup
+          items={disintPreview.items}
+          totalShards={disintPreview.totalShards}
+          onConfirm={handleDisintegrateConfirm}
+          onClose={() => setDisintPreview(null)}
+          loading={disintLoading}
+        />
+      )}
+      {/* ── MODAL ZAPISU ZESTAWU ── */}
+{savePresetModal && (
+  <SavePresetModal
+    presets={presets}
+    onSave={async (slotIndex, name) => {
+      await api.post("/equipment/presets/save", { slotIndex, name });
+      setSavePresetModal(false);
+      await fetchAll();
+    }}
+    onClose={() => setSavePresetModal(false)}
+  />
+)}
+
+{/* ── MODAL POTWIERDZENIA ZESTAWU ── */}
+{applyConfirm && (
+  <ApplyPresetConfirm
+    preset={applyConfirm}
+    onConfirm={async () => {
+      const res = await api.post("/equipment/presets/apply", { slotIndex: applyConfirm.slotIndex });
+      setApplyConfirm(null);
+      await fetchAll();
+      if (res.data.outdated) alert(res.data.message);
+    }}
+    onClose={() => setApplyConfirm(null)}
+  />
+)}
     </div>
   );
 }

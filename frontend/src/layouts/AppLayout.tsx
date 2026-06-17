@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
-import { useEffect } from "react";
+import { useState, useEffect } from "react"
 import { useCharacter } from "../contexts/CharacterContext";
+import api from "../api/client"
 
 const NAV = [
   { to: "/premium",     label: "✦ Premium" },
@@ -18,6 +19,7 @@ const NAV = [
 
 export default function AppLayout() {
   const { character, refresh } = useCharacter();
+  const [productionPerHour, setProductionPerHour] = useState<number | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -29,6 +31,10 @@ export default function AppLayout() {
     window.addEventListener("auth:logout", handleLogout);
     return () => window.removeEventListener("auth:logout", handleLogout);
   }, [navigate]);
+
+useEffect(() => {
+  api.get("/tower").then(r => setProductionPerHour(r.data.resources?.productionPerHour ?? null)).catch(() => {});
+}, [character?.powerShards]);
 
   function logout() {
     localStorage.removeItem("token");
@@ -83,8 +89,7 @@ export default function AppLayout() {
             </div>
 
             <div style={{ display: "flex", gap: 16, marginLeft: "auto" }}>
-              <span>✦ {character.powerShards} okruchów</span>
-              <span>◈ {character.runicStoneShards} runicznych</span>
+<span>✦ {character.powerShards} okruchów{productionPerHour !== null ? ` (+${productionPerHour}/godz.)` : ""}</span>              <span>◈ {character.runicStoneShards} runicznych</span>
             </div>
 
             <button

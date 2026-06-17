@@ -57,6 +57,7 @@ function pickItemRarity(locationLevel: number): string {
 
 interface DroppedItemResult {
   chaosVaultItemId: number;
+  ownedItemId: number;
   itemId: number;
   name: string;
   rarity: string;
@@ -158,6 +159,7 @@ async function resolveTutorialEncounter(
     const result = await addItemToChaosVaultWithMessage(characterId, item.id, item.name);
     droppedItem = {
       chaosVaultItemId: result.chaosVaultItemId,
+      ownedItemId: result.ownedItemId,
       itemId: item.id,
       name: item.name,
       rarity: item.rarity,
@@ -257,6 +259,7 @@ export async function claimExploration(userId: number, actionId: number) {
 
         droppedItem = {
           chaosVaultItemId: result.chaosVaultItemId,
+          ownedItemId: result.ownedItemId,
           itemId: chosen.id,
           name: chosen.name,
           rarity: chosen.rarity,

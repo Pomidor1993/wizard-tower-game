@@ -68,12 +68,12 @@ const BUILDING_CONFIG: Record<string, BuildingConfig> = {
   },
   // ── ALTAIR — wzmocnienia żywiołowe (patrz sekcja niżej) ──
   Altair: {
-    requiredTowerLevel: 5,
+    requiredTowerLevel: 2,
     maxLevel: 40, // 4 pary × co 10 poziomów -> wartość do dostrojenia balansu
     baseCostShards: 50, // PLACEHOLDER — dostrój koszt
-    baseReqKnowledge: 20,
+    baseReqKnowledge: 5,
     baseReqIntelligence: 0,
-    baseReqElementalMagic: 10,
+    baseReqElementalMagic: 1,
     baseReqAstralMagic: 0,
     baseReqBloodMagic: 0,
     baseDurationSeconds: 300,
@@ -91,12 +91,12 @@ const BUILDING_CONFIG: Record<string, BuildingConfig> = {
     scaleMultiplier: 1.3,
   },
   disintegrator: {
-    requiredTowerLevel: 10,
+    requiredTowerLevel: 1,
     maxLevel: 1,
     baseCostShards: 30,
     baseReqKnowledge: 5,
     baseReqIntelligence: 5,
-    baseReqPower: 15,
+    baseReqPower: 1,
     baseDurationSeconds: 300,
     scaleMultiplier: 1,
   },

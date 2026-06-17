@@ -20,17 +20,17 @@ export async function previewDisintegrate(userId: number, chaosVaultItemIds: num
   if (!disintegrator || disintegrator.level === 0) throw new Error("Wybuduj Dezintegrator najpierw");
 
   const entries = await prisma.chaosVaultItem.findMany({
-    where: { id: { in: chaosVaultItemIds }, characterId: character.id, itemId: { not: null } },
-    include: { item: true },
+    where: { id: { in: chaosVaultItemIds }, ownedItem: { characterId: character.id } },
+    include: { ownedItem: { include: { item: true } } },
   });
 
-  const items: { chaosVaultItemId: number; name: string; rarity: string; value: number }[] = [];
+  const items: { chaosVaultItemId: number; ownedItemId: number; name: string; rarity: string; value: number }[] = [];
   let totalShards = 0;
 
   for (const entry of entries) {
-    if (!entry.item) continue;
-    const value = RARITY_VALUE[entry.item.rarity] ?? 10;
-    items.push({ chaosVaultItemId: entry.id, name: entry.item.name, rarity: entry.item.rarity, value });
+    const item = entry.ownedItem.item;
+    const value = RARITY_VALUE[item.rarity] ?? 10;
+    items.push({ chaosVaultItemId: entry.id, ownedItemId: entry.ownedItemId, name: item.name, rarity: item.rarity, value });
     totalShards += value;
   }
 
@@ -42,10 +42,15 @@ export async function confirmDisintegrate(userId: number, chaosVaultItemIds: num
   const character = await prisma.character.findUnique({ where: { userId } });
   if (!character) throw new Error("Postać nie znaleziona");
 
-  const idsToDelete = preview.items.map(i => i.chaosVaultItemId);
-  if (idsToDelete.length > 0) {
+  const ownedItemIds = preview.items.map(i => i.ownedItemId);
+
+  if (ownedItemIds.length > 0) {
+    // Usuń ChaosVaultItem, a następnie OwnedItem (jeśli brak cascade w schemie)
     await prisma.chaosVaultItem.deleteMany({
-      where: { id: { in: idsToDelete }, characterId: character.id },
+      where: { ownedItemId: { in: ownedItemIds } },
+    });
+    await prisma.ownedItem.deleteMany({
+      where: { id: { in: ownedItemIds }, characterId: character.id },
     });
   }
 

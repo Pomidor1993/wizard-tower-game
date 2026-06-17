@@ -6,6 +6,9 @@ import {
   equipSpell,
   unequipSpell,
   equipSpellAuto,
+  saveEquipmentPreset,
+  getEquipmentPresets,
+  applyEquipmentPreset,
 } from "../services/equipment.service.js";
 
 export async function getEquipmentEndpoint(req: Request, res: Response) {
@@ -16,11 +19,30 @@ export async function getEquipmentEndpoint(req: Request, res: Response) {
   }
 }
 
+export async function savePresetEndpoint(req: Request, res: Response) {
+  const { slotIndex, name } = req.body;
+  if (slotIndex === undefined || !name) { res.status(400).json({ error: "Podaj slotIndex i name" }); return; }
+  try { res.json(await saveEquipmentPreset(req.userId!, parseInt(slotIndex), name)); }
+  catch (e: any) { res.status(400).json({ error: e.message }); }
+}
+
+export async function getPresetsEndpoint(req: Request, res: Response) {
+  try { res.json(await getEquipmentPresets(req.userId!)); }
+  catch (e: any) { res.status(400).json({ error: e.message }); }
+}
+
+export async function applyPresetEndpoint(req: Request, res: Response) {
+  const { slotIndex } = req.body;
+  if (slotIndex === undefined) { res.status(400).json({ error: "Podaj slotIndex" }); return; }
+  try { res.json(await applyEquipmentPreset(req.userId!, parseInt(slotIndex))); }
+  catch (e: any) { res.status(400).json({ error: e.message }); }
+}
+
 export async function equipItemEndpoint(req: Request, res: Response) {
-  const { itemId } = req.body;
-  if (!itemId) { res.status(400).json({ error: "Podaj itemId" }); return; }
+  const { ownedItemId } = req.body;
+  if (!ownedItemId) { res.status(400).json({ error: "Podaj ownedItemId" }); return; }
   try {
-    res.json(await equipItem(req.userId!, parseInt(itemId)));
+    res.json(await equipItem(req.userId!, parseInt(ownedItemId)));
   } catch (error: any) {
     res.status(400).json({ error: error.message });
   }

@@ -34,7 +34,7 @@ model Character {
 
   equipment   CharacterEquipment?
   spellSlots  CharacterSpellSlots[]
-  chaosVault  ChaosVaultItem[]
+  ownedItems  OwnedItem[]
 
 
 
@@ -67,7 +67,8 @@ model Character {
   spells    CharacterSpell[]
   items     CharacterItem[]
   actions   CharacterAction[]
-
+  equipmentPresets EquipmentPreset[]
+  
   battlesAsAttacker Battle[] @relation("BattleAttacker")
   battlesAsDefender Battle[] @relation("BattleDefender")
   battlesAsWinner   Battle[] @relation("BattleWinner")
@@ -180,7 +181,6 @@ model Spell {
 
   spellSlots  CharacterSpellSlots[]
   characters  CharacterSpell[]
-  chaosVault  ChaosVaultItem[]
   spellbookEntries SpellbookEntry[]
   allowedClasses String @default("[]")
 }
@@ -228,7 +228,28 @@ model Item {
   bonusBloodMagic     Int @default(0)
 
   characters CharacterItem[]
-  chaosVault ChaosVaultItem[]
+  ownedItems OwnedItem[]
+}
+
+model OwnedItem {
+  id          Int       @id @default(autoincrement())
+  characterId Int
+  character   Character @relation(fields: [characterId], references: [id])
+  itemId      Int
+  item        Item      @relation(fields: [itemId], references: [id])
+  obtainedAt  DateTime  @default(now())
+
+  vaultEntry ChaosVaultItem?
+
+  equippedAsRobe     CharacterEquipment? @relation("EquipRobe")
+  equippedAsBoots    CharacterEquipment? @relation("EquipBoots")
+  equippedAsHat      CharacterEquipment? @relation("EquipHat")
+  equippedAsAmulet   CharacterEquipment? @relation("EquipAmulet")
+  equippedAsMainHand CharacterEquipment? @relation("EquipMainHand")
+  equippedAsOffHand  CharacterEquipment? @relation("EquipOffHand")
+  equippedAsOffHand2 CharacterEquipment? @relation("EquipOffHand2")
+
+  @@index([characterId])
 }
 
 model CharacterItem {
@@ -246,13 +267,21 @@ model CharacterEquipment {
   characterId Int       @unique
   character   Character @relation(fields: [characterId], references: [id])
 
-  robeId     Int?
-  bootsId    Int?
-  hatId      Int?
-  amuletId   Int?
-  mainHandId Int?
-  offHandId  Int?
-  offHand2Id Int?
+  robeId     Int? @unique
+  bootsId    Int? @unique
+  hatId      Int? @unique
+  amuletId   Int? @unique
+  mainHandId Int? @unique
+  offHandId  Int? @unique
+  offHand2Id Int? @unique
+
+  robe     OwnedItem? @relation("EquipRobe", fields: [robeId], references: [id])
+  boots    OwnedItem? @relation("EquipBoots", fields: [bootsId], references: [id])
+  hat      OwnedItem? @relation("EquipHat", fields: [hatId], references: [id])
+  amulet   OwnedItem? @relation("EquipAmulet", fields: [amuletId], references: [id])
+  mainHand OwnedItem? @relation("EquipMainHand", fields: [mainHandId], references: [id])
+  offHand  OwnedItem? @relation("EquipOffHand", fields: [offHandId], references: [id])
+  offHand2 OwnedItem? @relation("EquipOffHand2", fields: [offHand2Id], references: [id])
 }
 
 // ── AKTYWNE CZARY POSTACI ────────────────────────────
@@ -308,15 +337,9 @@ model Battle {
 // ── KOMNATA NIEŁADU ───────────────────────────────────
 model ChaosVaultItem {
   id          Int       @id @default(autoincrement())
-  characterId Int
-  character   Character @relation(fields: [characterId], references: [id])
-  itemId      Int?
-  spellId     Int?
-  item        Item?     @relation(fields: [itemId], references: [id])
-  spell       Spell?    @relation(fields: [spellId], references: [id])
+  ownedItemId Int       @unique
+  ownedItem   OwnedItem @relation(fields: [ownedItemId], references: [id])
   addedAt     DateTime  @default(now())
-
-  @@index([characterId])
 }
 
 // ── SPOTKANIA PVE ──────────────────────────────────────────────────────────────
@@ -439,3 +462,22 @@ model ArchetypeEventChoice {
   reaperDelta     Int @default(0)
 }
 
+model EquipmentPreset {
+  id          Int       @id @default(autoincrement())
+  characterId Int
+  character   Character @relation(fields: [characterId], references: [id])
+  slotIndex   Int       // 0–9
+  name        String
+  hatItemId       Int?
+  robeItemId      Int?
+  bootsItemId     Int?
+  amuletItemId    Int?
+  mainHandItemId  Int?
+  offHandItemId   Int?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([characterId, slotIndex])
+  @@index([characterId])
+}

@@ -1,5 +1,22 @@
 import { useCallback, useEffect, useState } from "react";
 import api from "../api/client";
+import { useCharacter } from "../contexts/CharacterContext";
+
+// ── PALETA (zgodna z Training.tsx / ExplorationPanel.tsx / StudyPanel.tsx) ───
+const COLORS = {
+  bg:        "#161d38",
+  panel:     "#372b5d",
+  panelAlt:  "rgba(0,0,0,0.15)",
+  border:    "rgba(245,196,81,0.12)",
+  borderSoft:"rgba(247,240,221,0.08)",
+  gold:      "#F5C451",
+  teal:      "#59D4D0",
+  red:       "#F46A4E",
+  text:      "#F7F0DD",
+  textDim:   "rgba(247,240,221,0.55)",
+  textFaint: "rgba(247,240,221,0.35)",
+  textGhost: "rgba(247,240,221,0.2)",
+};
 
 interface RankingEntry {
   rank: number;
@@ -20,10 +37,10 @@ type EventSide = "ally" | "enemy" | "neutral";
  * Określa stronę eventu na podstawie pola `attacker` i metadanych walki.
  *
  * Logika:
- * - "ally"    → ciemnozielony  — mój fighter lub mój minion
- * - "enemy"   → ciemnoczerwony — fighter/minion przeciwnika
- * - "neutral" → ciemnożółty   — minion z targetType=randomAny, efekty globalne,
- *                                System, eventy bez wyraźnej strony
+ * - "ally"    → turkus  — mój fighter lub mój minion
+ * - "enemy"   → czerwony — fighter/minion przeciwnika
+ * - "neutral" → złoty   — minion z targetType=randomAny, efekty globalne,
+ *                          System, eventy bez wyraźnej strony
  */
 function getEventSide(
   attackerName: string,
@@ -49,7 +66,7 @@ function getEventSide(
     null;
 
   if (mySide === null) {
-    // Obserwator (nie uczestnik) — sideA zielona, sideB czerwona
+    // Obserwator (nie uczestnik) — sideA turkus, sideB czerwony
     if (sideAFighterNames.includes(attackerName) || sideAMinionNames.includes(attackerName)) return "ally";
     if (sideBFighterNames.includes(attackerName) || sideBMinionNames.includes(attackerName)) return "enemy";
     return "neutral";
@@ -59,38 +76,29 @@ function getEventSide(
   const isOnSideA = sideAFighterNames.includes(attackerName) || sideAMinionNames.includes(attackerName);
   const isOnSideB = sideBFighterNames.includes(attackerName) || sideBMinionNames.includes(attackerName);
 
-  // Miniony neutralne (randomAny) — identyfikacja przez allParticipants
-  // Jeśli attacker jest minionem ale nie ma go w żadnej liście fighterów/minionów,
-  // lub jawnie oznaczony jako neutralny w allParticipants — traktuj jako neutral.
-  // Dla uproszczenia: miniony z summonTargetType=randomAny są w sideBMinionNames/sideAMinionNames
-  // ale możemy oznaczyć je jako neutral w allParticipants jeśli dodasz to w serwisie.
-  // Tymczasowo: sprawdź allParticipants jeśli dostępne.
   const allParticipants: Array<{ name: string; side: string; type: string; targetType?: string }> =
     metadata.allParticipants ?? [];
 
-if (allParticipants.length > 0) {
-  const participant = allParticipants.find(p => p.name === attackerName);
-  if (participant) {
-    // Neutralne (randomAny, all) — zawsze żółte
-    if (participant.side === "neutral") return "neutral";
+  if (allParticipants.length > 0) {
+    const participant = allParticipants.find(p => p.name === attackerName);
+    if (participant) {
+      // Neutralne (randomAny, all) — zawsze złote
+      if (participant.side === "neutral") return "neutral";
 
-    if (participant.type === "minion" && participant.targetType) {
-      // randomAlly / allAllies — minion bije sojuszników właściciela
-      // z perspektywy właściciela to sojusznik (zielony), dla wroga to... też sojusznik właściciela (zielony/czerwony normalnie)
-      // Traktujemy go jak fightera swojej strony
+      if (participant.type === "minion" && participant.targetType) {
+        const participantIsAlly =
+          (mySide === "sideA" && participant.side === "sideA") ||
+          (mySide === "sideB" && participant.side === "sideB");
+        return participantIsAlly ? "ally" : "enemy";
+      }
+
+      // Fighterzy — standardowa logika
       const participantIsAlly =
         (mySide === "sideA" && participant.side === "sideA") ||
         (mySide === "sideB" && participant.side === "sideB");
       return participantIsAlly ? "ally" : "enemy";
     }
-
-    // Fighterzy — standardowa logika
-    const participantIsAlly =
-      (mySide === "sideA" && participant.side === "sideA") ||
-      (mySide === "sideB" && participant.side === "sideB");
-    return participantIsAlly ? "ally" : "enemy";
   }
-}
 
   // Fallback: brak w allParticipants — użyj list nazw
   const isAlly  = (mySide === "sideA" && isOnSideA) || (mySide === "sideB" && isOnSideB);
@@ -102,10 +110,43 @@ if (allParticipants.length > 0) {
 }
 
 const EVENT_COLORS: Record<EventSide, string> = {
-  ally:    "text-green-800",
-  enemy:   "text-red-800",
-  neutral: "text-yellow-700",
+  ally:    COLORS.teal,
+  enemy:   COLORS.red,
+  neutral: COLORS.gold,
 };
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SHARED — Panel / SectionTitle (jak w Training.tsx / ExplorationPanel.tsx)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function Panel({ children, style = {} }: { children: React.ReactNode; style?: React.CSSProperties }) {
+  return (
+    <div style={{
+      background: COLORS.panel,
+      borderRadius: 12,
+      border: `1px solid ${COLORS.border}`,
+      padding: 20,
+      ...style,
+    }}>
+      {children}
+    </div>
+  );
+}
+
+function SectionTitle({ children, style = {} }: { children: React.ReactNode; style?: React.CSSProperties }) {
+  return (
+    <p style={{
+      fontFamily: "Cinzel, serif",
+      fontSize: 13,
+      color: COLORS.gold,
+      letterSpacing: "0.08em",
+      marginBottom: 16,
+      ...style,
+    }}>
+      {children}
+    </p>
+  );
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // KOMPONENT: log jednej tury (wielokrotne użycie)
@@ -120,28 +161,26 @@ interface TurnLogViewProps {
 }
 
 function TurnLogView({ turn, metadata, myCharacterId, isFreshResult = false }: TurnLogViewProps) {
-  // HP header — świeży wynik używa sideAFighterHps/sideBFighterHps,
-  // historia używa starszego attackerHp/defenderHp
   const hpHeader = isFreshResult
     ? `HP Atakującego: ${turn.sideAFighterHps?.[0]?.hp ?? "?"} • HP Obrońcy: ${turn.sideBFighterHps?.[0]?.hp ?? "?"}`
     : `HP Atakującego: ${turn.attackerHp ?? turn.sideAFighterHps?.[0]?.hp ?? "?"} • HP Obrońcy: ${turn.defenderHp ?? turn.sideBFighterHps?.[0]?.hp ?? "?"}`;
 
   return (
-    <div className="space-y-2 text-xs">
-      <div className="flex items-center gap-2 text-gray-500">
-        <span className="font-semibold">Tura {turn.turn}</span>
+    <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, color: COLORS.textFaint }}>
+        <span style={{ fontFamily: "Cinzel, serif", fontWeight: 700, color: COLORS.textDim }}>Tura {turn.turn}</span>
         <span>•</span>
         <span>{hpHeader}</span>
       </div>
-      <div className="space-y-1">
+      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
         {turn.events?.map((event: any, eventIndex: number) => {
           const side  = getEventSide(event.attacker, metadata, myCharacterId);
           const color = EVENT_COLORS[side];
           return (
-            <div key={eventIndex} className={color}>
-              <span className="font-medium">{event.description}</span>
+            <div key={eventIndex} style={{ color }}>
+              <span style={{ fontWeight: 600 }}>{event.description}</span>
               {event.damage > 0 && side === "enemy" && (
-                <span className="opacity-75"> (cel: {event.targetHpAfter} HP)</span>
+                <span style={{ opacity: 0.75 }}> (cel: {event.targetHpAfter} HP)</span>
               )}
             </div>
           );
@@ -157,19 +196,21 @@ function TurnLogView({ turn, metadata, myCharacterId, isFreshResult = false }: T
 
 function ColorLegend() {
   return (
-    <div className="flex items-center gap-4 text-xs text-gray-500 mb-2">
-      <span className="font-medium text-gray-400 uppercase tracking-wide">Legenda:</span>
-      <span className="flex items-center gap-1">
-        <span className="w-2.5 h-2.5 rounded-full bg-green-800 inline-block" />
-        <span className="text-green-800 font-medium">Twoje akcje</span>
+    <div style={{ display: "flex", alignItems: "center", gap: 16, fontSize: 11, color: COLORS.textFaint, marginBottom: 8, flexWrap: "wrap" }}>
+      <span style={{ fontFamily: "Cinzel, serif", color: COLORS.textFaint, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+        Legenda:
       </span>
-      <span className="flex items-center gap-1">
-        <span className="w-2.5 h-2.5 rounded-full bg-red-800 inline-block" />
-        <span className="text-red-800 font-medium">Akcje przeciwnika</span>
+      <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <span style={{ width: 9, height: 9, borderRadius: "50%", background: COLORS.teal, display: "inline-block" }} />
+        <span style={{ color: COLORS.teal, fontWeight: 600 }}>Twoje akcje</span>
       </span>
-      <span className="flex items-center gap-1">
-        <span className="w-2.5 h-2.5 rounded-full bg-yellow-600 inline-block" />
-        <span className="text-yellow-700 font-medium">Efekty globalne / neutralne</span>
+      <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <span style={{ width: 9, height: 9, borderRadius: "50%", background: COLORS.red, display: "inline-block" }} />
+        <span style={{ color: COLORS.red, fontWeight: 600 }}>Akcje przeciwnika</span>
+      </span>
+      <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <span style={{ width: 9, height: 9, borderRadius: "50%", background: COLORS.gold, display: "inline-block" }} />
+        <span style={{ color: COLORS.gold, fontWeight: 600 }}>Efekty globalne / neutralne</span>
       </span>
     </div>
   );
@@ -179,7 +220,9 @@ function ColorLegend() {
 // GŁÓWNY KOMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export default function CombatPanel({ onRefresh }: { onRefresh: () => void }) {
+export default function CombatPanel() {
+  const { refresh: refreshCharacter } = useCharacter();
+
   const [ranking, setRanking] = useState<RankingEntry[]>([]);
   const [myCharacterId, setMyCharacterId] = useState<number | null>(null);
   const [selected, setSelected] = useState<RankingEntry | null>(null);
@@ -211,7 +254,7 @@ export default function CombatPanel({ onRefresh }: { onRefresh: () => void }) {
       });
       setBattleResult(res.data);
       await fetchRanking();
-      onRefresh();
+      await refreshCharacter();
     } catch (err: any) {
       alert(err.response?.data?.error ?? "Błąd walki");
     } finally {
@@ -228,154 +271,235 @@ export default function CombatPanel({ onRefresh }: { onRefresh: () => void }) {
     );
   }
 
-  if (loading) return <p className="text-sm text-gray-400">Ładowanie...</p>;
+  if (loading) return <p style={{ fontSize: 13, color: COLORS.textFaint }}>Ładowanie...</p>;
 
   return (
-    <div className="space-y-4">
+    <div>
+      <h1 style={{ fontFamily: "Cinzel, serif", color: COLORS.gold, fontSize: 22, marginBottom: 24, letterSpacing: "0.06em" }}>
+        Pojedynki
+      </h1>
 
-      {/* Wynik walki */}
-      {battleResult && (
-        <div className={`rounded-xl border p-4 ${battleResult.attackerWon ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}>
-          <div className="flex justify-between items-start mb-3">
-            <p className={`font-semibold ${battleResult.attackerWon ? "text-green-900" : "text-red-900"}`}>
-              {battleResult.attackerWon ? "⚔️ Zwycięstwo!" : "💀 Porażka"}
-            </p>
-            <button onClick={() => setBattleResult(null)} className="text-gray-400 hover:text-gray-600 text-lg leading-none">×</button>
-          </div>
-          <p className="text-sm text-gray-700 mb-3">{battleResult.summary}</p>
-          {battleResult.attackerWon && (
-            <p className="text-sm font-medium text-green-700">+{battleResult.prestigeGain} prestiżu</p>
-          )}
+      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
 
-          {/* Log walki */}
-          {battleResult.log?.length > 0 && (
-            <div className="mt-3">
-              <ColorLegend />
-              <div className="max-h-72 overflow-y-auto space-y-3 bg-white rounded-lg p-3 border border-gray-100">
-                {battleResult.log.map((turn: any) => (
-                  <TurnLogView
-                    key={turn.turn}
-                    turn={turn}
-                    metadata={battleResult.metadata}
-                    myCharacterId={myCharacterId}
-                    isFreshResult
-                  />
-                ))}
-              </div>
+        {/* Wynik walki */}
+        {battleResult && (
+          <Panel style={{
+            background: battleResult.attackerWon ? "rgba(89,212,208,0.06)" : "rgba(244,106,78,0.06)",
+            border: `1px solid ${battleResult.attackerWon ? "rgba(89,212,208,0.25)" : "rgba(244,106,78,0.25)"}`,
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+              <p style={{
+                fontFamily: "Cinzel, serif", fontWeight: 700, fontSize: 14,
+                color: battleResult.attackerWon ? COLORS.teal : COLORS.red,
+                margin: 0, letterSpacing: "0.04em",
+              }}>
+                {battleResult.attackerWon ? "⚔️ Zwycięstwo!" : "💀 Porażka"}
+              </p>
+              <button
+                onClick={() => setBattleResult(null)}
+                style={{ background: "none", border: "none", color: COLORS.textGhost, fontSize: 18, lineHeight: 1, cursor: "pointer", padding: 0 }}
+                onMouseEnter={e => (e.currentTarget.style.color = COLORS.red)}
+                onMouseLeave={e => (e.currentTarget.style.color = COLORS.textGhost)}
+              >×</button>
             </div>
-          )}
-        </div>
-      )}
+            <p style={{ fontSize: 13, color: COLORS.textDim, marginTop: 0, marginBottom: 10 }}>{battleResult.summary}</p>
+            {battleResult.attackerWon && (
+              <p style={{ fontSize: 13, fontWeight: 700, color: COLORS.gold, marginTop: 0, marginBottom: 10 }}>
+                +{battleResult.prestigeGain} prestiżu
+              </p>
+            )}
 
-      {/* Arena */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="relative" style={{ height: "200px" }}>
-          <div className="absolute inset-0 bg-gray-50 flex items-center justify-center">
-            <p className="text-gray-200 text-sm">Grafika areny — tło z czarodziejami po bokach</p>
-          </div>
-          <div className="absolute left-4 top-1/2 -translate-y-1/2 text-center">
-            <div className="w-16 h-16 rounded-full bg-gray-200 border-2 border-gray-300 flex items-center justify-center text-2xl font-bold text-gray-400 mb-1">
-              ?
-            </div>
-            <p className="text-xs font-medium text-gray-500">Ty</p>
-          </div>
-          <div className="absolute right-4 top-1/2 -translate-y-1/2 text-center">
-            <div className={`w-16 h-16 rounded-full border-2 flex items-center justify-center text-2xl font-bold mb-1 transition-colors ${
-              selected ? "bg-red-100 border-red-300 text-red-400" : "bg-gray-200 border-gray-300 text-gray-400"
-            }`}>
-              {selected ? selected.name[0] : "?"}
-            </div>
-            <p className="text-xs font-medium text-gray-500">
-              {selected ? selected.name : "Przeciwnik"}
-            </p>
-          </div>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-2xl font-black text-gray-200">VS</span>
-          </div>
-        </div>
-
-        {/* Ranking */}
-        <div className="border-t border-gray-100">
-          <div className="px-4 py-3 border-b border-gray-100 flex justify-between items-center">
-            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Ranking graczy</p>
-            <p className="text-xs text-gray-400">Kliknij gracza aby wyzwać</p>
-          </div>
-          <div className="max-h-64 overflow-y-auto divide-y divide-gray-50">
-            {ranking.map((entry) => {
-              const isSelected = selected?.characterId === entry.characterId;
-              return (
-                <div
-                  key={entry.characterId}
-                  onClick={() => handleSelect(entry)}
-                  className={`flex items-center gap-3 px-4 py-3 transition-colors ${
-                    entry.isMe
-                      ? "bg-gray-50 cursor-default"
-                      : entry.foughtToday
-                      ? "opacity-40 cursor-not-allowed"
-                      : isSelected
-                      ? "bg-red-50 cursor-pointer"
-                      : "hover:bg-gray-50 cursor-pointer"
-                  }`}
-                >
-                  <span className={`text-sm font-bold w-8 text-center shrink-0 ${
-                    entry.rank === 1 ? "text-yellow-500" :
-                    entry.rank === 2 ? "text-gray-400" :
-                    entry.rank === 3 ? "text-amber-600" :
-                    "text-gray-300"
-                  }`}>
-                    {entry.rank === 1 ? "🥇" : entry.rank === 2 ? "🥈" : entry.rank === 3 ? "🥉" : `#${entry.rank}`}
-                  </span>
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${
-                    entry.isMe ? "bg-gray-900 text-white" :
-                    isSelected ? "bg-red-500 text-white" :
-                    "bg-gray-200 text-gray-500"
-                  }`}>
-                    {entry.name[0]}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className={`text-sm font-medium truncate ${entry.isMe ? "text-gray-900" : "text-gray-700"}`}>
-                        {entry.name}
-                      </span>
-                      {entry.isMe && (
-                        <span className="text-xs px-1.5 py-0.5 bg-gray-900 text-white rounded">Ty</span>
-                      )}
-                      {entry.foughtToday && !entry.isMe && (
-                        <span className="text-xs text-gray-400">✓ walczono dziś</span>
-                      )}
-                    </div>
-                  </div>
-                  <span className="text-sm font-semibold text-gray-700 shrink-0">
-                    {entry.prestige} <span className="text-xs font-normal text-gray-400">prestiżu</span>
-                  </span>
-                  {isSelected && (
-                    <span className="text-red-500 shrink-0">⚔️</span>
-                  )}
+            {/* Log walki */}
+            {battleResult.log?.length > 0 && (
+              <div style={{ marginTop: 12 }}>
+                <ColorLegend />
+                <div style={{
+                  maxHeight: 288, overflowY: "auto",
+                  display: "flex", flexDirection: "column", gap: 12,
+                  background: COLORS.bg, borderRadius: 8, padding: 12,
+                  border: `1px solid ${COLORS.borderSoft}`,
+                }}>
+                  {battleResult.log.map((turn: any) => (
+                    <TurnLogView
+                      key={turn.turn}
+                      turn={turn}
+                      metadata={battleResult.metadata}
+                      myCharacterId={myCharacterId}
+                      isFreshResult
+                    />
+                  ))}
                 </div>
-              );
-            })}
+              </div>
+            )}
+          </Panel>
+        )}
+
+        {/* Arena */}
+        <Panel style={{ padding: 0, overflow: "hidden" }}>
+          <div style={{ position: "relative", height: 200 }}>
+            <div style={{
+              position: "absolute", inset: 0,
+              background: "rgba(0,0,0,0.2)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <p style={{ fontSize: 13, color: COLORS.textGhost, margin: 0 }}>Grafika areny — tło z czarodziejami po bokach</p>
+            </div>
+
+            <div style={{ position: "absolute", left: 24, top: "50%", transform: "translateY(-50%)", textAlign: "center" }}>
+              <div style={{
+                width: 64, height: 64, borderRadius: "50%",
+                background: "rgba(89,212,208,0.12)", border: `2px solid ${COLORS.teal}`,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 24, fontWeight: 700, color: COLORS.teal, marginBottom: 6,
+                fontFamily: "Cinzel, serif",
+              }}>
+                ?
+              </div>
+              <p style={{ fontSize: 11, fontWeight: 600, color: COLORS.textDim, margin: 0 }}>Ty</p>
+            </div>
+
+            <div style={{ position: "absolute", right: 24, top: "50%", transform: "translateY(-50%)", textAlign: "center" }}>
+              <div style={{
+                width: 64, height: 64, borderRadius: "50%",
+                background: selected ? "rgba(244,106,78,0.12)" : "rgba(0,0,0,0.25)",
+                border: `2px solid ${selected ? COLORS.red : COLORS.borderSoft}`,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 24, fontWeight: 700,
+                color: selected ? COLORS.red : COLORS.textGhost,
+                marginBottom: 6,
+                fontFamily: "Cinzel, serif",
+                transition: "all 0.2s",
+              }}>
+                {selected ? selected.name[0] : "?"}
+              </div>
+              <p style={{ fontSize: 11, fontWeight: 600, color: COLORS.textDim, margin: 0 }}>
+                {selected ? selected.name : "Przeciwnik"}
+              </p>
+            </div>
+
+            <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <span style={{ fontFamily: "Cinzel, serif", fontSize: 24, fontWeight: 700, color: COLORS.textGhost, letterSpacing: "0.08em" }}>
+                VS
+              </span>
+            </div>
           </div>
-        </div>
 
-        <div className="px-4 py-3 border-t border-gray-100">
-          {selected ? (
-            <button
-              onClick={handleChallenge}
-              disabled={fighting}
-              className="w-full py-2.5 text-sm font-medium bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
-            >
-              {fighting ? "Trwa walka..." : `⚔️ Wyzwij ${selected.name} na pojedynek`}
-            </button>
-          ) : (
-            <p className="text-center text-sm text-gray-400 py-1">
-              Wybierz przeciwnika z rankingu aby wyzwać go na pojedynek
-            </p>
-          )}
-        </div>
+          {/* Ranking */}
+          <div style={{ borderTop: `1px solid ${COLORS.borderSoft}` }}>
+            <div style={{
+              padding: "12px 16px", borderBottom: `1px solid ${COLORS.borderSoft}`,
+              display: "flex", justifyContent: "space-between", alignItems: "center",
+            }}>
+              <span style={{ fontFamily: "Cinzel, serif", fontSize: 11, color: COLORS.gold, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                Ranking graczy
+              </span>
+              <span style={{ fontSize: 11, color: COLORS.textFaint }}>Kliknij gracza aby wyzwać</span>
+            </div>
+            <div style={{ maxHeight: 256, overflowY: "auto" }}>
+              {ranking.map((entry, i) => {
+                const isSelected = selected?.characterId === entry.characterId;
+                const disabled = entry.isMe || entry.foughtToday;
+                const medal = entry.rank === 1 ? "🥇" : entry.rank === 2 ? "🥈" : entry.rank === 3 ? "🥉" : `#${entry.rank}`;
+                const medalColor =
+                  entry.rank === 1 ? COLORS.gold :
+                  entry.rank === 2 ? COLORS.textDim :
+                  entry.rank === 3 ? "#D89A5C" :
+                  COLORS.textFaint;
+
+                return (
+                  <div
+                    key={entry.characterId}
+                    onClick={() => handleSelect(entry)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 12,
+                      padding: "12px 16px",
+                      borderTop: i === 0 ? "none" : `1px solid ${COLORS.borderSoft}`,
+                      background: entry.isMe
+                        ? COLORS.panelAlt
+                        : isSelected
+                        ? "rgba(244,106,78,0.08)"
+                        : "transparent",
+                      cursor: disabled ? "not-allowed" : "pointer",
+                      opacity: entry.foughtToday && !entry.isMe ? 0.45 : 1,
+                      transition: "background 0.15s",
+                    }}
+                    onMouseEnter={e => { if (!disabled && !isSelected) e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}
+                    onMouseLeave={e => { if (!disabled && !isSelected) e.currentTarget.style.background = "transparent"; }}
+                  >
+                    <span style={{ fontSize: 13, fontWeight: 700, width: 32, textAlign: "center", flexShrink: 0, color: medalColor, fontFamily: "Cinzel, serif" }}>
+                      {medal}
+                    </span>
+                    <div style={{
+                      width: 32, height: 32, borderRadius: "50%",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 13, fontWeight: 700, flexShrink: 0,
+                      fontFamily: "Cinzel, serif",
+                      background: entry.isMe ? COLORS.gold : isSelected ? COLORS.red : "rgba(255,255,255,0.06)",
+                      color: entry.isMe || isSelected ? COLORS.bg : COLORS.textDim,
+                    }}>
+                      {entry.name[0]}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{
+                          fontSize: 13, fontWeight: 600,
+                          color: entry.isMe ? COLORS.text : COLORS.textDim,
+                          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                        }}>
+                          {entry.name}
+                        </span>
+                        {entry.isMe && (
+                          <span style={{
+                            fontSize: 10, padding: "1px 6px", borderRadius: 4,
+                            background: COLORS.gold, color: COLORS.bg, fontWeight: 700,
+                            fontFamily: "Cinzel, serif",
+                          }}>
+                            Ty
+                          </span>
+                        )}
+                        {entry.foughtToday && !entry.isMe && (
+                          <span style={{ fontSize: 11, color: COLORS.textFaint }}>✓ walczono dziś</span>
+                        )}
+                      </div>
+                    </div>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: COLORS.textDim, flexShrink: 0 }}>
+                      {entry.prestige} <span style={{ fontSize: 11, fontWeight: 400, color: COLORS.textFaint }}>prestiżu</span>
+                    </span>
+                    {isSelected && <span style={{ color: COLORS.red, flexShrink: 0 }}>⚔️</span>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div style={{ padding: "16px", borderTop: `1px solid ${COLORS.borderSoft}` }}>
+            {selected ? (
+              <button
+                onClick={handleChallenge}
+                disabled={fighting}
+                style={{
+                  width: "100%", padding: "12px 0", borderRadius: 8,
+                  border: "none", fontSize: 13, fontWeight: 700,
+                  fontFamily: "Cinzel, serif", letterSpacing: "0.05em",
+                  background: fighting ? "rgba(244,106,78,0.3)" : COLORS.red,
+                  color: COLORS.bg,
+                  cursor: fighting ? "not-allowed" : "pointer",
+                  transition: "all 0.2s",
+                }}
+              >
+                {fighting ? "Trwa walka..." : `⚔️ Wyzwij ${selected.name} na pojedynek`}
+              </button>
+            ) : (
+              <p style={{ textAlign: "center", fontSize: 12, color: COLORS.textGhost, margin: 0 }}>
+                Wybierz przeciwnika z rankingu aby wyzwać go na pojedynek
+              </p>
+            )}
+          </div>
+        </Panel>
+
+        {/* Historia walk */}
+        <HistoryPanel />
       </div>
-
-      {/* Historia walk */}
-      <HistoryPanel />
     </div>
   );
 }
@@ -400,60 +524,84 @@ function HistoryPanel() {
   if (history.length === 0) return null;
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5">
-      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">Historia walk</p>
-      <div className="space-y-2">
-        {history.map((battle: any) => (
-          <div key={battle.id}>
-            <div
-              onClick={() => setExpanded(expanded === battle.id ? null : battle.id)}
-              className="flex items-center gap-3 p-3 border border-gray-100 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
-            >
-              <span className={`text-lg ${battle.youWon ? "text-green-500" : "text-red-400"}`}>
-                {battle.youWon ? "⚔️" : "💀"}
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-gray-900">
-                  <span className="font-medium">{battle.attacker}</span>
-                  <span className="text-gray-400 mx-1">vs</span>
-                  <span className="font-medium">{battle.defender}</span>
-                </p>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  {new Date(battle.foughtAt).toLocaleString("pl-PL")}
-                </p>
+    <Panel>
+      <SectionTitle>Historia walk</SectionTitle>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {history.map((battle: any) => {
+          const isOpen = expanded === battle.id;
+          return (
+            <div key={battle.id}>
+              <div
+                onClick={() => setExpanded(isOpen ? null : battle.id)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 12,
+                  padding: "12px 14px", borderRadius: 10,
+                  border: `1px solid ${COLORS.borderSoft}`,
+                  background: COLORS.panelAlt,
+                  cursor: "pointer", transition: "background 0.15s",
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.03)")}
+                onMouseLeave={e => (e.currentTarget.style.background = COLORS.panelAlt)}
+              >
+                <span style={{ fontSize: 16, color: battle.youWon ? COLORS.teal : COLORS.red, flexShrink: 0 }}>
+                  {battle.youWon ? "⚔️" : "💀"}
+                </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 13, color: COLORS.text, margin: 0 }}>
+                    <span style={{ fontWeight: 600 }}>{battle.attacker}</span>
+                    <span style={{ color: COLORS.textFaint, margin: "0 6px" }}>vs</span>
+                    <span style={{ fontWeight: 600 }}>{battle.defender}</span>
+                  </p>
+                  <p style={{ fontSize: 11, color: COLORS.textFaint, margin: "2px 0 0" }}>
+                    {new Date(battle.foughtAt).toLocaleString("pl-PL")}
+                  </p>
+                </div>
+                <div style={{ textAlign: "right", flexShrink: 0 }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: battle.youWon ? COLORS.gold : COLORS.textFaint, margin: 0 }}>
+                    {battle.youWon ? `+${battle.prestigeGain} prestiżu` : "Porażka"}
+                  </p>
+                  <p style={{ fontSize: 11, color: COLORS.textFaint, margin: "2px 0 0" }}>Wygrał: {battle.winner}</p>
+                </div>
+                <span style={{
+                  color: COLORS.textGhost, fontSize: 11, marginLeft: 4,
+                  transition: "transform 0.15s", display: "inline-block",
+                  transform: isOpen ? "rotate(90deg)" : "rotate(0deg)",
+                }}>▶</span>
               </div>
-              <div className="text-right shrink-0">
-                <p className={`text-sm font-medium ${battle.youWon ? "text-green-600" : "text-red-400"}`}>
-                  {battle.youWon ? `+${battle.prestigeGain} prestiżu` : "Porażka"}
-                </p>
-                <p className="text-xs text-gray-400">Wygrał: {battle.winner}</p>
-              </div>
-            </div>
 
-            {expanded === battle.id && (
-              <div className="mt-1 p-3 bg-gray-50 rounded-lg text-xs text-gray-600 border border-gray-100 space-y-3">
-                <p>{battle.summary}</p>
-                {battle.log?.length > 0 && (
-                  <div>
-                    <ColorLegend />
-                    <div className="space-y-3 bg-white rounded-lg p-3 border border-gray-100">
-                      {battle.log.map((turn: any) => (
-                        <TurnLogView
-                          key={turn.turn}
-                          turn={turn}
-                          metadata={battle.metadata}
-                          myCharacterId={battle.myCharacterId ?? null}
-                          isFreshResult={false}
-                        />
-                      ))}
+              {isOpen && (
+                <div style={{
+                  marginTop: 6, padding: "12px 14px", borderRadius: 10,
+                  background: "rgba(0,0,0,0.15)", border: `1px solid ${COLORS.borderSoft}`,
+                  display: "flex", flexDirection: "column", gap: 12,
+                }}>
+                  <p style={{ fontSize: 12, color: COLORS.textDim, margin: 0 }}>{battle.summary}</p>
+                  {battle.log?.length > 0 && (
+                    <div>
+                      <ColorLegend />
+                      <div style={{
+                        display: "flex", flexDirection: "column", gap: 12,
+                        background: COLORS.bg, borderRadius: 8, padding: 12,
+                        border: `1px solid ${COLORS.borderSoft}`,
+                      }}>
+                        {battle.log.map((turn: any) => (
+                          <TurnLogView
+                            key={turn.turn}
+                            turn={turn}
+                            metadata={battle.metadata}
+                            myCharacterId={battle.myCharacterId ?? null}
+                            isFreshResult={false}
+                          />
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        ))}
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
-    </div>
+    </Panel>
   );
 }

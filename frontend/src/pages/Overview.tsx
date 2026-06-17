@@ -39,26 +39,23 @@ function Panel({ children, style = {} }: { children: React.ReactNode; style?: Re
   );
 }
 
-function Label({ children }: { children: React.ReactNode }) {
-  return (
-    <p style={{ fontSize: 11, color: "rgba(247,240,221,0.45)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4, fontFamily: "Cinzel, serif" }}>
-      {children}
-    </p>
-  );
-}
-
 export default function Overview() {
   const { character } = useCharacter();
   const [effectiveStats, setEffectiveStats] = useState<any>(null);
   const [spellSlots, setSpellSlots] = useState<any[]>([]);
+  const [productionPerHour, setProductionPerHour] = useState<number | null>(null);
 
-  useEffect(() => {
-    api.get("/character/effective-stats").then(r => setEffectiveStats(r.data)).catch(() => {});
-    api.get("/equipment").then(r => setSpellSlots(r.data.spellSlots ?? [])).catch(() => {});
-  }, []);
+useEffect(() => {
+  api.get("/character/effective-stats").then(r => setEffectiveStats(r.data)).catch(() => {});
+  api.get("/equipment").then(r => setSpellSlots(r.data.spellSlots ?? [])).catch(() => {});
+  api.get("/tower").then(r => {
+    setProductionPerHour(r.data.resources?.productionPerHour ?? null);
+  }).catch(() => {});
+}, [character?.level, character?.powerShards]);
 
   if (!character) return null;
 
+  
   const xpPct = Math.min(100, Math.round(character.experience / character.xpToNextLevel * 100));
   const currentClass =
     character.archetypeProfile?.finalClass
@@ -116,16 +113,18 @@ export default function Overview() {
           </div>
 
           {/* Zasoby */}
-          <div style={{ display: "flex", gap: 16, flexShrink: 0 }}>
-            <div style={{ textAlign: "center" }}>
-              <p style={{ fontSize: 20, fontWeight: 700, color: "#F5C451", margin: 0 }}>{character.powerShards}</p>
-              <p style={{ fontSize: 10, color: "rgba(247,240,221,0.4)", margin: 0 }}>okruchów mocy</p>
-            </div>
-            <div style={{ textAlign: "center" }}>
-              <p style={{ fontSize: 20, fontWeight: 700, color: "#59D4D0", margin: 0 }}>{character.runicStoneShards}</p>
-              <p style={{ fontSize: 10, color: "rgba(247,240,221,0.4)", margin: 0 }}>okruchów runicznych</p>
-            </div>
-          </div>
+<div style={{ display: "flex", gap: 16, flexShrink: 0 }}>
+  <div style={{ textAlign: "center" }}>
+    <p style={{ fontSize: 20, fontWeight: 700, color: "#F5C451", margin: 0 }}>{character.powerShards}</p>
+<p style={{ fontSize: 10, color: "rgba(247,240,221,0.4)", margin: 0 }}>
+  okruchów mocy · +{productionPerHour ?? "?"}/godz.
+</p>
+  </div>
+  <div style={{ textAlign: "center" }}>
+    <p style={{ fontSize: 20, fontWeight: 700, color: "#59D4D0", margin: 0 }}>{character.runicStoneShards}</p>
+    <p style={{ fontSize: 10, color: "rgba(247,240,221,0.4)", margin: 0 }}>okruchów runicznych</p>
+  </div>
+</div>
         </div>
       </Panel>
 
@@ -156,18 +155,18 @@ export default function Overview() {
                 return (
                   <div key={key} style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", borderBottom: "1px solid rgba(247,240,221,0.06)" }}>
                     <span style={{ fontSize: 12, color: "rgba(247,240,221,0.55)" }}>{label}</span>
-                    <span style={{ fontSize: 12, fontWeight: 600 }}>
+<span style={{
+                      fontSize: 12, fontWeight: 600,
+                      color: bonus > 0 ? "#59D4D0" : "#F7F0DD",
+                    }}>
                       {effVal}
-                      {bonus > 0 && (
-                        <span style={{ fontSize: 10, color: "#59D4D0", marginLeft: 4 }}>+{bonus}</span>
-                      )}
                     </span>
                   </div>
                 );
               })}
             </div>
             <p style={{ fontSize: 10, color: "rgba(247,240,221,0.25)", marginTop: 10 }}>
-              Wartości w turkusie to bonusy z ekwipunku
+              Wartości turkusowe uwzględniają bonusy z ekwipunku
             </p>
           </Panel>
 

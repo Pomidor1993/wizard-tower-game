@@ -99,6 +99,7 @@ function ActiveSpellsBar({
   onUnequip: (slotIndex: number) => void;
   moving: boolean;
 }) {
+  const [lockedTooltip, setLockedTooltip] = useState<{ x: number; y: number } | null>(null);
   const TOTAL_SLOTS = 5;
   const bySlot = new Map(slots.map(s => [s.slotIndex, s.spell]));
 
@@ -113,15 +114,12 @@ function ActiveSpellsBar({
 
           return (
             <div className="active-slot-group" key={i}>
-              <div
-                className={`active-slot ${!unlocked ? "locked" : spell ? "filled" : "empty"}`}
-                style={spell ? {
-                  "--elem-color": elem!.color,
-                  "--elem-bg": elem!.bg,
-                } as React.CSSProperties : undefined}
-                  data-tooltip={!unlocked ? "Rozbuduj bibliotekę aby odblokować slot" : undefined}
-                onClick={() => spell && unlocked && onUnequip(i)}
-              >
+<div
+  className={`active-slot ${!unlocked ? "locked" : spell ? "filled" : "empty"}`}
+  onMouseMove={!unlocked ? (e => setLockedTooltip({ x: e.clientX + 12, y: e.clientY + 16 })) : undefined}
+  onMouseLeave={!unlocked ? (() => setLockedTooltip(null)) : undefined}
+  onClick={() => spell && unlocked && onUnequip(i)}
+>
                 <span className="active-slot-index">{i + 1}</span>
                 {spell ? (
                   <>
@@ -150,6 +148,26 @@ function ActiveSpellsBar({
           );
         })}
       </div>
+            {lockedTooltip && (
+        <div style={{
+          position: "fixed",
+          top: lockedTooltip.y,
+          left: lockedTooltip.x,
+          zIndex: 9999,
+          background: "#161d38",
+          color: "#F7F0DD",
+          fontSize: 12,
+          fontFamily: "Cinzel, serif",
+          padding: "8px 12px",
+          borderRadius: 6,
+          border: "1px solid rgba(245,196,81,0.3)",
+          boxShadow: "0 4px 16px rgba(0,0,0,0.5)",
+          pointerEvents: "none",
+          whiteSpace: "nowrap",
+        }}>
+          Rozbuduj bibliotekę aby odblokować slot
+        </div>
+      )}
     </div>
   );
 }
@@ -160,14 +178,16 @@ function DiscoveredCard({
   spell,
   onClick,
   onEquip,
-  canEquip,
   equipping,
+  hasFreeSlot,
+  meetsReqs
 }: {
   spell: SpellbookSpell;
   onClick: () => void;
   onEquip: (e: React.MouseEvent) => void;
-  canEquip: boolean;
   equipping: boolean;
+  hasFreeSlot: boolean;
+  meetsReqs: boolean;
 }) {
   const elem   = ELEMENT_CONFIG[spell.element]   ?? ELEMENT_CONFIG.none;
   const rarity = RARITY_CONFIG[spell.rarity]     ?? RARITY_CONFIG.common;
@@ -176,7 +196,7 @@ function DiscoveredCard({
   const isEquipped = spell.equippedSlot != null;
 
   return (
-    <button
+    <div
       onClick={onClick}
       className="spellbook-card discovered"
       style={{
@@ -212,21 +232,26 @@ function DiscoveredCard({
         )}
       </div>
 
-      <div className="equip-btn-wrapper" onClick={e => e.stopPropagation()}>
-        {isEquipped ? (
-          <div className="equipped-indicator">✓ Slot {spell.equippedSlot! + 1}</div>
-        ) : (
-          <button
-            onClick={canEquip ? onEquip : undefined}
-            disabled={equipping || !canEquip}
-            className={`equip-btn ${!canEquip ? "locked" : ""}`}
-            title={!canEquip ? "Brak wolnego slotu lub nie spełniasz wymagań" : undefined}
-          >
-            {equipping ? "..." : "Ekwipuj"}
-          </button>
-        )}
-      </div>
+<div className="equip-btn-wrapper" onClick={e => e.stopPropagation()}>
+  {isEquipped ? (
+    <div className="equipped-indicator">✓ Slot {spell.equippedSlot! + 1}</div>
+  ) : (
+    <button
+      onClick={meetsReqs && hasFreeSlot ? onEquip : undefined}
+      disabled={equipping || !meetsReqs || !hasFreeSlot}
+      className={`equip-btn ${(!meetsReqs || !hasFreeSlot) ? "locked" : ""}`}
+    >
+      {equipping
+        ? "..."
+        : !meetsReqs
+        ? "Nie spełniasz wymagań"
+        : !hasFreeSlot
+        ? "Brak wolnego slotu"
+        : "Ekwipuj"}
     </button>
+  )}
+</div>
+    </div>
   );
 }
 
@@ -276,6 +301,7 @@ function SpellDetailModal({
   onUnequip,
   canEquip,
   equipping,
+  meetsReqs
 }: {
   spell: SpellbookSpell;
   onClose: () => void;
@@ -283,6 +309,7 @@ function SpellDetailModal({
   onUnequip: () => void;
   canEquip: boolean;
   equipping: boolean;
+  meetsReqs: boolean;
 }) {
   const elem   = ELEMENT_CONFIG[spell.element]   ?? ELEMENT_CONFIG.none;
   const rarity = RARITY_CONFIG[spell.rarity]     ?? RARITY_CONFIG.common;
@@ -395,9 +422,11 @@ function SpellDetailModal({
             </>
           ) : (
             <>
-              {!canEquip && (
-                <p className="modal-equip-locked">✕ Brak wolnego slotu lub nie spełniasz wymagań</p>
-              )}
+              {!meetsReqs ? (
+                <p className="modal-equip-locked">✕ Nie spełniasz wymagań</p>
+              ) : !canEquip ? (
+                <p className="modal-equip-locked">✕ Brak wolnego slotu</p>
+              ) : null}
               <button onClick={onEquip} disabled={equipping || !canEquip} className="modal-equip-btn">
                 {equipping ? "Ekwipowanie..." : "✦ Ekwipuj jako aktywny"}
               </button>
@@ -450,6 +479,7 @@ export default function Spellbook() {
   const [filterCategory, setFilterCategory] = useState("all");
   const [showOnlyDiscovered, setShowOnlyDiscovered] = useState(false);
   const [charStats, setCharStats]          = useState<CharacterStats | null>(null);
+  const [filterMeetsReqs, setFilterMeetsReqs] = useState(false);
 
   const fetchSpellbook = useCallback(async () => {
     try {
@@ -561,9 +591,10 @@ export default function Spellbook() {
       if (filterElement  !== "all" && s.element  !== filterElement)  return false;
       if (filterPool     !== "all" && s.spellPool !== filterPool)     return false;
       if (filterCategory !== "all" && s.category  !== filterCategory) return false;
+      if (filterMeetsReqs && s.discovered && !meetsRequirements(s, charStats)) return false;
       return true;
     });
-  }, [enrichedSpells, filterElement, filterPool, filterCategory, showOnlyDiscovered]);
+  }, [enrichedSpells, filterElement, filterPool, filterCategory, showOnlyDiscovered, filterMeetsReqs, charStats]);
 
   const discoveredCount = enrichedSpells.filter(s => s.discovered).length;
   const totalCount = enrichedSpells.length;
@@ -580,6 +611,7 @@ export default function Spellbook() {
           onUnequip={() => handleUnequip(selectedSpell.equippedSlot!)}
           canEquip={hasFreeSlot && meetsRequirements(selectedSpell, charStats)}
           equipping={equippingId === selectedSpell.id || equippingId === -1}
+          meetsReqs={meetsRequirements(selectedSpell, charStats)}
         />
       )}
 
@@ -655,8 +687,22 @@ export default function Spellbook() {
               <span className="toggle-track"><span className="toggle-thumb" /></span>
               <span className="toggle-text">Tylko odkryte</span>
             </label>
+            <div className="filter-group filter-toggle-group">
+  <label className="toggle-label">
+    <input
+      type="checkbox"
+      checked={filterMeetsReqs}
+      onChange={e => setFilterMeetsReqs(e.target.checked)}
+      className="toggle-input"
+    />
+    <span className="toggle-track"><span className="toggle-thumb" /></span>
+    <span className="toggle-text">Spełniasz wymagania</span>
+  </label>
+</div>
           </div>
         </div>
+
+
 
         {/* ── TREŚĆ KSIĘGI ── */}
         <div className="spellbook-body">
@@ -688,8 +734,9 @@ export default function Spellbook() {
                       spell={spell}
                       onClick={() => setSelectedSpell(spell)}
                       onEquip={(e) => handleEquip(spell, e)}
-                      canEquip={spell.equippedSlot == null && hasFreeSlot && meetsRequirements(spell, charStats)}
                       equipping={equippingId === spell.id}
+                      hasFreeSlot={hasFreeSlot}
+                      meetsReqs={meetsRequirements(spell, charStats)}
                     />
                   ) : (
                     <UnknownCard key={spell.id} spell={spell} />
@@ -713,9 +760,7 @@ export default function Spellbook() {
 // ── STYLE ─────────────────────────────────────────────────────────────────────
 
 const SPELLBOOK_CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap');
-
-  :root {
+  .spellbook-root {
     --bg-deep:        #161d38;
     --panel:          #372b5d;
     --panel-dark:     #3A3158;
@@ -804,36 +849,6 @@ const SPELLBOOK_CSS = `
     cursor: help;
     position: relative;
   }
-    .active-slot.locked[data-tooltip]:hover::after {
-  content: attr(data-tooltip);
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 50%;
-  transform: translateX(-50%);
-  background: #161d38;
-  color: #F7F0DD;
-  font-size: 11px;
-  font-family: 'Crimson Text', serif;
-  padding: 6px 10px;
-  border-radius: 6px;
-  border: 1px solid rgba(245,196,81,0.3);
-  white-space: nowrap;
-  z-index: 50;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-  pointer-events: none;
-}
-
-.active-slot.locked[data-tooltip]:hover::before {
-  content: '';
-  position: absolute;
-  bottom: calc(100% + 3px);
-  left: 50%;
-  transform: translateX(-50%);
-  border: 5px solid transparent;
-  border-top-color: #161d38;
-  z-index: 50;
-  pointer-events: none;
-}
   .active-slot-index {
     position: absolute; top: 4px; left: 6px;
     font-family: 'Cinzel', serif; font-size: 9px;
@@ -988,7 +1003,7 @@ const SPELLBOOK_CSS = `
     min-height: 400px;
     border: 1px solid var(--border-ornate);
     border-radius: 0 0 12px 12px;
-    overflow: hidden;
+    overflow: visible;
     box-shadow: 0 8px 32px rgba(16,14,32,0.3);
   }
 
@@ -1012,6 +1027,7 @@ const SPELLBOOK_CSS = `
       radial-gradient(ellipse at 10% 20%, rgba(245,196,81,0.05) 0%, transparent 60%),
       var(--panel);
     padding: 20px;
+    overflow: visible;
     position: relative;
   }
 
@@ -1044,7 +1060,7 @@ const SPELLBOOK_CSS = `
     font-family: 'Crimson Text', serif;
     transition: transform 0.15s, box-shadow 0.15s;
     min-height: 150px;
-    overflow: hidden;
+    overflow: visible;
     color: var(--parchment);
   }
 
