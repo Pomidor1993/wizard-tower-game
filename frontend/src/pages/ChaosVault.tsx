@@ -11,6 +11,7 @@ import vault4 from "../assets/chaosvault4.png";
 interface VaultItem {
   chaosVaultItemId: number;
   ownedItemId: number;
+  tier: number;
   addedAt: string;
   item: {
     id: number;
@@ -301,10 +302,11 @@ function ItemPopup({
           <span style={{ fontSize: 52 }}>{SLOT_CONFIG[item.slot]?.icon ?? "🎒"}</span>
         </div>
 
-        <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
-          <Tag>{SLOT_CONFIG[item.slot]?.label ?? item.slot}</Tag>
-          {item.element && <Tag color="#59D4D0">{item.element}</Tag>}
-        </div>
+<div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+  <Tag>{SLOT_CONFIG[item.slot]?.label ?? item.slot}</Tag>
+  {(entry.tier ?? 1) > 1 && <Tag color="#e5e900">Tier {entry.tier}</Tag>}
+  {item.element && <Tag color="#59D4D0">{item.element}</Tag>}
+</div>
 
         {bonuses.length > 0 && (
           <Section title="Bonusy">
@@ -529,7 +531,13 @@ function ItemCard({
           }}
         >
           {item.name}
+          {(entry.tier ?? 1) > 1 && (
+  <span style={{ fontSize: 9, color: "#e7aa00", flexShrink: 0, fontWeight: 700 }}>
+    T{entry.tier}
+  </span>
+)}
         </span>
+        
         {isEquipped && <span style={{ fontSize: 9, color: "#59D4D0", flexShrink: 0 }}>●</span>}
         {!meetsReqs && !isEquipped && <span style={{ fontSize: 9, color: "#F46A4E", flexShrink: 0 }}>✕</span>}
       </div>
@@ -854,8 +862,7 @@ const checkedShardsPreview = allItems
                 <div
                   key={slot.key}
                   title={item ? item.name : slot.label}
-                  onClick={() => item && setSelected({ chaosVaultItemId: -1, ownedItemId: item.ownedItemId, addedAt: "", item })}
-                  style={{
+                    onClick={() => item && setSelected({ chaosVaultItemId: -1, ownedItemId: item.ownedItemId, tier: item.tier ?? 1, addedAt: "", item })}                  style={{
                     position: "absolute",
                     top: slot.top, left: slot.left,
                     transform: "translate(-50%, -50%)",

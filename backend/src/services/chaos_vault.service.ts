@@ -1,5 +1,49 @@
 import prisma from "../lib/prisma.js";
 
+
+function rollTier(minTier: number, maxTier: number): number {
+  const range = maxTier - minTier;
+  const weights = Array.from({ length: range + 1 }, (_, i) => Math.pow(0.6, i));
+  const total = weights.reduce((a, b) => a + b, 0);
+  let roll = Math.random() * total;
+  for (let i = 0; i <= range; i++) {
+    roll -= weights[i];
+    if (roll <= 0) return minTier + i;
+  }
+  return minTier;
+}
+
+function tierMultiplier(tier: number): number {
+  return 1 + (tier - 1) * 0.2;
+}
+function scaleValue(base: number, tier: number): number {
+  return Math.round(base * tierMultiplier(tier));
+}
+function scaleItem(item: any, tier: number) {
+  return {
+    ...item,
+    tier,
+    bonusKnowledge:      scaleValue(item.bonusKnowledge,      tier),
+    bonusIntelligence:   scaleValue(item.bonusIntelligence,   tier),
+    bonusPower:          scaleValue(item.bonusPower,          tier),
+    bonusEndurance:      scaleValue(item.bonusEndurance,      tier),
+    bonusResistance:     scaleValue(item.bonusResistance,     tier),
+    bonusInitiative:     scaleValue(item.bonusInitiative,     tier),
+    bonusElementalMagic: scaleValue(item.bonusElementalMagic, tier),
+    bonusAstralMagic:    scaleValue(item.bonusAstralMagic,    tier),
+    bonusBloodMagic:     scaleValue(item.bonusBloodMagic,     tier),
+    reqKnowledge:        scaleValue(item.reqKnowledge,        tier),
+    reqIntelligence:     scaleValue(item.reqIntelligence,     tier),
+    reqPower:            scaleValue(item.reqPower,            tier),
+    reqEndurance:        scaleValue(item.reqEndurance,        tier),
+    reqResistance:       scaleValue(item.reqResistance,       tier),
+    reqInitiative:       scaleValue(item.reqInitiative,       tier),
+    reqElementalMagic:   scaleValue(item.reqElementalMagic,   tier),
+    reqAstralMagic:      scaleValue(item.reqAstralMagic,      tier),
+    reqBloodMagic:       scaleValue(item.reqBloodMagic,       tier),
+  };
+}
+
 // ── POJEMNOŚĆ KOMNATY NIEŁADU ─────────────────────────────────────────────────
 // Każdy poziom Komnaty Nieładu daje +10 dostępnych ("widocznych") slotów
 export function getVaultCapacity(buildingLevel: number): number {
@@ -17,9 +61,9 @@ async function getChaosVaultLevel(characterId: number): Promise<number> {
 
 // ── DODAJ PRZEDMIOT ────────────────────────────────────────────────────────────
 // Tworzy nową instancję (OwnedItem) + wpis w Komnacie Nieładu
-export async function addItemToChaosVault(characterId: number, itemId: number) {
+export async function addItemToChaosVault(characterId: number, itemId: number, tier: number = 1) {
   const owned = await prisma.ownedItem.create({
-    data: { characterId, itemId },
+    data: { characterId, itemId, tier },
   });
   return prisma.chaosVaultItem.create({
     data: { ownedItemId: owned.id },
@@ -52,20 +96,24 @@ export async function getVisibleChaosVaultItems(characterId: number) {
 export async function addItemToChaosVaultWithMessage(
   characterId: number,
   itemId: number,
-  itemName: string
-): Promise<{ message: string; overCapacity: boolean; chaosVaultItemId: number; ownedItemId: number }> {
+  itemName: string,
+  minTier: number = 1,
+  maxTier: number = 1
+): Promise<{ message: string; overCapacity: boolean; chaosVaultItemId: number; ownedItemId: number; tier: number }> {
   const { total, capacity } = await getVisibleChaosVaultItems(characterId);
 
-  const created = await addItemToChaosVault(characterId, itemId);
+  const tier = rollTier(minTier, maxTier);  // ← losuj tier
+  const created = await addItemToChaosVault(characterId, itemId, tier);
 
   const newTotal = total + 1;
   const overCapacity = newTotal > capacity;
 
+  const tierSuffix = tier > 1 ? ` (tier ${tier})` : "";
   const message = overCapacity
     ? `${itemName} trafia do Twojej komnaty nieładu. Masz już za dużo artefaktów! Rozbuduj komnatę lub zniszcz bezużyteczne rzeczy w dezintegratorze, aby uzyskać dostęp do najnowszych przedmiotów.`
     : `${itemName} trafia do Twojej komnaty nieładu.`;
 
-  return { message, overCapacity, chaosVaultItemId: created.id, ownedItemId: created.ownedItemId };
+  return { message, overCapacity, chaosVaultItemId: created.id, ownedItemId: created.ownedItemId, tier };
 }
 
 // ── POBIERZ KOMNATĘ (widok dla frontu) ─────────────────────────────────────────
@@ -83,7 +131,8 @@ export async function getChaosVault(userId: number) {
     items: visible.map(entry => ({
       chaosVaultItemId: entry.id,
       ownedItemId: entry.ownedItemId,
-      item: entry.ownedItem.item,
+      tier: entry.ownedItem.tier,
+      item: scaleItem(entry.ownedItem.item, entry.ownedItem.tier),  // ← skaluj
       addedAt: entry.addedAt,
     })),
   };

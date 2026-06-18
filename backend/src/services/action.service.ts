@@ -6,6 +6,34 @@ import { getOrCreateTutorial, advanceTutorialStep } from "./tutorial/tutorial.se
 import { TUTORIAL_STEPS, TUTORIAL_MESSAGES } from "./tutorial/tutorial.constants.js";
 
 // ── KONFIGURACJA AKCJI ───────────────────────────────
+export const STUDY_SUBCATEGORIES: Record<number, [string, string, string]> = {
+  1: [
+    "Chaotyczne machanie rękoma",
+    "Losowy bełkot",
+    "Kiepska inscenizacja",
+  ],
+  2: [
+    "Pozornie sensowne gesty dłońmi",
+    "Ciche mamroczenie",
+    "Szalone wygibasy",
+  ],
+  3: [
+    "Gwałtowne, synchroniczne wymachy dłońmi",
+    "Mamroczenie słów brzmiących zagranicznie",
+    "Energiczny taniec",
+  ],
+  4: [
+    "Opanowane, konsekwentne ruchy dłońmi",
+    "Rymowane skandowanie trudnych słów",
+    "Rytualne ruchy",
+  ],
+  5: [
+    "Precyzyjne gesty godne maga",
+    "Doniosła recytacja starożytnych formuł",
+    "Ceremonialny rytuał",
+  ],
+};
+
 const STUDY_CONFIG = [
   { level: 1, durationSeconds: 5,  minPoints: 1,  maxPoints: 4,  spellChance: 0.95, requiredTowerLevel: 1  },
   { level: 2, durationSeconds: 120, minPoints: 5,  maxPoints: 10, spellChance: 0.30, requiredTowerLevel: 3  },
@@ -50,9 +78,15 @@ export function calculateRegenActions(
 }
 
 // ── ROZPOCZĘCIE AKCJI STUDIÓW ────────────────────────
-export async function startStudyAction(userId: number, level: number) {
+export async function startStudyAction(userId: number, level: number, subcategory: 1 | 2 | 3) {
   const config = STUDY_CONFIG[level - 1];
   if (!config) throw new Error("Nieprawidłowy poziom akcji");
+
+    const subcategoryNames = STUDY_SUBCATEGORIES[level];
+  if (!subcategoryNames || subcategory < 1 || subcategory > 3) {
+    throw new Error("Nieprawidłowa podkategoria");
+  }
+  const subcategoryName = subcategoryNames[subcategory - 1];
 
   const character = await prisma.character.findUnique({
     where: { userId },
@@ -101,6 +135,7 @@ export async function startStudyAction(userId: number, level: number) {
         characterId: character.id,
         actionType: "study",
         actionLevel: level,
+        actionSubcategory: subcategory,
         status: "in_progress",
         finishesAt,
       },
@@ -117,6 +152,8 @@ export async function startStudyAction(userId: number, level: number) {
   return {
     actionId: action.id,
     level,
+    subcategory,
+    subcategoryName,
     finishesAt,
     actionsRemaining: newActions - 1,
   };
@@ -142,6 +179,10 @@ export async function claimStudyAction(userId: number, actionId: number) {
   if (action.status === "in_progress" && new Date() < action.finishesAt) {
     throw new Error("Akcja jeszcze nie zakończona");
   }
+
+const subcategoryName = action.actionSubcategory
+  ? STUDY_SUBCATEGORIES[action.actionLevel]?.[action.actionSubcategory - 1] ?? null
+  : null;
 
   const config = STUDY_CONFIG[action.actionLevel - 1];
   const xpEarned = randomInt(config.minPoints, config.maxPoints);
@@ -191,6 +232,7 @@ if (isTutorialStudy) {
 
   const report = {
     experienceEarned: xpEarned,
+    subcategoryName,
     discoveredSpell: discoveredSpellName,
     levelUp: levelResult.levelsGained > 0
       ? { newLevel: levelResult.level, skillPointsGained: levelResult.skillPointsGained }

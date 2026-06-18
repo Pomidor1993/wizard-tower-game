@@ -12,11 +12,12 @@ import { addExperience } from "./character.service.js";
 import { addItemToChaosVaultWithMessage } from "./chaos_vault.service.js";
 import { getOrCreateTutorial, advanceTutorialStep } from "./tutorial/tutorial.service.js";
 import { TUTORIAL_STEPS, TUTORIAL_ENEMIES, TUTORIAL_ITEM_POOL, TUTORIAL_MESSAGES } from "./tutorial/tutorial.constants.js";
+import { getLocation, LocationLetter, EXPLORATION_LOCATIONS } from "../data/exploration-locations.js";
 
 // ── KONFIGURACJA ──────────────────────────────────────────────────────────────
 
 const EXPLORATION_CONFIG = [
-  { level: 1, durationSeconds: 5,   minPoints: 10, maxPoints: 20, itemChance: 0.30 },
+  { level: 1, durationSeconds: 5,   minPoints: 10, maxPoints: 20, itemChance: 0.90 },
   { level: 2, durationSeconds: 240, minPoints: 20, maxPoints: 40, itemChance: 0.40 },
   { level: 3, durationSeconds: 360, minPoints: 40, maxPoints: 60, itemChance: 0.50 },
   { level: 4, durationSeconds: 480, minPoints: 60, maxPoints: 80, itemChance: 0.60 },
@@ -81,9 +82,12 @@ interface EncounterResult {
 // ROZPOCZĘCIE EKSPLORACJI
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export async function startExploration(userId: number, level: number) {
+export async function startExploration(userId: number, level: number, location: LocationLetter) {
   const config = EXPLORATION_CONFIG[level - 1];
   if (!config) throw new Error("Nieprawidłowy poziom eksploracji");
+
+  const loc = getLocation(level, location);
+  if (!loc) throw new Error("Nieprawidłowa lokacja");
 
   const character = await prisma.character.findUnique({ where: { userId } });
   if (!character) throw new Error("Postać nie znaleziona");
@@ -119,6 +123,8 @@ export async function startExploration(userId: number, level: number) {
         characterId: character.id,
         actionType: "exploration",
         actionLevel: level,
+        actionSubcategory: ["A","B","C"].indexOf(location) + 1, // 1,2,3 dla kompatybilności
+        explorationLocation: location,   // ← "A" | "B" | "C"
         status: "in_progress",
         finishesAt,
       },
@@ -135,6 +141,8 @@ export async function startExploration(userId: number, level: number) {
   return {
     actionId: action.id,
     level,
+    location,
+    locationName: loc.name,
     finishesAt,
     actionsRemaining: newActions - 1,
   };
@@ -151,12 +159,11 @@ async function resolveTutorialEncounter(
   const itemName = TUTORIAL_ITEM_POOL[randomInt(0, TUTORIAL_ITEM_POOL.length - 1)];
 
   const item = await prisma.item.findFirst({ where: { name: itemName } });
-
   let droppedItem: DroppedItemResult | null = null;
   let dropText = "";
 
   if (item) {
-    const result = await addItemToChaosVaultWithMessage(characterId, item.id, item.name);
+    const result = await addItemToChaosVaultWithMessage(characterId, item.id, item.name, 1, 1);
     droppedItem = {
       chaosVaultItemId: result.chaosVaultItemId,
       ownedItemId: result.ownedItemId,
@@ -183,6 +190,22 @@ async function resolveTutorialEncounter(
 // ═══════════════════════════════════════════════════════════════════════════════
 // ODEBRANIE WYNIKU EKSPLORACJI
 // ═══════════════════════════════════════════════════════════════════════════════
+
+function rollTier(minTier: number, maxTier: number): number {
+  // Rozkład ważony - niższe tiery częstsze
+  // np. dla zakresu 1-3: tier1=50%, tier2=35%, tier3=15%
+  const range = maxTier - minTier;
+  const weights = Array.from({ length: range + 1 }, (_, i) => 
+    Math.pow(0.6, i)  // każdy kolejny tier ~60% szansy poprzedniego
+  );
+  const total = weights.reduce((a, b) => a + b, 0);
+  let roll = Math.random() * total;
+  for (let i = 0; i <= range; i++) {
+    roll -= weights[i];
+    if (roll <= 0) return minTier + i;
+  }
+  return minTier;
+}
 
 export async function claimExploration(userId: number, actionId: number) {
   const character = await prisma.character.findUnique({
@@ -247,14 +270,42 @@ export async function claimExploration(userId: number, actionId: number) {
     // ── NORMALNY PRZEBIEG ───────────────────────────────────────────────────
 
     // Przedmiot
-    if (randomChance(config.itemChance)) {
-      const rarity = pickItemRarity(action.actionLevel);
-      let pool = await prisma.item.findMany({ where: { rarity } });
-      if (pool.length === 0) pool = await prisma.item.findMany();
+if (randomChance(config.itemChance)) {
+  const rarity = pickItemRarity(action.actionLevel);
+  
+  // Pobierz literę lokacji z zapisanego pola (z fallbackiem)
+  const locLetter = (action.explorationLocation ?? "A") as LocationLetter;
+  const locConfig = getLocation(action.actionLevel, locLetter);
+  const [minTier, maxTier] = locConfig?.tierRange ?? [1, 3];
+  
+  // Pula: odpowiedni rarity + tier w zakresie + pasująca lokacja
+  let pool = await prisma.item.findMany({
+    where: {rarity },
+  });
 
-      if (pool.length > 0) {
+  // Filtr lokacji — przedmiot musi mieć tę literę w swoim locationTypes
+  pool = pool.filter(item => {
+    try {
+      const types: string[] = JSON.parse(item.locationTypes);
+      return types.length === 0 || types.includes(locLetter);
+    } catch { return true; }
+  });
+
+  // Fallback 1: pomiń filtr lokacji, zostaw tylko tier
+  if (pool.length === 0) {
+    pool = await prisma.item.findMany({
+      where: { rarity },
+    });
+  }
+
+  // Fallback 2: pomiń wszystkie filtry
+  if (pool.length === 0) {
+    pool = await prisma.item.findMany();
+  }
+
+  if (pool.length > 0) {
         const chosen = pool[randomInt(0, pool.length - 1)];
-        const result = await addItemToChaosVaultWithMessage(character.id, chosen.id, chosen.name);
+        const result = await addItemToChaosVaultWithMessage(character.id, chosen.id, chosen.name, minTier, maxTier);
 
         droppedItem = {
           chaosVaultItemId: result.chaosVaultItemId,

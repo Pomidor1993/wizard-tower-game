@@ -229,6 +229,9 @@ model Item {
 
   characters CharacterItem[]
   ownedItems OwnedItem[]
+  baseReqs      String   @default("{}")     // JSON: bazowe wymagania przed skalowaniem tierem
+  baseBonus     String   @default("{}")     // JSON: bazowe bonusy przed skalowaniem tierem
+  locationTypes String   @default("[]")     // JSON: ["A"] | ["A","B"] | ["A","B","C"] itd.
 }
 
 model OwnedItem {
@@ -238,6 +241,7 @@ model OwnedItem {
   itemId      Int
   item        Item      @relation(fields: [itemId], references: [id])
   obtainedAt  DateTime  @default(now())
+  tier Int @default(1)   // 1–10, losowany przy dropie
 
   vaultEntry ChaosVaultItem?
 
@@ -307,12 +311,15 @@ model CharacterAction {
   status      String    @default("in_progress") // "in_progress"|"completed"|"claimed"
   startedAt   DateTime  @default(now())
   finishesAt  DateTime
+  actionSubcategory Int?   // 1, 2 lub 3; null dla starych rekordów
+
 
   skillPointsEarned Int?
   spellDiscovered   String?
   report            String?
 
   @@index([characterId, status])
+  explorationLocation  String?  // "A" | "B" | "C" — litera podkategorii eksploracji
 }
 
 // ── WALKI PVP ─────────────────────────────────────────

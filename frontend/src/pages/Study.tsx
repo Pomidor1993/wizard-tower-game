@@ -8,11 +8,26 @@ import { useTutorial } from "../contexts/TutorialContext";
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const STUDY_LEVELS = [
-  { level: 1, name: "Chaotyczne machanie rękoma", duration: "1 min", points: "1–4 pkt",     chance: "20%", requiredTowerLevel: 1  },
-  { level: 2, name: "Opanowane ruchy dłońmi",     duration: "2 min", points: "5–10 pkt",   chance: "30%", requiredTowerLevel: 3  },
-  { level: 3, name: "Skupiona inkantacja",         duration: "3 min", points: "11–22 pkt",  chance: "40%", requiredTowerLevel: 6  },
-  { level: 4, name: "Podstawowa inkantacja",       duration: "4 min", points: "23–50 pkt",  chance: "40%", requiredTowerLevel: 10 },
-  { level: 5, name: "Zaawansowana inkantacja",     duration: "5 min", points: "51–100 pkt", chance: "50%", requiredTowerLevel: 15 },
+  {
+    level: 1, duration: "1 min", points: "1–4 pkt", chance: "20%", requiredTowerLevel: 1,
+    subcategories: ["Chaotyczne machanie rękoma", "Losowy bełkot", "Kiepska inscenizacja"],
+  },
+  {
+    level: 2, duration: "2 min", points: "5–10 pkt", chance: "30%", requiredTowerLevel: 3,
+    subcategories: ["Pozornie sensowne gesty dłońmi", "Ciche mamroczenie", "Szalone wygibasy"],
+  },
+  {
+    level: 3, duration: "3 min", points: "11–22 pkt", chance: "40%", requiredTowerLevel: 6,
+    subcategories: ["Gwałtowne, synchroniczne wymachy dłońmi", "Mamroczenie słów brzmiących zagranicznie", "Energiczny taniec"],
+  },
+  {
+    level: 4, duration: "4 min", points: "23–50 pkt", chance: "40%", requiredTowerLevel: 10,
+    subcategories: ["Opanowane, konsekwentne ruchy dłońmi", "Rymowane skandowanie trudnych słów", "Rytualne ruchy"],
+  },
+  {
+    level: 5, duration: "5 min", points: "51–100 pkt", chance: "50%", requiredTowerLevel: 15,
+    subcategories: ["Precyzyjne gesty godne maga", "Doniosła recytacja starożytnych formuł", "Ceremonialny rytuał"],
+  },
 ];
 
 // ── PALETA (zgodna z Training.tsx / ExplorationPanel.tsx) ────────────────────
@@ -94,7 +109,7 @@ export default function StudyPanel() {
   const { refresh: refreshTutorial } = useTutorial();
 
   const [actions, setActions] = useState<any>(null);
-  const [loading, setLoading] = useState<number | null>(null);
+  const [loading, setLoading] = useState<string | null>(null);
   const [claiming, setClaiming] = useState<number | null>(null);
   const [report, setReport] = useState<any>(null);
 
@@ -117,18 +132,18 @@ export default function StudyPanel() {
     await refreshCharacter();
   }, [refreshCharacter]);
 
-  async function startStudy(level: number) {
-    setLoading(level);
-    try {
-      await api.post("/actions/study/start", { level });
-      await fetchActions();
-      await syncCharacter();
-    } catch (err: any) {
-      alert(err.response?.data?.error ?? "Błąd");
-    } finally {
-      setLoading(null);
-    }
+async function startStudy(level: number, subcategory: number) {
+  setLoading(`${level}-${subcategory}`); 
+  try {
+    await api.post("/actions/study/start", { level, subcategory });
+    await fetchActions();
+    await syncCharacter();
+  } catch (err: any) {
+    alert(err.response?.data?.error ?? "Błąd");
+  } finally {
+    setLoading(null);
   }
+}
 
 async function claimStudy(actionId: number) {
   setClaiming(actionId);
@@ -225,64 +240,75 @@ async function claimStudy(actionId: number) {
 
         {/* Lista poziomów */}
 {!activeStudy && !completedStudy && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-{STUDY_LEVELS.map(lvl => {
-  const towerOk = towerLevel >= lvl.requiredTowerLevel;
-  const canStart = studyActions > 0 && actions !== null && towerOk;
-  const lockedByTower = actions !== null && !towerOk;
+  <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    {STUDY_LEVELS.map(lvl => {
+      const towerOk = towerLevel >= lvl.requiredTowerLevel;
+      const canStart = studyActions > 0 && actions !== null && towerOk;
+      const lockedByTower = actions !== null && !towerOk;
 
-  return (
-    <div
-      key={lvl.level}
-      style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "12px 16px", borderRadius: 10,
-        border: `1px solid ${COLORS.borderSoft}`,
-        background: COLORS.panelAlt,
-        opacity: lockedByTower ? 0.45 : canStart ? 1 : 0.5,
-        transition: "background 0.15s",
-      }}
-      onMouseEnter={e => { if (canStart) e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}
-      onMouseLeave={e => (e.currentTarget.style.background = COLORS.panelAlt)}
-    >
-      <div>
-        <p style={{ fontSize: 13, fontWeight: 600, color: lockedByTower ? COLORS.textDim : COLORS.text, margin: 0 }}>
-          {lvl.name}
-        </p>
-        <p style={{ fontSize: 11, color: COLORS.textFaint, margin: "2px 0 0" }}>
-          {lvl.duration} · {lvl.points} · {lvl.chance} na czar
-        </p>
-        {lockedByTower && (
-          <p style={{ fontSize: 11, color: COLORS.red, margin: "4px 0 0" }}>
-            Dostępne od poziomu {lvl.requiredTowerLevel} wieży
-          </p>
-        )}
-        {!lockedByTower && !canStart && (
-          <p style={{ fontSize: 11, color: COLORS.red, margin: "4px 0 0" }}>
-            Brak dostępnych akcji — odnawia się co 30 minut
-          </p>
-        )}
-      </div>
-      <button
-        onClick={() => canStart ? startStudy(lvl.level) : undefined}
-        disabled={loading === lvl.level || !canStart}
-        style={{
-          padding: "8px 18px", borderRadius: 8,
-          border: "none", fontSize: 12, fontWeight: 700,
-          fontFamily: "Cinzel, serif", letterSpacing: "0.05em",
-          background: (!canStart || loading === lvl.level) ? "rgba(245,196,81,0.15)" : COLORS.gold,
-          color: (!canStart || loading === lvl.level) ? COLORS.textGhost : COLORS.bg,
-          cursor: (!canStart || loading === lvl.level) ? "not-allowed" : "pointer",
-          transition: "all 0.2s",
-        }}
-      >
-        {loading === lvl.level ? "..." : lockedByTower ? "Zablokowane" : "Ucz się"}
-      </button>
-    </div>
-  );
-})}
+      return (
+        <div key={lvl.level} style={{
+          padding: "14px 16px", borderRadius: 10,
+          border: `1px solid ${COLORS.borderSoft}`,
+          background: COLORS.panelAlt,
+          opacity: lockedByTower ? 0.45 : 1,
+        }}>
+          {/* Nagłówek poziomu */}
+          <div style={{ marginBottom: 10 }}>
+            <p style={{ fontSize: 12, color: COLORS.textFaint, margin: 0 }}>
+              Poziom {lvl.level} · {lvl.duration} · {lvl.points} · {lvl.chance} na czar
+            </p>
+            {lockedByTower && (
+              <p style={{ fontSize: 11, color: COLORS.red, margin: "4px 0 0" }}>
+                Dostępne od poziomu {lvl.requiredTowerLevel} wieży
+              </p>
+            )}
+            {!lockedByTower && !canStart && (
+              <p style={{ fontSize: 11, color: COLORS.red, margin: "4px 0 0" }}>
+                Brak dostępnych akcji — odnawia się co 30 minut
+              </p>
+            )}
           </div>
-        )}
+
+          {/* 3 przyciski podkategorii */}
+          <div style={{ display: "flex", flexDirection: "row", gap: 6 }}>
+            {lvl.subcategories.map((name, i) => {
+              const key = `${lvl.level}-${i + 1}`;
+              const isLoading = loading === key;
+              return (
+                <button
+                  key={i}
+                  onClick={() => canStart ? startStudy(lvl.level, i + 1) : undefined}
+                  disabled={isLoading || !canStart}
+                  style={{
+                    flex: 1,
+                    minWidth: 120,
+                    padding: "8px 14px", borderRadius: 8, textAlign: "left",
+                    border: `1px solid ${canStart ? "rgba(245,196,81,0.2)" : COLORS.borderSoft}`,
+                    fontSize: 12, fontWeight: 600,
+                    fontFamily: "Inter, sans-serif",
+                    background: isLoading
+                      ? "rgba(245,196,81,0.08)"
+                      : canStart
+                        ? "rgba(245,196,81,0.06)"
+                        : "rgba(255,255,255,0.02)",
+                    color: canStart ? COLORS.text : COLORS.textGhost,
+                    cursor: (!canStart || isLoading) ? "not-allowed" : "pointer",
+                    transition: "all 0.15s",
+                  }}
+                  onMouseEnter={e => { if (canStart && !isLoading) e.currentTarget.style.background = "rgba(245,196,81,0.13)"; }}
+                  onMouseLeave={e => { if (canStart && !isLoading) e.currentTarget.style.background = "rgba(245,196,81,0.06)"; }}
+                >
+                  {isLoading ? "..." : lockedByTower ? `🔒 ${name}` : name}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      );
+    })}
+  </div>
+)}
       </Panel>
     </div>
   );

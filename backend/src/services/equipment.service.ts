@@ -6,6 +6,30 @@ import { getOrCreateTutorial, advanceTutorialStep } from "./tutorial/tutorial.se
 import { TUTORIAL_STEPS, TUTORIAL_MESSAGES } from "./tutorial/tutorial.constants.js";
 
 // ── HELPER — efektywne statystyki z bonusami ekwipunku ─────────────────────────
+function scaleItem(item: any, tier: number) {
+  return {
+    ...item,
+    tier,
+    bonusKnowledge:      scaleValue(item.bonusKnowledge,      tier),
+    bonusIntelligence:   scaleValue(item.bonusIntelligence,   tier),
+    bonusPower:          scaleValue(item.bonusPower,          tier),
+    bonusEndurance:      scaleValue(item.bonusEndurance,      tier),
+    bonusResistance:     scaleValue(item.bonusResistance,     tier),
+    bonusInitiative:     scaleValue(item.bonusInitiative,     tier),
+    bonusElementalMagic: scaleValue(item.bonusElementalMagic, tier),
+    bonusAstralMagic:    scaleValue(item.bonusAstralMagic,    tier),
+    bonusBloodMagic:     scaleValue(item.bonusBloodMagic,     tier),
+    reqKnowledge:        scaleValue(item.reqKnowledge,        tier),
+    reqIntelligence:     scaleValue(item.reqIntelligence,     tier),
+    reqPower:            scaleValue(item.reqPower,            tier),
+    reqEndurance:        scaleValue(item.reqEndurance,        tier),
+    reqResistance:       scaleValue(item.reqResistance,       tier),
+    reqInitiative:       scaleValue(item.reqInitiative,       tier),
+    reqElementalMagic:   scaleValue(item.reqElementalMagic,   tier),
+    reqAstralMagic:      scaleValue(item.reqAstralMagic,      tier),
+    reqBloodMagic:       scaleValue(item.reqBloodMagic,       tier),
+  };
+}
 
 async function getEffectiveCharacter(userId: number) {
   const character = await prisma.character.findUnique({
@@ -30,7 +54,7 @@ async function getEffectiveCharacter(userId: number) {
       include: { item: true },
     });
     for (const entry of ownedEntries) {
-      const item = entry.item;
+      const item = scaleItem(entry.item, entry.tier);
       bonusKnowledge      += item.bonusKnowledge;
       bonusIntelligence   += item.bonusIntelligence;
       bonusPower          += item.bonusPower;
@@ -57,6 +81,15 @@ async function getEffectiveCharacter(userId: number) {
   };
 }
 
+
+// Każdy kolejny tier to +20% od bazowych statystyk (mnożnik: 1 + (tier-1) * 0.2)
+export function tierMultiplier(tier: number): number {
+  return 1 + (tier - 1) * 0.2;
+}
+
+export function scaleValue(base: number, tier: number): number {
+  return Math.round(base * tierMultiplier(tier));
+}
 // ── WALIDACJA WYMAGAŃ ────────────────────────────────────────────────────────
 
 function checkItemRequirements(item: any, character: any, reqModifier: number = 0) {
@@ -124,9 +157,12 @@ export async function getEquipment(userId: number) {
     : [];
 
   // mapa: OwnedItem.id -> { ...Item, ownedItemId }
-  const entryById = Object.fromEntries(
-    equippedEntries.map(e => [e.id, { ...e.item, ownedItemId: e.id }])
-  );
+const entryById = Object.fromEntries(
+  equippedEntries.map(e => [
+    e.id,
+    { ...scaleItem(e.item, e.tier), ownedItemId: e.id } 
+  ])
+);
 
   const libraryLevel = character.tower?.buildings.find(b => b.buildingType === "library")?.level ?? 0;
   const archetypeBonus = await getCharacterArchetypeBonus(character.id);
@@ -152,7 +188,7 @@ export async function getEquipment(userId: number) {
       visible: visible.map(entry => ({
         chaosVaultItemId: entry.id,
         ownedItemId: entry.ownedItemId,
-        item: entry.ownedItem.item,
+        item: scaleItem(entry.ownedItem.item, entry.ownedItem.tier),
         addedAt: entry.addedAt,
       })),
       hiddenCount: hidden.length,
@@ -165,12 +201,11 @@ export async function getEquipment(userId: number) {
 export async function equipItem(userId: number, ownedItemId: number) {
   const character = await getEffectiveCharacter(userId);
 
-  // Przedmiot musi być w "widocznej" części Komnaty Nieładu
   const { visible } = await getVisibleChaosVaultItems(character.id);
   const vaultEntry = visible.find(v => v.ownedItemId === ownedItemId);
-  if (!vaultEntry) throw new Error("Ten przedmiot nie jest dostępny — rozbuduj Komnatę Nieładu lub zwolnij miejsce.");
+  if (!vaultEntry) throw new Error("...");
 
-  const item = vaultEntry.ownedItem.item;
+  const item = scaleItem(vaultEntry.ownedItem.item, vaultEntry.ownedItem.tier);
 
   const archetypeBonus = await getCharacterArchetypeBonus(character.id);
   checkItemRequirements(item, character, archetypeBonus?.spellReqModifier ?? 0);

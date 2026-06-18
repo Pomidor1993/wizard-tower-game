@@ -8,11 +8,31 @@ import { useTutorial } from "../contexts/TutorialContext";
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const EXPLORATION_LEVELS = [
-  { level: 1, name: "Spacerek wokół wieży",         description: "Niedaleko, niegroźnie. Idealne na rozgrzewkę.",                          duration: "2 min",  points: "10–20 pkt", itemChance: "10%", encounterChance: "5%",  availableFrom: null,          requiredTowerLevel: 1   },
-  { level: 2, name: "Spacerek po włościach",          description: "Trochę dalej od wieży. Może coś ciekawego się trafi.",                   duration: "4 min",  points: "20–40 pkt", itemChance: "20%", encounterChance: "10%", availableFrom: "Poziom wieży: 10",  requiredTowerLevel: 10  },
-  { level: 3, name: "Wycieczka do magicznego miasta", description: "Tłoczno, głośno i pełno dziwnych stworzeń. Brzmi jak plan.",             duration: "6 min",  points: "40–60 pkt", itemChance: "30%", encounterChance: "0%",  availableFrom: "Poziom wieży: 25",  requiredTowerLevel: 25  },
-  { level: 4, name: "Wycieczka w smutne góry",        description: "Zimno, mgliście i pełno niebezpieczeństw. Dla odważnych.",              duration: "8 min",  points: "60–80 pkt", itemChance: "20%", encounterChance: "40%", availableFrom: "Poziom wieży: 50",  requiredTowerLevel: 50  },
-  { level: 5, name: "Magiczna podróż morska",         description: "Nieznane wody, nieznane stworzenia. Tylko dla najdzielniejszych magów.", duration: "10 min", points: "70–90 pkt", itemChance: "40%", encounterChance: "50%", availableFrom: "Poziom wieży: 100", requiredTowerLevel: 100 },
+  { level: 1, name: "Bliskie okolice",         description: "Niedaleko, niegroźnie. Idealne na rozgrzewkę.",                          duration: "2 min",  points: "10–20 pkt", itemChance: "10%", encounterChance: "5%",  availableFrom: null,          requiredTowerLevel: 1,     subcategories: [
+      "Przeszukaj krzaki przy wieży",
+      "Poszukaj skrytek w zwykłym, nudnym lesie",
+      "Poszukaj czegoś nad stawem",
+    ],    },
+  { level: 2, name: "Okolice wokół tych bliskich okolic",          description: "Trochę dalej od wieży. Może coś ciekawego się trafi.",                   duration: "4 min",  points: "20–40 pkt", itemChance: "20%", encounterChance: "10%", availableFrom: "Poziom wieży: 10",  requiredTowerLevel: 10,     subcategories: [
+      "Splądruj opuszczoną chatkę",
+      "Zajrzyj pod pobliski most",
+      "Przeszukaj brzegi rzeczki",
+    ],  },
+  { level: 3, name: "Całkiem dalekie miejsca", description: "Tłoczno, głośno i pełno dziwnych stworzeń. Brzmi jak plan.",             duration: "6 min",  points: "40–60 pkt", itemChance: "30%", encounterChance: "0%",  availableFrom: "Poziom wieży: 25",  requiredTowerLevel: 25,     subcategories: [
+      "Zbadaj starą jaskinię",
+      "Wejdź na pobliskie wzgórze",
+      "Poszukaj skrzyni ukrytej za wodospadem",
+    ],  },
+  { level: 4, name: "Odległe rubieże",        description: "Zimno, mgliście i pełno niebezpieczeństw. Dla odważnych.",              duration: "8 min",  points: "60–80 pkt", itemChance: "20%", encounterChance: "40%", availableFrom: "Poziom wieży: 50",  requiredTowerLevel: 50,     subcategories: [
+      "Przeszukaj zapomniane ruiny",
+      "Nurkuj w głębokim jeziorze",
+      "Poszukaj skrytek w magicznym, przeklętym lesie",
+    ],  },
+  { level: 5, name: "Gdzieś za siedmioma lasami",         description: "Nieznane wody, nieznane stworzenia. Tylko dla najdzielniejszych magów.", duration: "10 min", points: "70–90 pkt", itemChance: "40%", encounterChance: "50%", availableFrom: "Poziom wieży: 100", requiredTowerLevel: 100,     subcategories: [
+      "Ograb legendarną kryptę",
+      `Wejdź do lochu z napisem "NIE WCHODZIĆ"`,
+      `Poszukaj sekretnego przejścia, którego "na pewno tu nie ma"`,
+    ], },
 ];
 
 const ARCHIVE_KEY = "exploration_archive";
@@ -683,6 +703,11 @@ export default function ExplorationPanel({
   const [battleModalOpen, setBattleModalOpen] = useState(false);
   const [reportSaved, setReportSaved] = useState(false);
   const [showArchive, setShowArchive] = useState(false);
+  const [selectedLocation, setSelectedLocation] = useState<"A" | "B" | "C">("A");
+
+  useEffect(() => {
+    setSelectedLocation("A");
+  }, [selected]);
 
   const fetchActions = useCallback(async () => {
     try { const res = await api.get("/actions"); setActions(res.data); } catch {}
@@ -706,7 +731,7 @@ export default function ExplorationPanel({
   async function handleStart() {
     setLoading(true);
     try {
-      await api.post("/actions/exploration/start", { level: selected });
+      await api.post("/actions/exploration/start", { level: selected, location: selectedLocation });
       await fetchActions();
       await syncCharacter();
     }
@@ -927,6 +952,41 @@ async function handleClaim(actionId: number) {
                   </div>
                 ))}
               </div>
+              {!activeExploration && !completedExploration && (
+  <div style={{ display: "flex", gap: 6 }}>
+    {(["A", "B", "C"] as const).map((letter, i) => {
+      const name = currentLoc.subcategories[i];
+      const isSelected = selectedLocation === letter;
+      return (
+        <button
+          key={letter}
+          onClick={() => !locLocked && setSelectedLocation(letter)}
+          disabled={locLocked}
+          style={{
+            flex: 1,
+            padding: "8px 6px",
+            borderRadius: 8,
+            border: `1px solid ${isSelected ? COLORS.gold : COLORS.borderSoft}`,
+            background: isSelected ? "rgba(245,196,81,0.12)" : COLORS.panelAlt,
+            color: isSelected ? COLORS.gold : COLORS.textDim,
+            fontSize: 11,
+            fontWeight: isSelected ? 700 : 400,
+            cursor: locLocked ? "not-allowed" : "pointer",
+            textAlign: "left",
+            transition: "all 0.15s",
+          }}
+          onMouseEnter={e => { if (!locLocked && !isSelected) e.currentTarget.style.borderColor = "rgba(245,196,81,0.3)"; }}
+          onMouseLeave={e => { if (!locLocked && !isSelected) e.currentTarget.style.borderColor = COLORS.borderSoft; }}
+        >
+          <span style={{ fontFamily: "Cinzel, serif", fontSize: 10, opacity: 0.6, display: "block", marginBottom: 2 }}>
+            {letter}
+          </span>
+          {name}
+        </button>
+      );
+    })}
+  </div>
+)}
 
               {!activeExploration && !completedExploration && (
                 <button
@@ -942,15 +1002,12 @@ async function handleClaim(actionId: number) {
                     transition: "all 0.2s",
                   }}
                 >
-                  {loading
-                    ? "..."
-                    : locLocked
-                    ? `Zablokowane — wymagany poziom wieży ${currentLoc.requiredTowerLevel}`
-                    : explorationActions <= 0
-                    ? "Brak akcji eksploracji"
-                    : `Eksploruj — ${currentLoc.name}`}
+    {loading ? "..." : locLocked ? `Zablokowane...` : `Eksploruj — ${currentLoc.subcategories[["A","B","C"].indexOf(selectedLocation)]}`}
+
                 </button>
+                
               )}
+            
             </div>
           </Panel>
         </div>
