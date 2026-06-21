@@ -1,5 +1,5 @@
 import prisma from "../lib/prisma.js";
-import { archetypeTriggerService } from "./archetype/archetype-trigger.service.js";
+import { createLevelUpMessage } from "./system-messages.service.js";
 
 // ── KONFIGURACJA STATYSTYK ───────────────────────────
 const UPGRADEABLE_STATS = [
@@ -51,6 +51,7 @@ export async function addExperience(characterId: number, amount: number) {
       level,
       experience,
       skillPoints: { increment: skillPointsGained },
+      ...(levelsGained > 0 ? { levelUpAt: new Date() } : {}),
     },
     select: {
       level: true,
@@ -59,8 +60,9 @@ export async function addExperience(characterId: number, amount: number) {
     },
   });
 
+
   if (levelsGained > 0) {
-    await archetypeTriggerService.checkTrigger(characterId, "CHARACTER_LEVEL_UP");
+    await createLevelUpMessage(characterId, updated.level, skillPointsGained);
   }
 
   return {
@@ -144,15 +146,6 @@ export async function upgradeStat(userId: number, stat: string) {
       bloodMagic: true,
     },
   });
-
-  const statTriggers = [
-    "ANY_MAGIC_LEVEL_20",
-    "KNOWLEDGE_INTEL_30",
-  ];
-
-  for (const code of statTriggers) {
-    await archetypeTriggerService.checkTrigger(character.id, code);
-  }
 
   return {
     stat,

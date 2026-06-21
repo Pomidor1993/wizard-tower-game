@@ -13,12 +13,11 @@ import {
   isNegativeStatus,
   CleanMode,
 } from "../types/status-types.js";
-import { archetypeTriggerService } from "./archetype/archetype-trigger.service.js";
-import { getCharacterArchetypeBonus, MagicElement } from "./archetype/archetype-bonuses.constants.js";
 import { calculateDuelExperience, addExperience } from "./character.service.js";
 
 
-const DAILY_BATTLE_LIMIT = 5;
+const DAILY_ACTION_LIMIT = 10;
+const DAILY_BATTLE_LIMIT = DAILY_ACTION_LIMIT; // alias zachowany dla czytelności istniejącego kodu poniżej
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SEKCJA 1 — PULE CZARÓW
@@ -1048,10 +1047,6 @@ export async function buildFighter(characterId: number): Promise<Fighter> {
   });
   if (!character) throw new Error(`Postać ${characterId} nie znaleziona`);
 
-  const archetypeBonus = await getCharacterArchetypeBonus(character.id);  // ← potem bonus
-  const banned = archetypeBonus?.bannedSpellElements ?? [];
-  const minionCountModifier = archetypeBonus?.minionCountModifier ?? 1;
-
   let bonusEndurance    = 0;
   let bonusInitiative   = 0;
   let bonusPower        = 0;
@@ -1064,7 +1059,7 @@ export async function buildFighter(characterId: number): Promise<Fighter> {
   if (character.equipment) {
     const itemIds = [
       character.equipment.robeId, character.equipment.bootsId,
-      character.equipment.hatId,  character.equipment.amuletId,
+      character.equipment.hatId,  character.equipment.talismanId,
       character.equipment.mainHandId, character.equipment.offHandId,
     ].filter(Boolean) as number[];
 
@@ -1100,7 +1095,7 @@ function mapSpell(s: any): BattleSpell {  // ← mapSpell bez filtrowania
       reqElementalMagic: s.reqElementalMagic ?? 0,
       reqAstralMagic:    s.reqAstralMagic    ?? 0,
       reqBloodMagic:     s.reqBloodMagic     ?? 0,
-      summonCount: Math.floor(s.summonCount * minionCountModifier),
+      summonCount: Math.floor(s.summonCount),
       summonHp:          s.summonHp          ?? 0,
       summonDamage:      s.summonDamage      ?? 0,
       summonInitiative:  s.summonInitiative  ?? 0,
@@ -1109,15 +1104,13 @@ function mapSpell(s: any): BattleSpell {  // ← mapSpell bez filtrowania
     };
   }
 
-  const allSpells    = await prisma.spell.findMany();
-  const activeSpells = character.spellSlots
-    .map(ss => mapSpell(ss.spell))
-    .filter(s => !banned.includes(s.element as MagicElement))
-  const activeIds    = new Set(activeSpells.map(s => s.id));
-  const spellPool    = allSpells
-    .map(mapSpell)
-    .filter(s => !activeIds.has(s.id))
-    .filter(s => !banned.includes(s.element as MagicElement))
+const allSpells    = await prisma.spell.findMany({ where: { spellType: "combat" } });
+const activeSpells = character.spellSlots
+  .map(ss => mapSpell(ss.spell))
+const activeIds    = new Set(activeSpells.map(s => s.id));
+const spellPool    = allSpells
+  .map(mapSpell)
+  .filter(s => !activeIds.has(s.id))
   const towerLevel   = character.tower?.level ?? 1;
   const effectiveEndurance = character.endurance + bonusEndurance;
   const maxHp        = Math.max(1, 20 + effectiveEndurance * 5);
@@ -1142,9 +1135,6 @@ function mapSpell(s: any): BattleSpell {  // ← mapSpell bez filtrowania
     minions:         [],
     appliedStatuses: [],
     stunTurnsLeft:   0,
-    bannedSpellElements: banned,
-    spellReqModifier: archetypeBonus?.spellReqModifier ?? 0,
-    minionCountModifier,
     isPlayer:        true,
   };
 }
@@ -1601,13 +1591,22 @@ export async function challengePlayer(attackerUserId: number, defenderCharacterI
   const defenderChar = await prisma.character.findUnique({ where: { id: defenderCharacterId } });
   if (!defenderChar) throw new Error("Przeciwnik nie istnieje");
 
-  const today = new Date();
+const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const todayBattles = await prisma.battle.count({
-    where: { attackerId: attackerChar.id, foughtAt: { gte: today } },
-  });
-  if (todayBattles >= DAILY_BATTLE_LIMIT) {
-    throw new Error(`Dzienny limit walk wynosi ${DAILY_BATTLE_LIMIT}. Wróć jutro!`);
+
+  const [battlesToday, tournamentsToday, pairBattleToday, pairTournamentToday] = await Promise.all([
+    prisma.battle.count({ where: { attackerId: attackerChar.id, foughtAt: { gte: today } } }),
+    prisma.magicTournament.count({ where: { challengerId: attackerChar.id, foughtAt: { gte: today } } }),
+    prisma.battle.count({ where: { attackerId: attackerChar.id, defenderId: defenderChar.id, foughtAt: { gte: today } } }),
+    prisma.magicTournament.count({ where: { challengerId: attackerChar.id, defenderId: defenderChar.id, foughtAt: { gte: today } } }),
+  ]);
+
+  const totalActionsToday = battlesToday + tournamentsToday;
+  if (totalActionsToday >= DAILY_BATTLE_LIMIT) {
+    throw new Error(`Dzienny limit starć (pojedynki + turnieje) wynosi ${DAILY_BATTLE_LIMIT}. Wróć jutro!`);
+  }
+  if (pairBattleToday + pairTournamentToday > 0) {
+    throw new Error(`Już wyzwałeś dziś tego przeciwnika. Spróbuj innego gracza lub wróć jutro!`);
   }
 
   const attackerFighter = await buildFighter(attackerChar.id);
@@ -1687,7 +1686,7 @@ if (result.winnerId !== null) {
     ];
   }
 
-  const fullMetadata = {
+const fullMetadata = {
     ...result.metadata,
     attackerUserId,
     attackerId:    attackerChar.id,
@@ -1695,10 +1694,11 @@ if (result.winnerId !== null) {
     defenderId:    defenderChar.id,
     defenderName:  defenderChar.name,
     duelExperience,
+    draw:          result.winnerId === null,
     allParticipants: buildParticipants(),
     shardsSpent: { attacker: attackerShardsSpent, defender: defenderShardsSpent },
   };
-
+  
   const battle = await prisma.battle.create({
     data: {
       attackerId:   attackerChar.id,
@@ -1711,49 +1711,32 @@ if (result.winnerId !== null) {
     },
   });
 
-  if (attackerShardsSpent > 0) {
+const isDraw = result.winnerId === null;
+
   await prisma.character.update({
     where: { id: attackerChar.id },
-    data: { powerShards: { decrement: attackerShardsSpent } },
+    data: {
+      ...(attackerShardsSpent > 0 ? { powerShards: { decrement: attackerShardsSpent } } : {}),
+      ...(isDraw
+        ? { battleDraws: { increment: 1 } }
+        : attackerWon
+          ? { battleWins: { increment: 1 } }
+          : { battleLosses: { increment: 1 } }),
+    },
   });
-}
-if (defenderShardsSpent > 0) {
+
   await prisma.character.update({
     where: { id: defenderChar.id },
-    data: { powerShards: { decrement: defenderShardsSpent } },
+    data: {
+      ...(defenderShardsSpent > 0 ? { powerShards: { decrement: defenderShardsSpent } } : {}),
+      ...(isDraw
+        ? { battleDraws: { increment: 1 } }
+        : defenderWon
+          ? { battleWins: { increment: 1 } }
+          : { battleLosses: { increment: 1 } }),
+    },
   });
-}
-
-// ── ARCHETYPE TRIGGERS ─────────────────────────────
-const duelCountAttacker = await prisma.battle.count({
-  where: {
-    OR: [
-      { attackerId: attackerChar.id },
-      { defenderId: attackerChar.id }
-    ]
-  }
-});
-
-await archetypeTriggerService.checkTrigger(
-  attackerChar.id,
-  "PVP_50_DUELS",
-  { duelCount: duelCountAttacker }
-);
-
-const duelCountDefender = await prisma.battle.count({
-  where: {
-    OR: [
-      { attackerId: defenderChar.id },
-      { defenderId: defenderChar.id }
-    ]
-  }
-});
-
-await archetypeTriggerService.checkTrigger(
-  defenderChar.id,
-  "PVP_50_DUELS",
-  { duelCount: duelCountDefender }
-);
+  // ──────────────────────────────────────────────────
 // ──────────────────────────────────────────────────
 
   return {
@@ -1785,22 +1768,24 @@ export async function getBattleHistory(userId: number) {
     },
   });
 
-  return battles.map(b => {
+return battles.map(b => {
     let metadata: any = {};
     try {
       metadata = JSON.parse(b.metadata ?? "{}");
     } catch {
       metadata = {};
     }
+    const isDraw = metadata.draw === true;
     return {
       id:            b.id,
       attacker:      b.attacker.name,
       defender:      b.defender.name,
-      winner:        b.winner.name,
+      winner:        isDraw ? null : b.winner.name,
       summary:       b.summary,
       prestigeGain:  b.prestigeGain,
       foughtAt:      b.foughtAt,
-      youWon:        b.winnerId === character.id,
+      youWon:        !isDraw && b.winnerId === character.id,
+      isDraw,
       myCharacterId: character.id,
       log:           JSON.parse(b.log),
       metadata,

@@ -3,8 +3,6 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import prisma from "../lib/prisma.js";
-import { archetypeTriggerService } from "./archetype/archetype-trigger.service.js";
-import { getAccessibleSpellFlags, SpellArchetypeFlag } from "./archetype/archetype-bonuses.constants.js";
 
 export type SpellbookSource = "study";
 
@@ -25,12 +23,6 @@ export async function recordSpellbookEntry(
     const spellCount = await prisma.spellbookEntry.count({
       where: { characterId }
     });
-
-    await archetypeTriggerService.checkTrigger(
-      characterId,
-      "SPELLS_100_DISCOVERED",
-      { spellCount }
-    );
 
   } catch (err) {
     console.error(`[spellbook] Failed to record entry char=${characterId} spell=${spellId}:`, err);
@@ -82,14 +74,6 @@ export interface SpellbookSpell {
   owned?: boolean;
 }
 
-function parseAllowedClasses(raw: string): SpellArchetypeFlag[] {
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
 
 export async function getSpellbook(userId: number): Promise<SpellbookSpell[]> {
   const character = await prisma.character.findUnique({
@@ -107,16 +91,12 @@ export async function getSpellbook(userId: number): Promise<SpellbookSpell[]> {
   });
   const equippedMap = new Map(equippedSlots.map(s => [s.spellId, s.slotIndex]));
 
-  const accessibleFlags = await getAccessibleSpellFlags(character.id);
-
   const allSpellsRaw = await prisma.spell.findMany({
-    orderBy: [{ element: "asc" }, { spellPool: "asc" }, { rarity: "asc" }],
-  });
+  where: { spellType: "combat" },
+  orderBy: [{ element: "asc" }, { spellPool: "asc" }, { rarity: "asc" }],
+});
 
-  const allSpells = allSpellsRaw.filter(spell => {
-    const flags = parseAllowedClasses(spell.allowedClasses);
-    return flags.length === 0 || flags.some(f => accessibleFlags.includes(f));
-  });
+  const allSpells = allSpellsRaw;
 
   const discoveredMap = new Map(
     character.spellbookEntries.map(e => [e.spellId, e])
@@ -140,6 +120,7 @@ export async function getSpellbook(userId: number): Promise<SpellbookSpell[]> {
         name:          spell.name,
         damage:        spell.damage,
         special:       spell.special ?? undefined,
+        spellbookDescription: spell.spellbookDescription,
         isDirectional: spell.isDirectional,
         statusEffects: spell.statusEffects,
         reqElementalMagic: spell.reqElementalMagic,
@@ -170,13 +151,12 @@ export async function getSpellbookStats(userId: number) {
   const character = await prisma.character.findUnique({ where: { userId } });
   if (!character) throw new Error("Postać nie znaleziona");
 
-  const accessibleFlags = await getAccessibleSpellFlags(character.id);
 
-  const allSpellsRaw = await prisma.spell.findMany({ select: { allowedClasses: true } });
-  const total = allSpellsRaw.filter(spell => {
-    const flags = parseAllowedClasses(spell.allowedClasses);
-    return flags.length === 0 || flags.some(f => accessibleFlags.includes(f));
-  }).length;
+const allSpellsRaw = await prisma.spell.findMany({
+  where: { spellType: "combat" },
+  select: { allowedClasses: true },
+});
+const total = allSpellsRaw.filter(spell => {}).length;
 
   const discovered = await prisma.spellbookEntry.count({
     where: { characterId: character.id },

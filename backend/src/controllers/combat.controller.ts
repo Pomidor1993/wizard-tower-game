@@ -26,11 +26,12 @@ export async function battleHistory(req: Request, res: Response) {
 
 export async function getRanking(req: Request, res: Response) {
   try {
-    const characters = await prisma.character.findMany({
+const characters = await prisma.character.findMany({
       select: {
         id: true,
         name: true,
         prestige: true,
+        level: true,
         userId: true,
       },
       orderBy: { prestige: "desc" },
@@ -43,21 +44,28 @@ if (!myChar) { res.status(404).json({ error: "Postać nie znaleziona" }); return
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const todayBattles = await prisma.battle.findMany({
-      where: {
-        attackerId: myChar!.id,
-        foughtAt: { gte: today },
-      },
-      select: { defenderId: true },
-    });
+const [todayBattles, todayTournaments] = await Promise.all([
+      prisma.battle.findMany({
+        where: { attackerId: myChar!.id, foughtAt: { gte: today } },
+        select: { defenderId: true },
+      }),
+      prisma.magicTournament.findMany({
+        where: { challengerId: myChar!.id, foughtAt: { gte: today } },
+        select: { defenderId: true },
+      }),
+    ]);
 
-    const foughtTodayIds = new Set(todayBattles.map(b => b.defenderId));
-
-    const result = characters.map((c, i) => ({
+    const foughtTodayIds = new Set([
+      ...todayBattles.map(b => b.defenderId),
+      ...todayTournaments.map(t => t.defenderId),
+    ]);
+    
+const result = characters.map((c, i) => ({
       rank: i + 1,
       characterId: c.id,
       name: c.name,
       prestige: c.prestige,
+      level: c.level,
       isMe: c.userId === req.userId,
       foughtToday: foughtTodayIds.has(c.id),
     }));

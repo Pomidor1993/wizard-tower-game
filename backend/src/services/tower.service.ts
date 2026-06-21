@@ -1,10 +1,12 @@
 import prisma from "../lib/prisma.js";
-import { archetypeTriggerService } from "./archetype/archetype-trigger.service.js";
 import { getVaultCapacity } from "./chaos_vault.service.js";
+import { getUnlockedUtilitySlots } from "./utility-spell.service.js";
 
 // ── KONFIGURACJA BUDYNKÓW ────────────────────────────
 
 const TOWER_BASE_REQ = { knowledge: 5, intelligence: 5 };
+const TOWER_BASE_PRESTIGE_REQ = 10;
+const TOWER_PRESTIGE_SCALE = 1.4;
 const TOWER_BASE_DURATION_SECONDS = 180;
 
 interface BuildingConfig {
@@ -43,7 +45,7 @@ const BUILDING_CONFIG: Record<string, BuildingConfig> = {
     baseReqPower: 3,
     baseDurationSeconds: 120,
     scaleMultiplier: 5.0,
-  },
+},
   // ── PLACEHOLDER — bez funkcji na razie ──────────────
   magic_hands: {
     requiredTowerLevel: 5,
@@ -146,7 +148,7 @@ export async function collectResources(characterId: number) {
   const pcLevel = buildings.find(b => b.buildingType === "power_collector")?.level ?? 0;
   const pcProduction = pcLevel > 0 ? scaleValue(2, pcLevel, 1.2) : 0;
 
-  const shardsCollected = Math.floor((BASE_PRODUCTION_PER_HOUR + pcProduction) * hoursElapsed);
+const shardsCollected = Math.floor((BASE_PRODUCTION_PER_HOUR + pcProduction) * hoursElapsed);
 
   if (shardsCollected <= 0) return { collected: 0 };
 
@@ -158,9 +160,7 @@ export async function collectResources(characterId: number) {
     },
   });
 
-  await archetypeTriggerService.checkTrigger(characterId, "SHARDS_10000");
-
-  return { shardsCollected };
+  return { collected: shardsCollected };
 }
 
 // ── HELPER — sprawdź wymagania ───────────────────────
@@ -172,7 +172,6 @@ function checkUnmet(reqs: ReturnType<typeof getBuildingReqs>, character: any, to
   if (reqs.reqIntelligence > 0 && character.intelligence < reqs.reqIntelligence) unmet.push(`Inteligencja ${reqs.reqIntelligence} (masz ${character.intelligence})`);
   if (reqs.reqPower > 0 && character.power < reqs.reqPower)                       unmet.push(`Moc ${reqs.reqPower} (masz ${character.power})`);
   if (reqs.reqElementalMagic > 0 && character.elementalMagic < reqs.reqElementalMagic) unmet.push(`Magia żywiołów ${reqs.reqElementalMagic} (masz ${character.elementalMagic})`);
-  if (reqs.costShards > 0 && character.powerShards < reqs.costShards)             unmet.push(`Okruchy mocy ${reqs.costShards} (masz ${character.powerShards})`);
   return unmet;
 }
 
@@ -286,11 +285,12 @@ export async function getTowerInfo(userId: number) {
   const char = fresh!;
   const tower = char.tower!;
 
-  const towerUpgradeReqs = {
-    knowledge:    scaleValue(TOWER_BASE_REQ.knowledge, tower.level, 1.2),
-    intelligence: scaleValue(TOWER_BASE_REQ.intelligence, tower.level, 1.2),
-    durationSeconds: scaleValue(TOWER_BASE_DURATION_SECONDS, tower.level, 1.2),
-  };
+const towerUpgradeReqs = {
+  knowledge:    scaleValue(TOWER_BASE_REQ.knowledge, tower.level, 1.2),
+  intelligence: scaleValue(TOWER_BASE_REQ.intelligence, tower.level, 1.2),
+  prestige:     scaleValue(TOWER_BASE_PRESTIGE_REQ, tower.level, TOWER_PRESTIGE_SCALE),
+  durationSeconds: scaleValue(TOWER_BASE_DURATION_SECONDS, tower.level, 1.2),
+};
 
   function buildingInfo(type: string) {
     const b = tower.buildings.find(b => b.buildingType === type);
@@ -298,23 +298,29 @@ export async function getTowerInfo(userId: number) {
     const level = b?.level ?? 0;
     const reqs = getBuildingReqs(type, level);
     const atMaxLevel = cfg.maxLevel !== null && level >= cfg.maxLevel;
-    const unmet = atMaxLevel ? [] : checkUnmet(reqs, char, tower.level, cfg.requiredTowerLevel);
+  // NOWE: dla budynków z towerLevelPerUpgrade, wymagany poziom wieży zależy od NASTĘPNEGO poziomu budynku
+  const effectiveRequiredTowerLevel = cfg.towerLevelPerUpgrade
+    ? cfg.towerLevelPerUpgrade[Math.min(level, cfg.towerLevelPerUpgrade.length - 1)]
+    : cfg.requiredTowerLevel;
 
-    return {
-      level,
-      isUpgrading: b?.isUpgrading ?? false,
-      upgradeFinishesAt: b?.upgradeFinishesAt ?? null,
-      atMaxLevel,
-      maxLevel: cfg.maxLevel,
-      requiredTowerLevel: cfg.requiredTowerLevel,
-      towerLevelMet: tower.level >= cfg.requiredTowerLevel,
-      canUpgrade: !atMaxLevel && !(b?.isUpgrading) && unmet.length === 0,
-      unmetReqs: unmet,
-      upgradeReqs: reqs,
-    };
-  }
+  const towerLevelMet = tower.level >= effectiveRequiredTowerLevel;
+  const unmet = atMaxLevel ? [] : checkUnmet(reqs, char, tower.level, effectiveRequiredTowerLevel);
+
+  return {
+    level,
+    isUpgrading: b?.isUpgrading ?? false,
+    upgradeFinishesAt: b?.upgradeFinishesAt ?? null,
+    atMaxLevel,
+    maxLevel: cfg.maxLevel,
+    requiredTowerLevel: effectiveRequiredTowerLevel,
+    towerLevelMet,
+    canUpgrade: !atMaxLevel && !(b?.isUpgrading) && unmet.length === 0 && char.powerShards >= reqs.costShards,    unmetReqs: unmet,
+    upgradeReqs: reqs,
+  };
+}
 
   const pcInfo = buildingInfo("power_collector");
+  const libraryInfo = buildingInfo("library");
   const pcLevel = pcInfo.level;
   const cvLevel = buildingInfo("chaos_vault").level;
 
@@ -324,25 +330,31 @@ export async function getTowerInfo(userId: number) {
   const altairUnlockedPairs = getAltairUnlockedPairs(altairLevel);
 
   return {
-    tower: {
-      level: tower.level,
-      isUpgrading: tower.isUpgrading,
-      upgradeFinishesAt: tower.upgradeFinishesAt,
-      nextLevel: tower.level + 1,
-      upgradeReqs: towerUpgradeReqs,
-      canUpgrade: !tower.isUpgrading &&
-        char.knowledge >= towerUpgradeReqs.knowledge &&
-        char.intelligence >= towerUpgradeReqs.intelligence,
-      unmetReqs: (() => {
-        const u: string[] = [];
-        if (char.knowledge < towerUpgradeReqs.knowledge) u.push(`Wiedza ${towerUpgradeReqs.knowledge} (masz ${char.knowledge})`);
-        if (char.intelligence < towerUpgradeReqs.intelligence) u.push(`Inteligencja ${towerUpgradeReqs.intelligence} (masz ${char.intelligence})`);
-        return u;
-      })(),
-    },
+tower: {
+  level: tower.level,
+  isUpgrading: tower.isUpgrading,
+  upgradeFinishesAt: tower.upgradeFinishesAt,
+  nextLevel: tower.level + 1,
+  upgradeReqs: towerUpgradeReqs,
+  canUpgrade: !tower.isUpgrading &&
+    char.knowledge >= towerUpgradeReqs.knowledge &&
+    char.intelligence >= towerUpgradeReqs.intelligence &&
+    char.prestige >= towerUpgradeReqs.prestige,
+  unmetReqs: (() => {
+    const u: string[] = [];
+    if (char.knowledge < towerUpgradeReqs.knowledge) u.push(`Wiedza ${towerUpgradeReqs.knowledge} (masz ${char.knowledge})`);
+    if (char.intelligence < towerUpgradeReqs.intelligence) u.push(`Inteligencja ${towerUpgradeReqs.intelligence} (masz ${char.intelligence})`);
+    if (char.prestige < towerUpgradeReqs.prestige) u.push(`Prestiż ${towerUpgradeReqs.prestige} (masz ${char.prestige})`);
+    return u;
+  })(),
+},
     buildings: {
       power_collector: { ...pcInfo, currentProduction: pcLevel > 0 ? scaleValue(2, pcLevel, 1.2) : 0 },
-      library:         buildingInfo("library"),
+library: {
+  ...libraryInfo,
+  combatSlots: getSpellSlotCount(libraryInfo.level),
+  utilitySlots: getUnlockedUtilitySlots(libraryInfo.level),
+},   
       magic_hands:     buildingInfo("magic_hands"),
       spy_orb:         buildingInfo("spy_orb"),
       Altair: {
@@ -388,6 +400,9 @@ async function startBuildingUpgrade(userId: number, buildingType: string) {
   const unmet = checkUnmet(reqs, character, character.tower.level, cfg.requiredTowerLevel);
   if (unmet.length > 0) throw new Error(`Nie spełniasz wymagań: ${unmet.join(", ")}`);
 
+  if (character.powerShards < reqs.costShards) {
+  throw new Error(`Za mało okruchów mocy: wymagane ${reqs.costShards}, masz ${character.powerShards}`);
+  }
   const finishesAt = new Date(Date.now() + reqs.durationSeconds * 1000);
 
   if (buildingType === "library") {
@@ -458,10 +473,12 @@ export const startTowerUpgrade = async (userId: number) => {
   const reqs = {
     knowledge:    scaleValue(TOWER_BASE_REQ.knowledge, character.tower.level, 1.2),
     intelligence: scaleValue(TOWER_BASE_REQ.intelligence, character.tower.level, 1.2),
+    prestige:     scaleValue(TOWER_BASE_PRESTIGE_REQ, character.tower.level, TOWER_PRESTIGE_SCALE),
     durationSeconds: scaleValue(TOWER_BASE_DURATION_SECONDS, character.tower.level, 1.2),
   };
   if (character.knowledge < reqs.knowledge) throw new Error(`Wymagana Wiedza: ${reqs.knowledge}`);
   if (character.intelligence < reqs.intelligence) throw new Error(`Wymagana Inteligencja: ${reqs.intelligence}`);
+  if (character.prestige < reqs.prestige) throw new Error(`Wymagany Prestiż: ${reqs.prestige}`);
 
   const finishesAt = new Date(Date.now() + reqs.durationSeconds * 1000);
   await prisma.tower.update({ where: { id: character.tower.id }, data: { isUpgrading: true, upgradeFinishesAt: finishesAt } });
@@ -475,8 +492,6 @@ export const claimTowerUpgrade = async (userId: number) => {
   if (character.tower.upgradeFinishesAt && new Date() < character.tower.upgradeFinishesAt) throw new Error("Rozbudowa jeszcze trwa");
   await prisma.tower.update({ where: { id: character.tower.id }, data: { level: { increment: 1 }, isUpgrading: false, upgradeFinishesAt: null } });
   const newLevel = character.tower.level + 1;
-  await archetypeTriggerService.checkTrigger(character.id, "TOWER_LEVEL_50", { towerLevel: newLevel });
-
   return { newLevel };
 };
 

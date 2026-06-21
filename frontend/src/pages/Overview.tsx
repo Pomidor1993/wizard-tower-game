@@ -14,17 +14,6 @@ const STAT_LABELS: Record<string, string> = {
   bloodMagic:     "Magia Krwi",
 };
 
-const CLASS_LABELS: Record<string, string> = {
-  ACOLYTE:    "Akolita",
-  SEEKER:     "Poszukiwacz",
-  ABBOT:      "Opat",
-  GUARDIAN:   "Strażnik",
-  RULER:      "Władca",
-  RESEARCHER: "Badacz",
-  PROPHET:    "Wyznawca",
-  REAPER:     "Żniwiarz",
-};
-
 function Panel({ children, style = {} }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
     <div style={{
@@ -57,11 +46,6 @@ useEffect(() => {
 
   
   const xpPct = Math.min(100, Math.round(character.experience / character.xpToNextLevel * 100));
-  const currentClass =
-    character.archetypeProfile?.finalClass
-    ?? character.archetypeProfile?.initialPath
-    ?? null;
-  const classLabel = currentClass ? (CLASS_LABELS[currentClass] ?? currentClass) : "Brak klasy";
 
   const base = effectiveStats?.base ?? {};
   const eff  = effectiveStats?.effective ?? {};
@@ -87,7 +71,6 @@ useEffect(() => {
               <span style={{ fontFamily: "Cinzel, serif", fontSize: 18, fontWeight: 700, color: "#F5C451" }}>
                 {character.name}
               </span>
-              <span style={{ fontSize: 13, color: "#59D4D0" }}>{classLabel}</span>
               <span style={{ fontSize: 12, color: "rgba(247,240,221,0.4)" }}>Prestiż: {character.prestige}</span>
             </div>
 
@@ -198,13 +181,9 @@ useEffect(() => {
             <p style={{ fontFamily: "Cinzel, serif", fontSize: 13, color: "#F5C451", marginBottom: 12, letterSpacing: "0.06em" }}>
               BONUSY KLASY
             </p>
-            {!currentClass ? (
-              <p style={{ fontSize: 12, color: "rgba(247,240,221,0.3)", fontStyle: "italic" }}>
-                Ukończ wstępny rozdział fabularny aby odblokować klasę i jej bonusy
-              </p>
-            ) : (
+            {  (
               <p style={{ fontSize: 12, color: "rgba(247,240,221,0.5)", fontStyle: "italic" }}>
-                Klasa: <span style={{ color: "#59D4D0", fontStyle: "normal" }}>{classLabel}</span>
+                Moje magiczne JA: <span style={{ color: "#59D4D0", fontStyle: "normal" }}>{}</span>
                 {" — "}szczegółowe bonusy wkrótce
               </p>
             )}

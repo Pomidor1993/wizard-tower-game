@@ -45,7 +45,7 @@ interface EquippedSlots {
   robe:     any | null;
   boots:    any | null;
   hat:      any | null;
-  amulet:   any | null;
+  talisman:   any | null;
   mainHand: any | null;
   offHand:  any | null;
   offHand2: any | null;
@@ -63,7 +63,7 @@ interface EquipmentPreset {
   hatItemId: number | null;
   robeItemId: number | null;
   bootsItemId: number | null;
-  amuletItemId: number | null;
+  talismanItemId: number | null;
   mainHandItemId: number | null;
   offHandItemId: number | null;
 }
@@ -81,14 +81,14 @@ const SLOT_CONFIG: Record<string, { label: string; icon: string }> = {
   hat:        { label: "Okrycia głowy", icon: "🎩" },
   robe:       { label: "Szaty",         icon: "👘" },
   boots:      { label: "Buty",          icon: "👢" },
-  amulet:     { label: "Amulety",       icon: "📿" },
+  talisman:   { label: "talizmany",     icon: "📿" },
   weapon_one: { label: "Broń jednoręczna", icon: "⚔️" },
   weapon_two: { label: "Broń dwuręczna",   icon: "⚔️" },
 };
 
 const BODY_SLOTS: { key: keyof EquippedSlots; label: string; icon: string; top: string; left: string }[] = [
   { key: "hat",      label: "Czapka",     icon: "🎩", top: "6%",  left: "50%" },
-  { key: "amulet",   label: "Amulet",     icon: "📿", top: "22%", left: "50%" },
+  { key: "talisman", label: "Talizman",   icon: "📿", top: "14%", left: "78%" },
   { key: "robe",     label: "Szata",      icon: "👘", top: "42%", left: "50%" },
   { key: "mainHand", label: "Prawa ręka", icon: "⚔️", top: "42%", left: "18%" },
   { key: "offHand",  label: "Lewa ręka",  icon: "🛡", top: "42%", left: "82%" },
@@ -163,7 +163,7 @@ for (const [slot, items] of Object.entries(slotGroups)) {
     } else {
       if (items.length > 1) return { canEquip: false, reason: `Za dużo przedmiotów kategorii: ${SLOT_CONFIG[slot]?.label ?? slot}` };
       const slotToEquipKey: Record<string, keyof EquippedSlots> = {
-        robe: "robe", boots: "boots", hat: "hat", amulet: "amulet", weapon_two: "mainHand",
+        robe: "robe", boots: "boots", hat: "hat", talisman: "talisman", weapon_two: "mainHand",
       };
       const equipKey = slotToEquipKey[slot];
       if (equipKey && equipped?.[equipKey]) {
@@ -230,7 +230,7 @@ function ItemPopup({
   const equippedSlotKey = Object.entries(equipped).find(([, eq]: any) => eq?.ownedItemId === entry.ownedItemId)?.[0];
 
   const slotToEquipmentKey: Record<string, keyof EquippedSlots> = {
-    robe: "robe", boots: "boots", hat: "hat", amulet: "amulet",
+    robe: "robe", boots: "boots", hat: "hat", talisman: "talisman",
     weapon_one: "mainHand", weapon_two: "mainHand",
   };
   const slotOccupied = !isEquipped && !!equipped[slotToEquipmentKey[item.slot]];
@@ -371,17 +371,22 @@ function ItemPopup({
 
 function DisintegratorPopup({
   items,
-  totalShards,
+  totalReward,
+  currency,
   onConfirm,
   onClose,
   loading,
 }: {
   items: { chaosVaultItemId: number; name: string; rarity: string; value: number }[];
-  totalShards: number;
+  totalReward: number;
+  currency: "shards" | "prestige";
   onConfirm: () => void;
   onClose: () => void;
   loading: boolean;
 }) {
+  const currencyIcon  = currency === "prestige" ? "♛" : "✦";
+  const currencyLabel = currency === "prestige" ? "prestiżu" : "okruchów mocy";
+
   return (
     <div
       onClick={onClose}
@@ -431,8 +436,7 @@ function DisintegratorPopup({
                     <span style={{ width: 8, height: 8, borderRadius: "50%", background: rar.color, flexShrink: 0 }} />
                     <span style={{ fontSize: 13, color: "#F7F0DD", fontWeight: 500 }}>{item.name}</span>
                   </div>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: "#F5C451" }}>+{item.value} ✦</span>
-                </div>
+<span style={{ fontSize: 12, fontWeight: 700, color: "#F5C451" }}>+{item.value} {currencyIcon}</span>                </div>
               );
             })}
           </div>
@@ -443,9 +447,9 @@ function DisintegratorPopup({
           background: "rgba(245,196,81,0.08)", border: "1px solid rgba(245,196,81,0.2)",
           marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center",
         }}>
-          <span style={{ fontSize: 13, color: "rgba(247,240,221,0.7)" }}>Łączny zysk:</span>
+<span style={{ fontSize: 13, color: "rgba(247,240,221,0.7)" }}>Łączny zysk:</span>
           <span style={{ fontSize: 18, fontWeight: 700, color: "#F5C451", fontFamily: "Cinzel, serif" }}>
-            {totalShards} okruchów mocy
+            {totalReward} {currencyLabel}
           </span>
         </div>
 
@@ -687,9 +691,10 @@ export default function ChaosVault() {
   const [selected, setSelected]     = useState<VaultItem | null>(null);
   const [equipping, setEquipping]   = useState(false);
 
-  const [checkedIds, setCheckedIds]       = useState<Set<number>>(new Set());
-  const [disintPreview, setDisintPreview] = useState<{ items: any[]; totalShards: number } | null>(null);
+const [checkedIds, setCheckedIds]       = useState<Set<number>>(new Set());
+  const [disintPreview, setDisintPreview] = useState<{ items: any[]; totalReward: number; currency: "shards" | "prestige" } | null>(null);
   const [disintLoading, setDisintLoading] = useState(false);
+  const [disintegratorLevel, setDisintegratorLevel] = useState(0);
 
   const [presets, setPresets] = useState<EquipmentPreset[]>([]);
   const [savePresetModal, setSavePresetModal] = useState(false);
@@ -701,18 +706,21 @@ export default function ChaosVault() {
     onlyMeetsReqs: false,
   });
 
-  const fetchAll = useCallback(async () => {
+const fetchAll = useCallback(async () => {
     try {
-const [vaultRes, eqRes, statsRes, presetsRes] = await Promise.all([
+const [vaultRes, eqRes, statsRes, presetsRes, towerRes] = await Promise.all([
   api.get("/tower/chaos-vault"),
   api.get("/equipment"),
   api.get("/character/effective-stats"),
   api.get("/equipment/presets"),
+  api.get("/tower"),
 ]);
 setPresets(presetsRes.data);
       setVaultData(vaultRes.data);
       setEquipped(eqRes.data.equipped);
       setCharStats(statsRes.data.effective);
+      const disintegratorBuilding = towerRes.data.buildings?.disintegrator;
+      setDisintegratorLevel(disintegratorBuilding?.level ?? 0);
     } catch {}
     finally { setLoading(false); }
   }, []);
@@ -756,11 +764,11 @@ setPresets(presetsRes.data);
     setCheckedIds(new Set());
   }
 
-  async function handleDisintegratePreview() {
+async function handleDisintegratePreview(currency: "shards" | "prestige") {
     if (checkedIds.size === 0) return;
     setDisintLoading(true);
     try {
-      const res = await api.post("/tower/disintegrator/preview", { targets: [...checkedIds] });
+      const res = await api.post("/tower/disintegrator/preview", { targets: [...checkedIds], currency });
       setDisintPreview(res.data);
     } catch (err: any) {
       alert(err.response?.data?.error ?? "Błąd dezintegratora");
@@ -771,7 +779,7 @@ setPresets(presetsRes.data);
     if (!disintPreview) return;
     setDisintLoading(true);
     try {
-      await api.post("/tower/disintegrator/confirm", { targets: [...checkedIds] });
+      await api.post("/tower/disintegrator/confirm", { targets: [...checkedIds], currency: disintPreview.currency });
       setCheckedIds(new Set());
       setDisintPreview(null);
       await fetchAll();
@@ -826,9 +834,23 @@ setPresets(presetsRes.data);
 
   const equipCheck = equipped ? canEquipSelected(checkedIds, allItems, equipped) : { canEquip: false, reason: "Ładowanie..." };
 
-const checkedShardsPreview = allItems
-  .filter(e => checkedIds.has(e.chaosVaultItemId))
-  .reduce((sum, e) => sum + (RARITY_VALUE[e.item.rarity] ?? 10), 0);
+const RARITY_VALUE_PRESTIGE: Record<string, number> = {
+  common: 1, uncommon: 5, rare: 10, unique: 30,
+};
+
+function tierRewardMultiplier(tier: number): number {
+  return 1 + (tier - 1) * 0.1;
+}
+
+const checkedItems = allItems.filter(e => checkedIds.has(e.chaosVaultItemId));
+const checkedShardsPreview = checkedItems.reduce(
+  (sum, e) => sum + Math.floor((RARITY_VALUE[e.item.rarity] ?? 10) * tierRewardMultiplier(e.tier ?? 1)),
+  0
+);
+const checkedPrestigePreview = checkedItems.reduce(
+  (sum, e) => sum + Math.floor((RARITY_VALUE_PRESTIGE[e.item.rarity] ?? 1) * tierRewardMultiplier(e.tier ?? 1)),
+  0
+);
 
   if (loading) return <p style={{ color: "rgba(247,240,221,0.4)" }}>Ładowanie...</p>;
 
@@ -836,11 +858,10 @@ const checkedShardsPreview = allItems
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
       {/* ── GÓRNY PASEK: WYEKWIPOWANE + FILTRY ── */}
-      <div style={{ display: "flex", gap: 16, alignItems: "stretch" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "35fr 65fr", gap: 16, alignItems: "stretch" }}>
 
         {/* BOX: Wyekwipowane (35%) */}
         <div style={{
-          flex: "0 0 35%",
           background: "#372b5d",
           borderRadius: 10,
           border: "1px solid rgba(245,196,81,0.1)",
@@ -938,7 +959,6 @@ const checkedShardsPreview = allItems
 
         {/* BOX: Filtry + akcje (65%) */}
         <div style={{
-          flex: "0 0 65%",
           background: "#372b5d",
           borderRadius: 10,
           border: "1px solid rgba(245,196,81,0.1)",
@@ -946,9 +966,14 @@ const checkedShardsPreview = allItems
           display: "flex", flexDirection: "column", gap: 12,
           minHeight: 420,
         }}>
-          <p style={{ fontFamily: "Cinzel, serif", fontSize: 11, color: "rgba(245,196,81,0.7)", letterSpacing: "0.08em", textTransform: "uppercase", margin: 0 }}>
-            Filtry i akcje
-          </p>
+<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <p style={{ fontFamily: "Cinzel, serif", fontSize: 11, color: "rgba(245,196,81,0.7)", letterSpacing: "0.08em", textTransform: "uppercase", margin: 0 }}>
+              Filtry i akcje
+            </p>
+            <span style={{ fontSize: 11, color: "rgba(247,240,221,0.5)", fontFamily: "Cinzel, serif" }}>
+              Artefakty w komnacie: <span style={{ color: "#F5C451", fontWeight: 700 }}>{total}/{capacity}</span>
+            </span>
+          </div>
 
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
             <span style={{ fontSize: 11, color: "rgba(247,240,221,0.4)", minWidth: 52 }}>Jakość:</span>
@@ -990,10 +1015,6 @@ const checkedShardsPreview = allItems
               />
               <span style={{ fontSize: 11, color: "rgba(247,240,221,0.6)" }}>Spełniasz wymagania</span>
             </label>
-            <span style={{ fontSize: 11, color: "rgba(247,240,221,0.4)", marginLeft: "auto" }}>
-              {total} / {capacity}
-              {hiddenCount > 0 && <span style={{ color: "#F46A4E", marginLeft: 6 }}>({hiddenCount} ukrytych)</span>}
-            </span>
           </div>
 
           {/* Separator */}
@@ -1046,31 +1067,92 @@ const checkedShardsPreview = allItems
               )}
             </div>
 
-            {/* Dezintegrator */}
-            <button
-              onClick={handleDisintegratePreview}
-              disabled={checkedIds.size === 0 || disintLoading}
-              style={{
-                width: "100%", padding: "10px 0", borderRadius: 8, border: "none",
-                fontSize: 12, fontWeight: 700, fontFamily: "Cinzel, serif",
-                cursor: (checkedIds.size === 0 || disintLoading) ? "not-allowed" : "pointer",
-                background: (checkedIds.size === 0 || disintLoading)
-                  ? "rgba(244,106,78,0.1)" : "rgba(244,106,78,0.85)",
-                color: (checkedIds.size === 0 || disintLoading)
-                  ? "rgba(247,240,221,0.3)" : "#fff",
-                transition: "all 0.2s",
-              }}
-            >
-{disintLoading
-  ? "Obliczam..."
-  : checkedIds.size > 0
-  ? `💥 Wrzuć do dezintegratora (${checkedIds.size}) — +${checkedShardsPreview} ✦`
-  : "💥 Wrzuć zaznaczone do dezintegratora"
-}            </button>
+{/* Dezintegrator — wydzielona sekcja */}
+            <div style={{
+              borderTop: "1px solid rgba(247,240,221,0.08)",
+              paddingTop: 10,
+              marginTop: 4,
+            }}>
+              <p style={{
+                fontSize: 9, color: "rgba(244,106,78,0.7)", fontFamily: "Cinzel, serif",
+                letterSpacing: "0.06em", textTransform: "uppercase", margin: "0 0 8px",
+              }}>
+                💥 Dezintegrator
+              </p>
+
+              {disintegratorLevel === 0 ? (
+                <p style={{
+                  fontSize: 11, color: "rgba(247,240,221,0.35)", fontStyle: "italic",
+                  textAlign: "center", padding: "10px 8px", margin: 0,
+                  background: "rgba(0,0,0,0.15)", borderRadius: 8,
+                  border: "1px dashed rgba(247,240,221,0.1)",
+                }}>
+                  Wybuduj Dezintegrator w Wieży, aby niszczyć przedmioty za surowce
+                </p>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <button
+                    onClick={() => handleDisintegratePreview("shards")}
+                    disabled={checkedIds.size === 0 || disintLoading}
+                    style={{
+                      width: "100%", padding: "10px 0", borderRadius: 8, border: "none",
+                      fontSize: 12, fontWeight: 700, fontFamily: "Cinzel, serif",
+                      cursor: (checkedIds.size === 0 || disintLoading) ? "not-allowed" : "pointer",
+                      background: (checkedIds.size === 0 || disintLoading)
+                        ? "rgba(244,106,78,0.1)" : "rgba(244,106,78,0.85)",
+                      color: (checkedIds.size === 0 || disintLoading)
+                        ? "rgba(247,240,221,0.3)" : "#fff",
+                      transition: "all 0.2s",
+                    }}
+                  >
+                    {disintLoading
+                      ? "Obliczam..."
+                      : checkedIds.size > 0
+                      ? `Zniszcz za okruchy (${checkedIds.size}) — +${checkedShardsPreview} ✦`
+                      : "Zniszcz za okruchy mocy"}
+                  </button>
+
+                  <button
+                    onClick={() => handleDisintegratePreview("prestige")}
+                    disabled={checkedIds.size === 0 || disintLoading}
+                    style={{
+                      width: "100%", padding: "10px 0", borderRadius: 8,
+                      border: `1px solid ${(checkedIds.size === 0 || disintLoading) ? "rgba(245,196,81,0.15)" : "rgba(245,196,81,0.4)"}`,
+                      fontSize: 12, fontWeight: 700, fontFamily: "Cinzel, serif",
+                      cursor: (checkedIds.size === 0 || disintLoading) ? "not-allowed" : "pointer",
+                      background: (checkedIds.size === 0 || disintLoading)
+                        ? "rgba(245,196,81,0.05)" : "rgba(245,196,81,0.12)",
+                      color: (checkedIds.size === 0 || disintLoading)
+                        ? "rgba(247,240,221,0.3)" : "#F5C451",
+                      transition: "all 0.2s",
+                    }}
+                  >
+                    {disintLoading
+                      ? "Obliczam..."
+                      : checkedIds.size > 0
+                      ? `Zniszcz za prestiż (${checkedIds.size}) — +${checkedPrestigePreview} ♛`
+                      : "Zniszcz za prestiż"}
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
-
+{/* ── OSTRZEŻENIE: PRZEPEŁNIONA KOMNATA ── */}
+      {hiddenCount > 0 && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: 10,
+          padding: "10px 16px", borderRadius: 10,
+          background: "rgba(244,106,78,0.1)", border: "1px solid rgba(244,106,78,0.3)",
+        }}>
+          <span style={{ fontSize: 18, flexShrink: 0 }}>⚠️</span>
+          <p style={{ fontSize: 12, color: "#F7F0DD", margin: 0, lineHeight: 1.5 }}>
+            Twoja komnata jest za mała, żeby pomieścić wszystkie znalezione artefakty! Rozbuduj komnatę na wyższy poziom lub wrzuć zbędne przedmioty do dezintegratora, żeby uzyskać dostęp do nowo zdobytych artefaktów.
+            <span style={{ color: "#F46A4E", fontWeight: 700, marginLeft: 6 }}>({hiddenCount} ukrytych)</span>
+          </p>
+        </div>
+      )}
       {/* ── GRAFIKA ZBROJOWNI ── */}
       <div style={{
         position: "relative",
@@ -1208,16 +1290,18 @@ const checkedShardsPreview = allItems
         />
       )}
 
-      {/* ── POPUP DEZINTEGRATORA ── */}
+{/* ── POPUP DEZINTEGRATORA ── */}
       {disintPreview && (
         <DisintegratorPopup
           items={disintPreview.items}
-          totalShards={disintPreview.totalShards}
+          totalReward={disintPreview.totalReward}
+          currency={disintPreview.currency}
           onConfirm={handleDisintegrateConfirm}
           onClose={() => setDisintPreview(null)}
           loading={disintLoading}
         />
       )}
+      
       {/* ── MODAL ZAPISU ZESTAWU ── */}
 {savePresetModal && (
   <SavePresetModal

@@ -17,6 +17,7 @@ model User {
   updatedAt    DateTime  @updatedAt
   isPremium    Boolean   @default(false)
   premiumUntil DateTime?
+  lastLoginAt  DateTime? 
 
   character    Character?
 }
@@ -57,6 +58,19 @@ model Character {
   lastResourceCollect DateTime @default(now())
   maxSpells           Int      @default(2)
 
+  // Rankingi — znacznik czasu ostatniego zdobycia poziomu (tie-breaker w rankingu poziomów)
+  levelUpAt           DateTime @default(now())
+
+  // Rankingi — liczniki walk PvP (klasyka piłkarska: 3/1/0)
+  battleWins          Int      @default(0)
+  battleLosses        Int      @default(0)
+  battleDraws         Int      @default(0)
+
+  // Rankingi — liczniki turniejów magicznych
+  tournamentWins      Int      @default(0)
+  tournamentLosses    Int      @default(0)
+  tournamentDraws     Int      @default(0)
+
   // Pule akcji
   studyActions       Int      @default(30)
   explorationActions Int      @default(15)
@@ -74,12 +88,23 @@ model Character {
   battlesAsWinner   Battle[] @relation("BattleWinner")
   pveEncounters     PveEncounter[]
   spellbookEntries SpellbookEntry[]
-  archetypeProfile ArchetypeProfile?
-  archetypeTriggers ArchetypeTriggerProgress[]
-  archetypeEvents   ArchetypeEventQueue[]
+  utilitySlots             CharacterUtilitySlots[]
+  tournamentsAsChallenger  MagicTournament[] @relation("TournamentChallenger")
+  tournamentsAsDefender    MagicTournament[] @relation("TournamentDefender")
+  tournamentsAsWinner      MagicTournament[] @relation("TournamentWinner")
 
   tutorial  CharacterTutorial?
   homeRepairTasks HomeRepairTask[]
+  trophies  CharacterTrophy[]
+  systemMessages       SystemMessage[]
+  seenRandomMessages    SeenRandomMessage[]
+  dailyMessageRoll      DailyMessageRoll?
+  conversationsAsA      Conversation[] @relation("ConversationAsA")
+  conversationsAsB      Conversation[] @relation("ConversationAsB")
+  privateMessagesSent   PrivateMessage[] @relation("MessagesSent")
+  blocksIssued          BlockedPlayer[] @relation("BlocksIssued")
+  blocksReceived        BlockedPlayer[] @relation("BlocksReceived")
+
 }
 
 
@@ -163,6 +188,7 @@ model Spell {
   special  String?
   descAlt  String?  // Opis gdy efekt statusu zadziałał (np. "Piorun ogłusza {target} na 2 tury!")
   endInfo  String?  // Komunikat gdy status wygasa (np. "Lód roztapia się.")
+  spellbookDescription String @default("")  // opis prezentacyjny używany WYŁĄCZNIE w Księdze Magii (kafelek + modal)
 
 
   // Mechanika przywołań
@@ -183,6 +209,10 @@ model Spell {
   characters  CharacterSpell[]
   spellbookEntries SpellbookEntry[]
   allowedClasses String @default("[]")
+  utilitySlots CharacterUtilitySlots[]
+  spellType       String  @default("combat")    // "combat" | "utility"
+  utilityEffect   String  @default("{}")        // JSON: UtilityEffectDef
+  utilityDescriptions String @default("{}")     // JSON: { "1": "...", "2": "...", "3": "...", "4": "...", "5": "..." }
 }
 
 model CharacterSpell {
@@ -248,7 +278,7 @@ model OwnedItem {
   equippedAsRobe     CharacterEquipment? @relation("EquipRobe")
   equippedAsBoots    CharacterEquipment? @relation("EquipBoots")
   equippedAsHat      CharacterEquipment? @relation("EquipHat")
-  equippedAsAmulet   CharacterEquipment? @relation("EquipAmulet")
+  equippedAsTalisman   CharacterEquipment? @relation("EquipTalisman")
   equippedAsMainHand CharacterEquipment? @relation("EquipMainHand")
   equippedAsOffHand  CharacterEquipment? @relation("EquipOffHand")
   equippedAsOffHand2 CharacterEquipment? @relation("EquipOffHand2")
@@ -274,7 +304,7 @@ model CharacterEquipment {
   robeId     Int? @unique
   bootsId    Int? @unique
   hatId      Int? @unique
-  amuletId   Int? @unique
+  talismanId   Int? @unique
   mainHandId Int? @unique
   offHandId  Int? @unique
   offHand2Id Int? @unique
@@ -282,7 +312,7 @@ model CharacterEquipment {
   robe     OwnedItem? @relation("EquipRobe", fields: [robeId], references: [id])
   boots    OwnedItem? @relation("EquipBoots", fields: [bootsId], references: [id])
   hat      OwnedItem? @relation("EquipHat", fields: [hatId], references: [id])
-  amulet   OwnedItem? @relation("EquipAmulet", fields: [amuletId], references: [id])
+  talisman   OwnedItem? @relation("EquipTalisman", fields: [talismanId], references: [id])
   mainHand OwnedItem? @relation("EquipMainHand", fields: [mainHandId], references: [id])
   offHand  OwnedItem? @relation("EquipOffHand", fields: [offHandId], references: [id])
   offHand2 OwnedItem? @relation("EquipOffHand2", fields: [offHand2Id], references: [id])
@@ -390,85 +420,6 @@ model SpellbookEntry {
   @@index([characterId])
 }
 
-// ── ARCHETYP / CHARAKTER POSTACI ─────────────────────────────────────────────
-
-model ArchetypeProfile {
-
-  id          Int       @id @default(autoincrement())
-
-  characterId Int       @unique
-  character   Character @relation(fields: [characterId], references: [id])
-
-  guardianPoints   Int @default(0)
-  rulerPoints      Int @default(0)
-  researcherPoints Int @default(0)
-  prophetPoints    Int @default(0)
-  reaperPoints     Int @default(0)
-  chapter          Int @default(1)
-  chapterProgress  Int @default(0)
-
-  initialPath String?
-  currentEventCode String?
-  finalClass  String?
-  
-
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model ArchetypeTriggerProgress {
-  id            Int       @id @default(autoincrement())
-
-  characterId   Int
-  character     Character @relation(fields: [characterId], references: [id])
-
-  triggerCode   String
-
-  triggeredAt   DateTime  @default(now())
-
-  @@unique([characterId, triggerCode])
-}
-
-model ArchetypeEventQueue {
-  id               Int       @id @default(autoincrement())
-
-  characterId      Int
-  character        Character @relation(fields: [characterId], references: [id])
-
-  eventCode        String
-
-  scheduledAt      DateTime
-
-  completedAt      DateTime?
-
-  selectedOption   Int?
-
-  status           String    @default("pending")
-  // pending | completed | expired
-
-  createdAt        DateTime  @default(now())
-}
-
-model ArchetypeEventChoice {
-
-  id Int @id @default(autoincrement())
-
-  eventCode String
-
-  optionIndex Int
-
-  title String
-  description String
-  nextEventCode String?
-
-  guardianDelta   Int @default(0)
-  rulerDelta      Int @default(0)
-  researcherDelta Int @default(0)
-  prophetDelta    Int @default(0)
-  reaperDelta     Int @default(0)
-}
-
 model EquipmentPreset {
   id          Int       @id @default(autoincrement())
   characterId Int
@@ -478,7 +429,7 @@ model EquipmentPreset {
   hatItemId       Int?
   robeItemId      Int?
   bootsItemId     Int?
-  amuletItemId    Int?
+  talismanItemId    Int?
   mainHandItemId  Int?
   offHandItemId   Int?
 
@@ -487,4 +438,174 @@ model EquipmentPreset {
 
   @@unique([characterId, slotIndex])
   @@index([characterId])
+}
+
+model CharacterUtilitySlots {
+  id          Int       @id @default(autoincrement())
+  characterId Int
+  character   Character @relation(fields: [characterId], references: [id])
+  spellId     Int
+  spell       Spell     @relation(fields: [spellId], references: [id])
+  slotIndex   Int       // 0–2
+
+  @@unique([characterId, slotIndex])
+  @@unique([characterId, spellId])
+}
+
+model MagicTournament {
+  id           Int       @id @default(autoincrement())
+  challengerId Int
+  challenger   Character @relation("TournamentChallenger", fields: [challengerId], references: [id])
+  defenderId   Int
+  defender     Character @relation("TournamentDefender", fields: [defenderId], references: [id])
+  winnerId     Int?
+  winner       Character? @relation("TournamentWinner", fields: [winnerId], references: [id])
+  log          String    // JSON: TournamentRoundLog[]
+  summary      String
+  metadata     String    @default("{}")
+  prestigeGain Int       @default(0)
+  foughtAt     DateTime  @default(now())
+
+  @@index([challengerId])
+  @@index([defenderId])
+}
+
+// ── TROFEA (system "zbieraczy") ───────────────────────
+// Definicja trofeum — katalog wszystkich możliwych trofeów w grze.
+// Unikalne przedmioty zdobywane za konkretne akcje gracza (np. "Pierwsza Krew", "Mistrz Wieży").
+model Trophy {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String   @default("")
+  icon        String   @default("") // np. nazwa pliku/ikony do frontendu
+  category    String   @default("general") // grupowanie w UI, np. "combat"|"tower"|"tournament"|"misc"
+  createdAt   DateTime @default(now())
+
+  owners      CharacterTrophy[]
+}
+
+// Posiadanie trofeum przez postać — unikalne osiągnięcie, albo je masz, albo nie.
+model CharacterTrophy {
+  id          Int       @id @default(autoincrement())
+  characterId Int
+  character   Character @relation(fields: [characterId], references: [id])
+  trophyId    Int
+  trophy      Trophy    @relation(fields: [trophyId], references: [id])
+  earnedAt    DateTime  @default(now())
+
+  @@unique([characterId, trophyId])
+  @@index([characterId])
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// WIADOMOŚCI SYSTEMOWE (A — losowe, C — level up, D — tutorial)
+// ═══════════════════════════════════════════════════════════════════
+model SystemMessage {
+  id          Int       @id @default(autoincrement())
+  characterId Int
+  character   Character @relation(fields: [characterId], references: [id])
+
+  type        String    // "random" | "levelup" | "tutorial"
+  title       String?
+  content     String
+
+  sourceKey   String?   // dla "random": klucz z pliku źródłowego (anty-powtórka)
+
+  isRead      Boolean   @default(false)
+  isSaved     Boolean   @default(false)
+
+  createdAt   DateTime  @default(now())
+
+  @@index([characterId, type])
+  @@index([characterId, isSaved])
+  @@index([characterId, createdAt])
+}
+
+// Trwała historia wylosowanych komunikatów "random" — niezależna od cyklu
+// życia SystemMessage (ta może zostać usunięta po 30 dniach, historia nie).
+model SeenRandomMessage {
+  id          Int       @id @default(autoincrement())
+  characterId Int
+  character   Character @relation(fields: [characterId], references: [id])
+  sourceKey   String
+  seenAt      DateTime  @default(now())
+
+  @@unique([characterId, sourceKey])
+  @@index([characterId])
+}
+
+// Znacznik "czy dzisiaj już losowaliśmy" — raz dziennie po zalogowaniu.
+model DailyMessageRoll {
+  id           Int       @id @default(autoincrement())
+  characterId  Int       @unique
+  character    Character @relation(fields: [characterId], references: [id])
+  lastRollDate DateTime  // przechowujemy jako data o północy (UTC) dla łatwego porównania
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// WIADOMOŚCI PRYWATNE (B)
+// ═══════════════════════════════════════════════════════════════════
+model Conversation {
+  id              Int       @id @default(autoincrement())
+
+  participantAId  Int       // zawsze mniejsze id z pary (wymuszone w serwisie)
+  participantA    Character @relation("ConversationAsA", fields: [participantAId], references: [id])
+  participantBId  Int       // zawsze większe id z pary
+  participantB    Character @relation("ConversationAsB", fields: [participantBId], references: [id])
+
+  createdAt       DateTime  @default(now())
+  lastMessageAt   DateTime  @default(now())
+
+  messages        PrivateMessage[]
+
+  @@unique([participantAId, participantBId])
+  @@index([participantAId])
+  @@index([participantBId])
+}
+
+model PrivateMessage {
+  id                 Int          @id @default(autoincrement())
+  conversationId     Int
+  conversation       Conversation @relation(fields: [conversationId], references: [id])
+
+  senderId           Int
+  sender             Character    @relation("MessagesSent", fields: [senderId], references: [id])
+
+  content            String       // max 1000 znaków — walidacja w serwisie
+
+  isRead             Boolean      @default(false)
+  isSavedBySender    Boolean      @default(false)
+  isSavedByReceiver  Boolean      @default(false)
+
+  createdAt          DateTime     @default(now())
+
+  @@index([conversationId, createdAt])
+  @@index([senderId])
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// BLOKOWANIE GRACZY
+// ═══════════════════════════════════════════════════════════════════
+model BlockedPlayer {
+  id          Int       @id @default(autoincrement())
+  blockerId   Int
+  blocker     Character @relation("BlocksIssued", fields: [blockerId], references: [id])
+  blockedId   Int
+  blocked     Character @relation("BlocksReceived", fields: [blockedId], references: [id])
+  createdAt   DateTime  @default(now())
+
+  @@unique([blockerId, blockedId])
+  @@index([blockerId])
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// COOLDOWN ANTY-SPAM (per para nadawca→odbiorca)
+// ═══════════════════════════════════════════════════════════════════
+model MessageCooldown {
+  id          Int      @id @default(autoincrement())
+  senderId    Int
+  receiverId  Int
+  lastSentAt  DateTime @default(now())
+
+  @@unique([senderId, receiverId])
 }

@@ -11,6 +11,11 @@ import {
   getPresetsEndpoint,
   applyPresetEndpoint
 } from "../controllers/equipment.controller.js";
+import {
+  getUtilityEquipmentEndpoint,
+  equipUtilityEndpoint,
+  unequipUtilityEndpoint,
+} from "../controllers/utilityspell.controller.js";
 
 const router = Router();
 
@@ -23,5 +28,8 @@ router.post("/spell/equip-auto", requireAuth, equipSpellAutoEndpoint);
 router.get("/presets",        requireAuth, getPresetsEndpoint);
 router.post("/presets/save",  requireAuth, savePresetEndpoint);
 router.post("/presets/apply", requireAuth, applyPresetEndpoint);
+router.get("/utility",          requireAuth, getUtilityEquipmentEndpoint);
+router.post("/utility/equip",   requireAuth, equipUtilityEndpoint);
+router.post("/utility/unequip", requireAuth, unequipUtilityEndpoint);
 
 export default router;

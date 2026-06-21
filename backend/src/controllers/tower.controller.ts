@@ -43,6 +43,6 @@ export const upgradeDisintegrator = (req: Request, res: Response) =>
 export const claimDisintegrator = (req: Request, res: Response) =>
   handle(res, () => claimDisintegratorUpgrade(req.userId!));
 export const previewDisintegratorEndpoint = (req: Request, res: Response) =>
-  handle(res, () => previewDisintegrate(req.userId!, req.body.targets));
+  handle(res, () => previewDisintegrate(req.userId!, req.body.targets, req.body.currency));
 export const confirmDisintegratorEndpoint = (req: Request, res: Response) =>
-  handle(res, () => confirmDisintegrate(req.userId!, req.body.targets));
+  handle(res, () => confirmDisintegrate(req.userId!, req.body.targets, req.body.currency));

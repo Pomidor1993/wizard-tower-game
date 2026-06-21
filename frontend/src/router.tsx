@@ -15,6 +15,10 @@ import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import HomeTutorial from "./pages/HomeTutorial";
+import Rankings from "./pages/Rankings";
+import Messages from "./pages/Messages";
+import PlayerProfile from "./pages/Playerprofile";
+
 
 export const router = createBrowserRouter([
   { path: "/login",    element: <LoginPage /> },
@@ -39,6 +43,9 @@ export const router = createBrowserRouter([
           { path: "settings",    element: <Settings /> },
           { path: "premium",     element: <Premium /> },
           { path: "home",        element: <HomeTutorial /> },
+          { path: "rankings",    element: <Rankings />},
+          { path: "messages",    element: <Messages /> },
+          { path: "profile/:characterId", element: <PlayerProfile /> },
         ],
       },
     ],

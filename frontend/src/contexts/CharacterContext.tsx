@@ -20,10 +20,6 @@ export interface CharacterData {
   elementalMagic: number;
   astralMagic: number;
   bloodMagic: number;
-  archetypeProfile?: {
-    initialPath: string | null;
-    finalClass: string | null;
-  };
   tower?: { level: number };
 }
 

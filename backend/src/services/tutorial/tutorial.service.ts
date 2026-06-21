@@ -1,5 +1,6 @@
 import prisma from "../../lib/prisma.js";
 import { TUTORIAL_STEPS, TUTORIAL_MESSAGES, HOME_REPAIR_TASKS, TutorialStep } from "./tutorial.constants.js";
+import { createTutorialMessage } from "../system-messages.service.js";
 
 // ── POBIERZ / UTWÓRZ STAN SAMOUCZKA ──────────────────
 
@@ -59,12 +60,14 @@ export async function getTutorialState(userId: number) {
       where: { characterId: character.id },
       data: { duelUnlockShown: true },
     });
+    await createTutorialMessage(character.id, TUTORIAL_MESSAGES.DUEL_UNLOCKED, "Nowa możliwość!");
   } else if (towerLevel >= 15 && !tutorial.schoolUnlockShown) {
     pendingMessage = TUTORIAL_MESSAGES.SCHOOL_UNLOCKED;
     await prisma.characterTutorial.update({
       where: { characterId: character.id },
       data: { schoolUnlockShown: true },
     });
+    await createTutorialMessage(character.id, TUTORIAL_MESSAGES.SCHOOL_UNLOCKED, "Nowa możliwość!");
   }
 
   return {

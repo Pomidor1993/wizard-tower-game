@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { UTILITY_SPELLS } from "./utility-spells.seed.js";
 
 const prisma = new PrismaClient();
 
@@ -222,19 +223,19 @@ async function main() {
     },
  
     // ════════════════════════════════════════════════════════
-    // AMULETY (amulet)
+    // talismany
     // ════════════════════════════════════════════════════════
  
     // common
     {
       name: "Sznurek z zagiętą monetą",
-      rarity: "common", slot: "amulet", 
+      rarity: "common", slot: "talisman", 
       locationTypes: JSON.stringify(["A", "B", "C"]),
       bonusElementalMagic: 1,
     },
     {
       name: "Korzeń zasuszony w kształt ryby",
-      rarity: "common", slot: "amulet", 
+      rarity: "common", slot: "talisman", 
       locationTypes: JSON.stringify(["C"]),          // tylko C
       bonusElementalMagic: 2, bonusBloodMagic: 1,
     },
@@ -242,14 +243,14 @@ async function main() {
     // uncommon
     {
       name: "Kamień z wyrytą runą",
-      rarity: "uncommon", slot: "amulet", 
+      rarity: "uncommon", slot: "talisman", 
       locationTypes: JSON.stringify(["A", "B"]),
       reqKnowledge: 5,
       bonusElementalMagic: 4, bonusAstralMagic: 3,
     },
     {
       name: "Wisiorek z kryształem jaskiniowym",
-      rarity: "uncommon", slot: "amulet", 
+      rarity: "uncommon", slot: "talisman", 
       locationTypes: JSON.stringify(["A"]),          // tylko A
       reqKnowledge: 6, reqElementalMagic: 4,
       bonusElementalMagic: 6, bonusAstralMagic: 4, bonusResistance: 3,
@@ -258,14 +259,14 @@ async function main() {
     // rare
     {
       name: "Łańcuch Trzech Żywiołów",
-      rarity: "rare", slot: "amulet", 
+      rarity: "rare", slot: "talisman", 
       locationTypes: JSON.stringify(["A", "B", "C"]),
       reqKnowledge: 20, reqElementalMagic: 10,
       bonusElementalMagic: 10, bonusAstralMagic: 8, bonusBloodMagic: 8,
     },
     {
       name: "Medalion Utopionego Kapłana",
-      rarity: "rare", slot: "amulet", 
+      rarity: "rare", slot: "talisman", 
       locationTypes: JSON.stringify(["C"]),          // tylko C
       reqKnowledge: 22, reqAstralMagic: 12,
       bonusElementalMagic: 12, bonusAstralMagic: 10, bonusBloodMagic: 9, bonusResistance: 5,
@@ -274,14 +275,14 @@ async function main() {
     // unique
     {
       name: "Oko Smoka Głębin",
-      rarity: "unique", slot: "amulet",
+      rarity: "unique", slot: "talisman",
       locationTypes: JSON.stringify(["B", "C"]),
       reqKnowledge: 38, reqElementalMagic: 22,
       bonusElementalMagic: 20, bonusAstralMagic: 16, bonusBloodMagic: 14, bonusPower: 10,
     },
     {
       name: "Serce Zamkniętego Boga",
-      rarity: "unique", slot: "amulet",
+      rarity: "unique", slot: "talisman",
       locationTypes: JSON.stringify(["A"]),          // tylko A
       reqKnowledge: 45, reqBloodMagic: 22,
       bonusElementalMagic: 25, bonusAstralMagic: 20, bonusBloodMagic: 20, bonusPower: 12,
@@ -2075,7 +2076,18 @@ async function main() {
   });
 
   console.log("Done!");
+
+  // ── CZARY UŻYTKOWE ───────────────────────────────────────────────────────────
+
+  console.log("Seeding utility spells...");
+  await prisma.spell.createMany({
+    skipDuplicates: true,
+    data: [...UTILITY_SPELLS],
+  });
+  console.log("Done!");
+
 }
+
 
 main()
   .catch(console.error)

@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useCharacter } from "../contexts/CharacterContext";
 import { useTutorial } from "../contexts/TutorialContext";
 import TutorialMessageModal from "../components/TutorialMessageModal";
@@ -17,13 +17,14 @@ const FULL_NAV = [
   { to: "/study",       label: "Studia",          tabKey: "study"      },
   { to: "/exploration", label: "Eksploracja",     tabKey: "exploration"},
   { to: "/combat",      label: "Pojedynki",       tabKey: "combat"     },
+  { to: "/rankings",    label: "Rankingi",        tabKey: "rankings"   },
+  { to: "/messages",    label: "Wiadomości",      tabKey: "messages"   },
   { to: "/school",      label: "Szkoła Magii",    tabKey: "school"     },
   { to: "/settings",    label: "Ustawienia",      tabKey: "settings"   },
 ];
 
 // Menu tutorialowe — kolejność i zestaw odpowiada logice tutoriala
 const TUTORIAL_NAV = [
-  { to: "/overview",    label: "Przegląd konta",  tabKey: "character"  },
   { to: "/home",        label: "Zniszczony Dom",  tabKey: "home"       },
   { to: "/exploration", label: "Eksploracja",     tabKey: "exploration"},
   { to: "/study",       label: "Studia",          tabKey: "study"      },
@@ -32,10 +33,15 @@ const TUTORIAL_NAV = [
   { to: "/vault",       label: "Komnata Nieładu", tabKey: "vault"      },
 ];
 
+// Łączny licznik nieprzeczytanych jest odpytywany w pewnym interwale —
+// wiadomości prywatne i systemowe to dwa osobne endpointy, więc sumujemy je tutaj.
+const UNREAD_POLL_INTERVAL_MS = 30_000;
+
 export default function AppLayout() {
   const { character, refresh } = useCharacter();
   const { tutorial, refresh: refreshTutorial } = useTutorial();
   const [productionPerHour, setProductionPerHour] = useState<number | null>(null);
+  const [hasUnreadMessages, setHasUnreadMessages] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -75,6 +81,34 @@ export default function AppLayout() {
       .catch(() => {});
   }, [character?.powerShards]);
 
+  // ── Sprawdzenie nieprzeczytanych wiadomości (prywatne + systemowe) ───────
+  const checkUnread = useCallback(async () => {
+    try {
+      const [privateRes, systemRes] = await Promise.all([
+        api.get("/messages/private/unread-count"),
+        api.get("/messages/system", { params: { pageSize: 1 } }),
+      ]);
+      const privateUnread = privateRes.data.unreadCount ?? 0;
+      const systemUnread = systemRes.data.unreadCount ?? 0;
+      setHasUnreadMessages(privateUnread > 0 || systemUnread > 0);
+    } catch {
+      // brak danych nie powinien wywalać layoutu — po prostu nie pokazujemy wskaźnika
+    }
+  }, []);
+
+  useEffect(() => {
+    checkUnread();
+    const interval = setInterval(checkUnread, UNREAD_POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [checkUnread]);
+
+  // Odśwież licznik od razu po wejściu na zakładkę Wiadomości (np. po przeczytaniu)
+  useEffect(() => {
+    if (location.pathname.startsWith("/messages")) {
+      checkUnread();
+    }
+  }, [location.pathname, checkUnread]);
+
   function logout() {
     localStorage.removeItem("token");
     navigate("/login");
@@ -108,13 +142,19 @@ export default function AppLayout() {
             borderBottom: "1px solid rgba(245,196,81,0.08)",
             fontSize: 12, color: "rgba(247,240,221,0.6)",
           }}>
-            <span style={{ fontFamily: "Cinzel, serif", color: "#F5C451", fontWeight: 600, fontSize: 13 }}>
+            <span
+              onClick={() => navigate("/profile/me")}
+              title="Zobacz swój profil"
+              style={{
+                fontFamily: "Cinzel, serif", color: "#F5C451", fontWeight: 600, fontSize: 13,
+                cursor: "pointer", transition: "opacity 0.15s",
+              }}
+              onMouseEnter={e => (e.currentTarget.style.opacity = "0.75")}
+              onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
+            >
               {character.name}
             </span>
             <span>Poziom {character.level}</span>
-            {character.archetypeProfile?.finalClass && (
-              <span style={{ color: "#59D4D0" }}>{character.archetypeProfile.finalClass}</span>
-            )}
             <span>Prestiż: {character.prestige}</span>
 
             {/* Pasek XP */}
@@ -162,7 +202,8 @@ export default function AppLayout() {
               key={item.to}
               to={item.to}
               style={({ isActive }) => ({
-                display: "block", padding: "12px 14px", fontSize: 12,
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "12px 14px", fontSize: 12,
                 fontFamily: item.to === "/premium" ? "Cinzel, serif" : "Inter, sans-serif",
                 fontWeight: item.to === "/premium" ? 700 : 500,
                 color: isActive ? "#F5C451" : item.to === "/premium" ? "#F46A4E" : "rgba(247,240,221,0.65)",
@@ -180,6 +221,13 @@ export default function AppLayout() {
               }}
             >
               {item.label}
+              {item.tabKey === "messages" && hasUnreadMessages && (
+                <span style={{
+                  width: 7, height: 7, borderRadius: "50%",
+                  background: "#F46A4E", display: "inline-block",
+                  boxShadow: "0 0 4px rgba(244,106,78,0.8)",
+                }} />
+              )}
             </NavLink>
           ))}
         </div>

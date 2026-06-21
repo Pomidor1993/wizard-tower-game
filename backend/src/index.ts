@@ -7,8 +7,12 @@ import actionRoutes from "./routes/action.routes.js";
 import equipmentRoutes from "./routes/equipment.routes.js";
 import combatRoutes from "./routes/combat.routes.js";
 import towerRoutes from "./routes/tower.routes.js";
-import spellbookRouter from "./routes/spellbook.routes.js";
 import tutorialRoutes from "./routes/tutorial.routes.js";
+import rankingRoutes from "./routes/ranking.routes.js";
+import spellbookRoutes from "./routes/spellbook.routes.js";
+import messagesRoutes from "./routes/messages.routes.js";
+import privateMessagesRoutes from "./routes/private-messages.routes.js";
+import profileRoutes from "./routes/profile.routes.js";
 
 dotenv.config();
 
@@ -25,8 +29,12 @@ app.use("/api/actions", actionRoutes);
 app.use("/api/equipment", equipmentRoutes);
 app.use("/api/combat", combatRoutes);
 app.use("/api/tower", towerRoutes);
-app.use("/api/spellbook", spellbookRouter);
+app.use("/api/spellbook", spellbookRoutes);
 app.use("/api/tutorial", tutorialRoutes)
+app.use("/api/rankings", rankingRoutes);
+app.use("/api/messages/system", messagesRoutes);
+app.use("/api/messages/private", privateMessagesRoutes);
+app.use("/api/profile", profileRoutes);
 
 // Health check
 app.get("/api/health", (req, res) => {

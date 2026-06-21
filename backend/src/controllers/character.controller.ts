@@ -13,7 +13,6 @@ export async function getMyCharacter(req: Request, res: Response) {
     where: { userId: req.userId },
     include: {
       tower: { include: { buildings: true } },
-      archetypeProfile: true,
     },
   });
 
@@ -69,7 +68,7 @@ export async function getEffectiveStats(req: Request, res: Response) {
     const eq = character.equipment;
     const itemIds = [
       eq?.robeId, eq?.bootsId, eq?.hatId,
-      eq?.amuletId, eq?.mainHandId, eq?.offHandId,
+      eq?.talismanId, eq?.mainHandId, eq?.offHandId,
     ].filter(Boolean) as number[];
 
     // Pobierz bonusy z przedmiotów

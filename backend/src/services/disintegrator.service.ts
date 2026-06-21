@@ -1,14 +1,38 @@
 import prisma from "../lib/prisma.js";
-import { archetypeTriggerService } from "./archetype/archetype-trigger.service.js";
 
-const RARITY_VALUE: Record<string, number> = {
+const RARITY_VALUE_SHARDS: Record<string, number> = {
   common:   10,
-  uncommon: 25,
+  uncommon: 20,
   rare:     50,
   unique:   100,
 };
 
-export async function previewDisintegrate(userId: number, chaosVaultItemIds: number[]) {
+const RARITY_VALUE_PRESTIGE: Record<string, number> = {
+  common:   1,
+  uncommon: 2,
+  rare:     5,
+  unique:   10,
+};
+
+export type DisintegrateCurrency = "shards" | "prestige";
+
+// Każdy tier ponad 1 dodaje +10% do bazowej wartości nagrody.
+// Tier 1 = ×1.0, tier 10 = ×1.9 (zgodnie z: unikalny tier 10 = 30 + 30×0,9)
+function tierRewardMultiplier(tier: number): number {
+  return 1 + (tier - 1) * 0.1;
+}
+
+function rewardForItem(rarity: string, tier: number, currency: DisintegrateCurrency): number {
+  const baseTable = currency === "prestige" ? RARITY_VALUE_PRESTIGE : RARITY_VALUE_SHARDS;
+  const base = baseTable[rarity] ?? (currency === "prestige" ? 1 : 10);
+  return Math.floor(base * tierRewardMultiplier(tier));
+}
+
+export async function previewDisintegrate(
+  userId: number,
+  chaosVaultItemIds: number[],
+  currency: DisintegrateCurrency = "shards"
+) {
   const character = await prisma.character.findUnique({ where: { userId } });
   if (!character) throw new Error("Postać nie znaleziona");
 
@@ -24,21 +48,40 @@ export async function previewDisintegrate(userId: number, chaosVaultItemIds: num
     include: { ownedItem: { include: { item: true } } },
   });
 
-  const items: { chaosVaultItemId: number; ownedItemId: number; name: string; rarity: string; value: number }[] = [];
-  let totalShards = 0;
+  const items: {
+    chaosVaultItemId: number;
+    ownedItemId: number;
+    name: string;
+    rarity: string;
+    tier: number;
+    value: number;
+  }[] = [];
+  let totalReward = 0;
 
   for (const entry of entries) {
     const item = entry.ownedItem.item;
-    const value = RARITY_VALUE[item.rarity] ?? 10;
-    items.push({ chaosVaultItemId: entry.id, ownedItemId: entry.ownedItemId, name: item.name, rarity: item.rarity, value });
-    totalShards += value;
+    const tier = entry.ownedItem.tier;
+    const value = rewardForItem(item.rarity, tier, currency);
+    items.push({
+      chaosVaultItemId: entry.id,
+      ownedItemId: entry.ownedItemId,
+      name: item.name,
+      rarity: item.rarity,
+      tier,
+      value,
+    });
+    totalReward += value;
   }
 
-  return { items, totalShards };
+  return { items, totalReward, currency };
 }
 
-export async function confirmDisintegrate(userId: number, chaosVaultItemIds: number[]) {
-  const preview = await previewDisintegrate(userId, chaosVaultItemIds);
+export async function confirmDisintegrate(
+  userId: number,
+  chaosVaultItemIds: number[],
+  currency: DisintegrateCurrency = "shards"
+) {
+  const preview = await previewDisintegrate(userId, chaosVaultItemIds, currency);
   const character = await prisma.character.findUnique({ where: { userId } });
   if (!character) throw new Error("Postać nie znaleziona");
 
@@ -56,17 +99,18 @@ export async function confirmDisintegrate(userId: number, chaosVaultItemIds: num
 
   await prisma.character.update({
     where: { id: character.id },
-    data: { powerShards: { increment: preview.totalShards } },
+    data:
+      currency === "prestige"
+        ? { prestige: { increment: preview.totalReward } }
+        : { powerShards: { increment: preview.totalReward } },
   });
 
-  await archetypeTriggerService.checkTrigger(character.id, "FIRST_ITEM_DESTROYED", {
-    destroyed: preview.items.length > 0,
-  });
-  await archetypeTriggerService.checkTrigger(character.id, "SHARDS_10000");
+  const currencyLabel = currency === "prestige" ? "prestiżu" : "okruchów mocy";
 
   return {
     destroyed: preview.items.length,
-    shardsGained: preview.totalShards,
-    message: `Zniszczono ${preview.items.length} przedmiotów. Zdobyto ${preview.totalShards} okruchów mocy.`,
+    currency,
+    rewardGained: preview.totalReward,
+    message: `Zniszczono ${preview.items.length} przedmiotów. Zdobyto ${preview.totalReward} ${currencyLabel}.`,
   };
 }

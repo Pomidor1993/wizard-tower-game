@@ -11,7 +11,7 @@ export type TutorialStep = typeof TUTORIAL_STEPS[keyof typeof TUTORIAL_STEPS];
 
 // Przykładowe przeciwniki i przedmioty — dopasuj nazwy do tego, co masz w tabeli Item
 export const TUTORIAL_ENEMIES = ["Agresywny Wilk", "Dziki Odyniec", "Pijany Złodziej"];
-export const TUTORIAL_ITEM_POOL = ["Rdzawy Miecz", "Skórzana Czapka", "Stary Amulet", "Pęknięty Pierścień"];
+export const TUTORIAL_ITEM_POOL = ["Rdzawy Miecz", "Skórzana Czapka", "Stary Talizman", "Pęknięty Pierścień"];
 export type HomeRepairTaskCode = typeof HOME_REPAIR_TASKS[number]["code"];
 
 export const TUTORIAL_MESSAGES = {

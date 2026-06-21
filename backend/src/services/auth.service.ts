@@ -2,7 +2,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import prisma from "../lib/prisma.js";
 import { TUTORIAL_STEPS } from "./tutorial/tutorial.constants.js";
-
+import { rollDailyRandomMessage } from "./system-messages.service.js";
 
 const JWT_SECRET = process.env.JWT_SECRET!;
 const SALT_ROUNDS = 10;
@@ -38,7 +38,7 @@ export async function registerUser(username: string, email: string, password: st
               buildings: {
                 create: [
                   { buildingType: "power_collector", level: 0 },
-                  { buildingType: "library",         level: 0 },
+                  { buildingType: "library",         level: 1 },
                   { buildingType: "chaos_vault",     level: 1 },
                 ],
               },
@@ -71,7 +71,7 @@ export async function registerUser(username: string, email: string, password: st
 
 // ── LOGOWANIE ────────────────────────────────────────
 export async function loginUser(email: string, password: string) {
-  const user = await prisma.user.findUnique({ where: { email } });
+  const user = await prisma.user.findUnique({ where: { email }, include: { character: true } });
 
   if (!user) {
     throw new Error("Nieprawidłowy email lub hasło");
@@ -81,6 +81,19 @@ export async function loginUser(email: string, password: string) {
 
   if (!passwordMatch) {
     throw new Error("Nieprawidłowy email lub hasło");
+  }
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { lastLoginAt: new Date() },
+  });
+
+  if (user.character) {
+    try {
+      await rollDailyRandomMessage(user.character.id);
+    } catch (err) {
+      console.error("Błąd losowania codziennej wiadomości:", err);
+    }
   }
 
   const token = jwt.sign({ userId: user.id }, JWT_SECRET, {

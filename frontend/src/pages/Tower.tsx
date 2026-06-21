@@ -126,7 +126,7 @@ interface BuildingData {
 }
 
 function BuildingCard({
-  title, icon, description, effectLabel, data, onStart, onClaim, children,
+  title, icon, description, effectLabel, data, onStart, onClaim, children, currentShards,
 }: {
   title: string;
   icon: string;
@@ -136,6 +136,7 @@ function BuildingCard({
   onStart: () => Promise<void>;
   onClaim: () => Promise<void>;
   children?: React.ReactNode;
+  currentShards: number;
 }) {
   const [loading, setLoading] = useState(false);
   const { level, isUpgrading, upgradeFinishesAt, canUpgrade, atMaxLevel, towerLevelMet, requiredTowerLevel, unmetReqs, upgradeReqs, maxLevel } = data;
@@ -213,42 +214,22 @@ function BuildingCard({
         </p>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {unmetReqs.length > 0 && (
+{unmetReqs.length > 0 && (
             <div style={{ padding: "8px 12px", borderRadius: 8, background: "rgba(244,106,78,0.06)", border: "1px solid rgba(244,106,78,0.15)" }}>
+              <p style={{ fontSize: 11, color: C.red, margin: "0 0 4px", fontWeight: 700 }}>Nie spełniasz wymagań do rozbudowy tego budynku!</p>
               {unmetReqs.map((r, i) => (
                 <p key={i} style={{ fontSize: 11, color: C.red, margin: 0 }}>✕ {r}</p>
               ))}
             </div>
           )}
-<div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-            {upgradeReqs.costShards > 0 && (
-              <InfoRow
-                label="Koszt"
-                value={`${upgradeReqs.costShards} okruchów mocy`}
-                warn={unmetReqs.some(r => r.includes("kruch"))}
-              />
-            )}
-            {(() => {
-              const reqs = [
-                upgradeReqs.reqKnowledge > 0 && { label: "Wiedza", val: upgradeReqs.reqKnowledge, warn: unmetReqs.some(r => r.toLowerCase().includes("wiedza")) },
-                upgradeReqs.reqIntelligence > 0 && { label: "Int.", val: upgradeReqs.reqIntelligence, warn: unmetReqs.some(r => r.toLowerCase().includes("intelig")) },
-                upgradeReqs.reqPower > 0 && { label: "Moc", val: upgradeReqs.reqPower, warn: unmetReqs.some(r => r.toLowerCase().includes("moc")) },
-              ].filter(Boolean) as { label: string; val: number; warn: boolean }[];
-
-              if (reqs.length === 0) return null;
-              return (
-                <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "3px 0" }}>
-                  <span style={{ fontSize: 11, color: C.textFaint, minWidth: 88, flexShrink: 0 }}>Wymagania</span>
-                  <span style={{ fontSize: 12, fontWeight: 600, display: "flex", gap: 10, flexWrap: "wrap" }}>
-                    {reqs.map(r => (
-                      <span key={r.label} style={{ color: r.warn ? C.red : C.textDim }}>
-                        {r.label} {r.val}
-                      </span>
-                    ))}
-                  </span>
-                </div>
-              );
-            })()}
+          <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+{upgradeReqs.costShards > 0 && (
+  <InfoRow
+    label="Koszt"
+    value={`${upgradeReqs.costShards} okruchów mocy`}
+    warn={currentShards < upgradeReqs.costShards}
+  />
+)}
             {durationMin !== null && (
               <InfoRow label="Czas budowy" value={`${durationMin} min`} />
             )}
@@ -275,12 +256,13 @@ const ALTAIR_PAIRS: [string, string][] = [
 ];
 
 function AltairCard({
-  data, onStart, onClaim, onRefresh,
+  data, onStart, onClaim, onRefresh, currentShards,
 }: {
   data: BuildingData & { unlockedPairs?: number; pairs?: [string, string][]; selections?: (string | null)[] };
   onStart: () => Promise<void>;
   onClaim: () => Promise<void>;
   onRefresh: () => void;
+  currentShards: number;
 }) {
   const [selecting, setSelecting] = useState(false);
   const unlockedPairs = data.unlockedPairs ?? 0;
@@ -359,6 +341,7 @@ function AltairCard({
       data={data}
       onStart={onStart}
       onClaim={onClaim}
+      currentShards={currentShards}
     >
       {pairUI}
     </BuildingCard>
@@ -470,8 +453,9 @@ export default function TowerView() {
           </div>
         </div>
 
-        {tower.unmetReqs?.length > 0 && (
+{tower.unmetReqs?.length > 0 && (
           <div style={{ padding: "8px 12px", borderRadius: 8, marginBottom: 10, background: "rgba(244,106,78,0.06)", border: "1px solid rgba(244,106,78,0.15)" }}>
+            <p style={{ fontSize: 11, color: C.red, margin: "0 0 4px", fontWeight: 700 }}>Nie spełniasz wymagań do rozbudowy tego budynku!</p>
             {tower.unmetReqs.map((r: string, i: number) => (
               <p key={i} style={{ fontSize: 11, color: C.red, margin: 0 }}>✕ {r}</p>
             ))}
@@ -479,26 +463,9 @@ export default function TowerView() {
         )}
 
         <div style={{ display: "flex", flexDirection: "column", gap: 3, marginBottom: 12 }}>
-{(() => {
-          const reqs = [
-            tower.upgradeReqs?.knowledge > 0 && { label: "Wiedza", val: tower.upgradeReqs.knowledge, warn: tower.unmetReqs?.some((r: string) => r.toLowerCase().includes("wiedza")) },
-            tower.upgradeReqs?.intelligence > 0 && { label: "Int.", val: tower.upgradeReqs.intelligence, warn: tower.unmetReqs?.some((r: string) => r.toLowerCase().includes("intelig")) },
-          ].filter(Boolean) as { label: string; val: number; warn: boolean }[];
-
-          return reqs.length > 0 ? (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "3px 0" }}>
-              <span style={{ fontSize: 11, color: C.textFaint, minWidth: 88, flexShrink: 0 }}>Wymagania</span>
-              <span style={{ fontSize: 12, fontWeight: 600, display: "flex", gap: 10 }}>
-                {reqs.map(r => (
-                  <span key={r.label} style={{ color: r.warn ? C.red : C.textDim }}>{r.label} {r.val}</span>
-                ))}
-              </span>
-            </div>
-          ) : null;
-        })()}
-        {tower.upgradeReqs?.durationSeconds > 0 && (
-          <InfoRow label="Czas budowy" value={`${Math.round(tower.upgradeReqs.durationSeconds / 60)} min`} />
-        )}
+          {tower.upgradeReqs?.durationSeconds > 0 && (
+            <InfoRow label="Czas budowy" value={`${Math.round(tower.upgradeReqs.durationSeconds / 60)} min`} />
+          )}
         </div>
 
         {tower.isUpgrading ? (
@@ -541,6 +508,7 @@ export default function TowerView() {
           data={pc}
           onStart={acts.powerCollector.start}
           onClaim={acts.powerCollector.claim}
+          currentShards={resources.powerShards}
         />
 
         <BuildingCard
@@ -551,6 +519,8 @@ export default function TowerView() {
           data={lb}
           onStart={acts.library.start}
           onClaim={acts.library.claim}
+          currentShards={resources.powerShards}
+
         />
 
         <BuildingCard
@@ -561,6 +531,7 @@ export default function TowerView() {
           data={mh}
           onStart={acts.magicHands.start}
           onClaim={acts.magicHands.claim}
+          currentShards={resources.powerShards}
         />
 
         <BuildingCard
@@ -571,6 +542,8 @@ export default function TowerView() {
           data={so}
           onStart={acts.spyOrb.start}
           onClaim={acts.spyOrb.claim}
+          currentShards={resources.powerShards}
+
         />
 
         <AltairCard
@@ -578,6 +551,7 @@ export default function TowerView() {
           onStart={acts.altair.start}
           onClaim={acts.altair.claim}
           onRefresh={fetchTower}
+          currentShards={resources.powerShards}
         />
 
         <BuildingCard
@@ -590,6 +564,8 @@ export default function TowerView() {
           data={cv}
           onStart={acts.chaosVault.start}
           onClaim={acts.chaosVault.claim}
+          currentShards={resources.powerShards}
+
         />
 
         <BuildingCard
@@ -600,6 +576,7 @@ export default function TowerView() {
           data={di}
           onStart={acts.disintegrator.start}
           onClaim={acts.disintegrator.claim}
+          currentShards={resources.powerShards}
         />
 
       </div>

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import api from "../api/client";
 import { useCharacter } from "../contexts/CharacterContext";
 
-// ── PALETA (zgodna z Training.tsx / ExplorationPanel.tsx / StudyPanel.tsx) ───
+// ── PALETA 
 const COLORS = {
   bg:        "#161d38",
   panel:     "#372b5d",
@@ -12,6 +13,7 @@ const COLORS = {
   gold:      "#F5C451",
   teal:      "#59D4D0",
   red:       "#F46A4E",
+  purple:    "#A78BFA",
   text:      "#F7F0DD",
   textDim:   "rgba(247,240,221,0.55)",
   textFaint: "rgba(247,240,221,0.35)",
@@ -23,8 +25,22 @@ interface RankingEntry {
   characterId: number;
   name: string;
   prestige: number;
+  level: number;
   isMe: boolean;
   foughtToday: boolean;
+}
+
+type ActionMode = "duel" | "tournament";
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// HELPER: avatar oparty na poziomie postaci
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function getLevelTier(level: number): { label: string; color: string; bg: string } {
+  if (level >= 50) return { label: "⚜️", color: "#F5C451", bg: "rgba(245,196,81,0.15)" };
+  if (level >= 30) return { label: "🔮", color: "#A78BFA", bg: "rgba(167,139,250,0.15)" };
+  if (level >= 15) return { label: "✦",  color: "#59D4D0", bg: "rgba(89,212,208,0.15)" };
+  return                   { label: "◈",  color: "rgba(247,240,221,0.4)", bg: "rgba(255,255,255,0.05)" };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -33,15 +49,6 @@ interface RankingEntry {
 
 type EventSide = "ally" | "enemy" | "neutral";
 
-/**
- * Określa stronę eventu na podstawie pola `attacker` i metadanych walki.
- *
- * Logika:
- * - "ally"    → turkus  — mój fighter lub mój minion
- * - "enemy"   → czerwony — fighter/minion przeciwnika
- * - "neutral" → złoty   — minion z targetType=randomAny, efekty globalne,
- *                          System, eventy bez wyraźnej strony
- */
 function getEventSide(
   attackerName: string,
   metadata: any,
@@ -54,25 +61,21 @@ function getEventSide(
   const sideAMinionNames:  string[] = metadata.sideAMinionNames  ?? [];
   const sideBMinionNames:  string[] = metadata.sideBMinionNames  ?? [];
 
-  // Eventy systemowe / globalne → neutralne
   if (!attackerName || attackerName === "System" || attackerName === "Wszyscy") {
     return "neutral";
   }
 
-  // Określ moją stronę
   const mySide: "sideA" | "sideB" | null =
     myCharacterId === metadata.attackerId ? "sideA" :
     myCharacterId === metadata.defenderId ? "sideB" :
     null;
 
   if (mySide === null) {
-    // Obserwator (nie uczestnik) — sideA turkus, sideB czerwony
     if (sideAFighterNames.includes(attackerName) || sideAMinionNames.includes(attackerName)) return "ally";
     if (sideBFighterNames.includes(attackerName) || sideBMinionNames.includes(attackerName)) return "enemy";
     return "neutral";
   }
 
-  // Sprawdź czy attacker należy do sideA lub sideB
   const isOnSideA = sideAFighterNames.includes(attackerName) || sideAMinionNames.includes(attackerName);
   const isOnSideB = sideBFighterNames.includes(attackerName) || sideBMinionNames.includes(attackerName);
 
@@ -82,7 +85,6 @@ function getEventSide(
   if (allParticipants.length > 0) {
     const participant = allParticipants.find(p => p.name === attackerName);
     if (participant) {
-      // Neutralne (randomAny, all) — zawsze złote
       if (participant.side === "neutral") return "neutral";
 
       if (participant.type === "minion" && participant.targetType) {
@@ -92,7 +94,6 @@ function getEventSide(
         return participantIsAlly ? "ally" : "enemy";
       }
 
-      // Fighterzy — standardowa logika
       const participantIsAlly =
         (mySide === "sideA" && participant.side === "sideA") ||
         (mySide === "sideB" && participant.side === "sideB");
@@ -100,7 +101,6 @@ function getEventSide(
     }
   }
 
-  // Fallback: brak w allParticipants — użyj list nazw
   const isAlly  = (mySide === "sideA" && isOnSideA) || (mySide === "sideB" && isOnSideB);
   const isEnemy = (mySide === "sideA" && isOnSideB) || (mySide === "sideB" && isOnSideA);
 
@@ -116,7 +116,7 @@ const EVENT_COLORS: Record<EventSide, string> = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// SHARED — Panel / SectionTitle (jak w Training.tsx / ExplorationPanel.tsx)
+// SHARED — Panel / SectionTitle
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function Panel({ children, style = {} }: { children: React.ReactNode; style?: React.CSSProperties }) {
@@ -148,15 +148,36 @@ function SectionTitle({ children, style = {} }: { children: React.ReactNode; sty
   );
 }
 
+function ColorLegend() {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 16, fontSize: 11, color: COLORS.textFaint, marginBottom: 8, flexWrap: "wrap" }}>
+      <span style={{ fontFamily: "Cinzel, serif", color: COLORS.textFaint, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+        Legenda:
+      </span>
+      <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <span style={{ width: 9, height: 9, borderRadius: "50%", background: COLORS.teal, display: "inline-block" }} />
+        <span style={{ color: COLORS.teal, fontWeight: 600 }}>Twoje akcje</span>
+      </span>
+      <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <span style={{ width: 9, height: 9, borderRadius: "50%", background: COLORS.red, display: "inline-block" }} />
+        <span style={{ color: COLORS.red, fontWeight: 600 }}>Akcje przeciwnika</span>
+      </span>
+      <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <span style={{ width: 9, height: 9, borderRadius: "50%", background: COLORS.gold, display: "inline-block" }} />
+        <span style={{ color: COLORS.gold, fontWeight: 600 }}>Efekty globalne / neutralne</span>
+      </span>
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
-// KOMPONENT: log jednej tury (wielokrotne użycie)
+// KOMPONENT: log jednej tury pojedynku
 // ═══════════════════════════════════════════════════════════════════════════════
 
 interface TurnLogViewProps {
   turn: any;
   metadata: any;
   myCharacterId: number | null;
-  /** true = świeży wynik walki (pokazuje HP z sideAFighterHps/sideBFighterHps) */
   isFreshResult?: boolean;
 }
 
@@ -191,27 +212,61 @@ function TurnLogView({ turn, metadata, myCharacterId, isFreshResult = false }: T
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// KOMPONENT: legenda kolorów
+// KOMPONENT: log jednej rundy turnieju magicznego
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function ColorLegend() {
+function TournamentRoundView({
+  round, challengerName, defenderName, mySide,
+}: {
+  round: any;
+  challengerName: string;
+  defenderName: string;
+  mySide: "challenger" | "defender";
+}) {
+  function castBlock(cast: any, side: "challenger" | "defender") {
+    const isMySide = mySide === side;
+    const color = isMySide ? COLORS.teal : COLORS.red;
+    const name  = side === "challenger" ? challengerName : defenderName;
+    const stars = "★".repeat(cast.effectiveness) + "☆".repeat(Math.max(0, 5 - cast.effectiveness));
+
+    return (
+      <div style={{
+        flex: 1, padding: "10px 12px", borderRadius: 8,
+        background: `${color}10`,
+        border: `1px solid ${color}33`,
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color, fontFamily: "Cinzel, serif" }}>{name}</span>
+          <span style={{ fontSize: 11, color, letterSpacing: 1 }}>{stars}</span>
+        </div>
+        <p style={{ fontSize: 11, fontWeight: 700, color: COLORS.textDim, margin: "0 0 4px" }}>
+          {cast.spellName}
+          {cast.wasImprovised && (
+            <span style={{ fontSize: 10, color: COLORS.textFaint, marginLeft: 6, fontWeight: 400 }}>(improwizacja)</span>
+          )}
+        </p>
+        <p style={{ fontSize: 11, color: COLORS.textFaint, margin: 0, fontStyle: "italic" }}>
+          {cast.description}
+        </p>
+        <p style={{ fontSize: 12, fontWeight: 700, color, margin: "6px 0 0" }}>
+          +{cast.points} pkt
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 16, fontSize: 11, color: COLORS.textFaint, marginBottom: 8, flexWrap: "wrap" }}>
-      <span style={{ fontFamily: "Cinzel, serif", color: COLORS.textFaint, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-        Legenda:
-      </span>
-      <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <span style={{ width: 9, height: 9, borderRadius: "50%", background: COLORS.teal, display: "inline-block" }} />
-        <span style={{ color: COLORS.teal, fontWeight: 600 }}>Twoje akcje</span>
-      </span>
-      <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <span style={{ width: 9, height: 9, borderRadius: "50%", background: COLORS.red, display: "inline-block" }} />
-        <span style={{ color: COLORS.red, fontWeight: 600 }}>Akcje przeciwnika</span>
-      </span>
-      <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <span style={{ width: 9, height: 9, borderRadius: "50%", background: COLORS.gold, display: "inline-block" }} />
-        <span style={{ color: COLORS.gold, fontWeight: 600 }}>Efekty globalne / neutralne</span>
-      </span>
+    <div>
+      <p style={{ fontSize: 11, color: COLORS.textGhost, fontFamily: "Cinzel, serif", marginBottom: 8 }}>
+        Runda {round.round}
+        <span style={{ color: COLORS.textFaint, marginLeft: 12, fontFamily: "inherit" }}>
+          {round.challengerTotalAfter} : {round.defenderTotalAfter}
+        </span>
+      </p>
+      <div style={{ display: "flex", gap: 8 }}>
+        {castBlock(round.challenger, "challenger")}
+        {castBlock(round.defender, "defender")}
+      </div>
     </div>
   );
 }
@@ -222,13 +277,15 @@ function ColorLegend() {
 
 export default function CombatPanel() {
   const { refresh: refreshCharacter } = useCharacter();
+  const navigate = useNavigate();
 
   const [ranking, setRanking] = useState<RankingEntry[]>([]);
   const [myCharacterId, setMyCharacterId] = useState<number | null>(null);
   const [selected, setSelected] = useState<RankingEntry | null>(null);
   const [loading, setLoading] = useState(true);
-  const [fighting, setFighting] = useState(false);
-  const [battleResult, setBattleResult] = useState<any>(null);
+  const [acting, setActing] = useState<ActionMode | null>(null);
+  const [duelResult, setDuelResult] = useState<any>(null);
+  const [tournamentResult, setTournamentResult] = useState<any>(null);
 
   const fetchRanking = useCallback(async () => {
     try {
@@ -244,34 +301,61 @@ export default function CombatPanel() {
 
   useEffect(() => { fetchRanking(); }, [fetchRanking]);
 
-  async function handleChallenge() {
+  function handleSelect(entry: RankingEntry) {
+    if (entry.isMe) return;
+    if (entry.foughtToday) return;
+    setSelected(prev => (prev?.characterId === entry.characterId ? null : entry));
+    setDuelResult(null);
+    setTournamentResult(null);
+  }
+
+  function visitProfile(characterId: number, e: React.MouseEvent) {
+    e.stopPropagation();
+    navigate(`/profile/${characterId}`);
+  }
+
+  async function handleDuel() {
     if (!selected) return;
-    setFighting(true);
-    setBattleResult(null);
+    setActing("duel");
+    setDuelResult(null);
+    setTournamentResult(null);
     try {
       const res = await api.post("/combat/challenge", {
         defenderCharacterId: selected.characterId,
       });
-      setBattleResult(res.data);
+      setDuelResult(res.data);
       await fetchRanking();
       await refreshCharacter();
     } catch (err: any) {
       alert(err.response?.data?.error ?? "Błąd walki");
     } finally {
-      setFighting(false);
+      setActing(null);
       setSelected(null);
     }
   }
 
-  function handleSelect(entry: RankingEntry) {
-    if (entry.isMe) return;
-    if (entry.foughtToday) return;
-    setSelected(prev =>
-      prev?.characterId === entry.characterId ? null : entry
-    );
+  async function handleTournament() {
+    if (!selected) return;
+    setActing("tournament");
+    setDuelResult(null);
+    setTournamentResult(null);
+    try {
+      const res = await api.post(`/combat/tournament/${selected.characterId}`);
+      setTournamentResult(res.data);
+      await fetchRanking();
+      await refreshCharacter();
+    } catch (err: any) {
+      alert(err.response?.data?.error ?? "Błąd turnieju");
+    } finally {
+      setActing(null);
+      setSelected(null);
+    }
   }
 
   if (loading) return <p style={{ fontSize: 13, color: COLORS.textFaint }}>Ładowanie...</p>;
+
+  const myEntry = ranking.find(r => r.isMe);
+  const myTier  = getLevelTier(myEntry?.level ?? 1);
 
   return (
     <div>
@@ -281,36 +365,45 @@ export default function CombatPanel() {
 
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
 
-        {/* Wynik walki */}
-        {battleResult && (
+        {/* Wynik pojedynku */}
+        {duelResult && (
           <Panel style={{
-            background: battleResult.attackerWon ? "rgba(89,212,208,0.06)" : "rgba(244,106,78,0.06)",
-            border: `1px solid ${battleResult.attackerWon ? "rgba(89,212,208,0.25)" : "rgba(244,106,78,0.25)"}`,
+            background: duelResult.draw
+              ? "rgba(245,196,81,0.05)"
+              : duelResult.attackerWon
+              ? "rgba(89,212,208,0.06)"
+              : "rgba(244,106,78,0.06)",
+            border: `1px solid ${
+              duelResult.draw
+                ? "rgba(245,196,81,0.25)"
+                : duelResult.attackerWon
+                ? "rgba(89,212,208,0.25)"
+                : "rgba(244,106,78,0.25)"
+            }`,
           }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
               <p style={{
                 fontFamily: "Cinzel, serif", fontWeight: 700, fontSize: 14,
-                color: battleResult.attackerWon ? COLORS.teal : COLORS.red,
+                color: duelResult.draw ? COLORS.gold : duelResult.attackerWon ? COLORS.teal : COLORS.red,
                 margin: 0, letterSpacing: "0.04em",
               }}>
-                {battleResult.attackerWon ? "⚔️ Zwycięstwo!" : "💀 Porażka"}
+                {duelResult.draw ? "🤝 Remis" : duelResult.attackerWon ? "⚔️ Zwycięstwo!" : "💀 Porażka"}
               </p>
               <button
-                onClick={() => setBattleResult(null)}
+                onClick={() => setDuelResult(null)}
                 style={{ background: "none", border: "none", color: COLORS.textGhost, fontSize: 18, lineHeight: 1, cursor: "pointer", padding: 0 }}
                 onMouseEnter={e => (e.currentTarget.style.color = COLORS.red)}
                 onMouseLeave={e => (e.currentTarget.style.color = COLORS.textGhost)}
               >×</button>
             </div>
-            <p style={{ fontSize: 13, color: COLORS.textDim, marginTop: 0, marginBottom: 10 }}>{battleResult.summary}</p>
-            {battleResult.attackerWon && (
+            <p style={{ fontSize: 13, color: COLORS.textDim, marginTop: 0, marginBottom: 10 }}>{duelResult.summary}</p>
+            {!duelResult.draw && duelResult.attackerWon && (
               <p style={{ fontSize: 13, fontWeight: 700, color: COLORS.gold, marginTop: 0, marginBottom: 10 }}>
-                +{battleResult.prestigeGain} prestiżu
+                +{duelResult.prestigeGain} prestiżu
               </p>
             )}
 
-            {/* Log walki */}
-            {battleResult.log?.length > 0 && (
+            {duelResult.log?.length > 0 && (
               <div style={{ marginTop: 12 }}>
                 <ColorLegend />
                 <div style={{
@@ -319,16 +412,68 @@ export default function CombatPanel() {
                   background: COLORS.bg, borderRadius: 8, padding: 12,
                   border: `1px solid ${COLORS.borderSoft}`,
                 }}>
-                  {battleResult.log.map((turn: any) => (
+                  {duelResult.log.map((turn: any) => (
                     <TurnLogView
                       key={turn.turn}
                       turn={turn}
-                      metadata={battleResult.metadata}
+                      metadata={duelResult.metadata}
                       myCharacterId={myCharacterId}
                       isFreshResult
                     />
                   ))}
                 </div>
+              </div>
+            )}
+          </Panel>
+        )}
+
+        {/* Wynik turnieju magicznego */}
+        {tournamentResult && (
+          <Panel style={{
+            background: "rgba(167,139,250,0.06)",
+            border: "1px solid rgba(167,139,250,0.25)",
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+              <p style={{
+                fontFamily: "Cinzel, serif", fontWeight: 700, fontSize: 14,
+                color: COLORS.purple, margin: 0, letterSpacing: "0.04em",
+              }}>
+                {tournamentResult.draw
+                  ? "🤝 Remis turniejowy"
+                  : tournamentResult.challengerWon
+                  ? "🏆 Triumf w turnieju!"
+                  : "🎭 Porażka w turnieju"}
+              </p>
+              <button
+                onClick={() => setTournamentResult(null)}
+                style={{ background: "none", border: "none", color: COLORS.textGhost, fontSize: 18, lineHeight: 1, cursor: "pointer", padding: 0 }}
+                onMouseEnter={e => (e.currentTarget.style.color = COLORS.red)}
+                onMouseLeave={e => (e.currentTarget.style.color = COLORS.textGhost)}
+              >×</button>
+            </div>
+            <p style={{ fontSize: 13, color: COLORS.textDim, marginTop: 0, marginBottom: 6 }}>{tournamentResult.summary}</p>
+            <p style={{ fontSize: 12, color: COLORS.textFaint, marginBottom: 12 }}>
+              Wynik:{" "}
+              <span style={{ color: COLORS.purple, fontWeight: 700 }}>
+                {tournamentResult.challengerTotal} : {tournamentResult.defenderTotal}
+              </span>
+            </p>
+            {tournamentResult.prestigeGain > 0 && (
+              <p style={{ fontSize: 13, fontWeight: 700, color: COLORS.gold, marginBottom: 12 }}>
+                +{tournamentResult.prestigeGain} prestiżu
+              </p>
+            )}
+            {tournamentResult.rounds?.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {tournamentResult.rounds.map((round: any) => (
+                  <TournamentRoundView
+                    key={round.round}
+                    round={round}
+                    challengerName={tournamentResult.metadata?.challengerName ?? "Ty"}
+                    defenderName={tournamentResult.metadata?.defenderName ?? "Przeciwnik"}
+                    mySide="challenger"
+                  />
+                ))}
               </div>
             )}
           </Panel>
@@ -345,36 +490,65 @@ export default function CombatPanel() {
               <p style={{ fontSize: 13, color: COLORS.textGhost, margin: 0 }}>Grafika areny — tło z czarodziejami po bokach</p>
             </div>
 
+            {/* Mój avatar — wg poziomu */}
             <div style={{ position: "absolute", left: 24, top: "50%", transform: "translateY(-50%)", textAlign: "center" }}>
               <div style={{
                 width: 64, height: 64, borderRadius: "50%",
-                background: "rgba(89,212,208,0.12)", border: `2px solid ${COLORS.teal}`,
+                background: myTier.bg, border: `2px solid ${myTier.color}`,
                 display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 24, fontWeight: 700, color: COLORS.teal, marginBottom: 6,
-                fontFamily: "Cinzel, serif",
+                fontSize: 26, marginBottom: 6,
               }}>
-                ?
-              </div>
-              <p style={{ fontSize: 11, fontWeight: 600, color: COLORS.textDim, margin: 0 }}>Ty</p>
-            </div>
-
-            <div style={{ position: "absolute", right: 24, top: "50%", transform: "translateY(-50%)", textAlign: "center" }}>
-              <div style={{
-                width: 64, height: 64, borderRadius: "50%",
-                background: selected ? "rgba(244,106,78,0.12)" : "rgba(0,0,0,0.25)",
-                border: `2px solid ${selected ? COLORS.red : COLORS.borderSoft}`,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 24, fontWeight: 700,
-                color: selected ? COLORS.red : COLORS.textGhost,
-                marginBottom: 6,
-                fontFamily: "Cinzel, serif",
-                transition: "all 0.2s",
-              }}>
-                {selected ? selected.name[0] : "?"}
+                {myTier.label}
               </div>
               <p style={{ fontSize: 11, fontWeight: 600, color: COLORS.textDim, margin: 0 }}>
-                {selected ? selected.name : "Przeciwnik"}
+                Ty {myEntry ? `• poz. ${myEntry.level}` : ""}
               </p>
+            </div>
+
+            {/* Avatar przeciwnika — wg poziomu */}
+            <div style={{ position: "absolute", right: 24, top: "50%", transform: "translateY(-50%)", textAlign: "center" }}>
+              {selected ? (() => {
+                const tier = getLevelTier(selected.level);
+                return (
+                  <>
+                    <div style={{
+                      width: 64, height: 64, borderRadius: "50%",
+                      background: tier.bg, border: `2px solid ${COLORS.red}`,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 26, marginBottom: 6, transition: "all 0.2s",
+                    }}>
+                      {tier.label}
+                    </div>
+                    <p style={{ fontSize: 11, fontWeight: 600, color: COLORS.textDim, margin: 0 }}>
+                      {selected.name} • poz. {selected.level}
+                    </p>
+                    <button
+                      onClick={(e) => visitProfile(selected.characterId, e)}
+                      style={{
+                        marginTop: 4, padding: "3px 10px", borderRadius: 6,
+                        border: `1px solid ${COLORS.borderSoft}`, background: "rgba(0,0,0,0.25)",
+                        color: COLORS.textDim, fontSize: 10, cursor: "pointer",
+                        fontFamily: "Cinzel, serif", fontWeight: 600,
+                      }}
+                    >
+                      Odwiedź profil
+                    </button>
+                  </>
+                );
+              })() : (
+                <>
+                  <div style={{
+                    width: 64, height: 64, borderRadius: "50%",
+                    background: "rgba(0,0,0,0.25)", border: `2px solid ${COLORS.borderSoft}`,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 24, fontWeight: 700, color: COLORS.textGhost, marginBottom: 6,
+                    fontFamily: "Cinzel, serif",
+                  }}>
+                    ?
+                  </div>
+                  <p style={{ fontSize: 11, fontWeight: 600, color: COLORS.textDim, margin: 0 }}>Przeciwnik</p>
+                </>
+              )}
             </div>
 
             <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -405,6 +579,7 @@ export default function CombatPanel() {
                   entry.rank === 2 ? COLORS.textDim :
                   entry.rank === 3 ? "#D89A5C" :
                   COLORS.textFaint;
+                const tier = getLevelTier(entry.level);
 
                 return (
                   <div
@@ -430,14 +605,13 @@ export default function CombatPanel() {
                       {medal}
                     </span>
                     <div style={{
-                      width: 32, height: 32, borderRadius: "50%",
+                      width: 32, height: 32, borderRadius: "50%", flexShrink: 0,
                       display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: 13, fontWeight: 700, flexShrink: 0,
-                      fontFamily: "Cinzel, serif",
-                      background: entry.isMe ? COLORS.gold : isSelected ? COLORS.red : "rgba(255,255,255,0.06)",
-                      color: entry.isMe || isSelected ? COLORS.bg : COLORS.textDim,
+                      fontSize: 15,
+                      background: isSelected ? "rgba(244,106,78,0.15)" : tier.bg,
+                      border: `1px solid ${isSelected ? COLORS.red : tier.color}`,
                     }}>
-                      {entry.name[0]}
+                      {tier.label}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -448,6 +622,7 @@ export default function CombatPanel() {
                         }}>
                           {entry.name}
                         </span>
+                        <span style={{ fontSize: 10, color: COLORS.textFaint }}>poz. {entry.level}</span>
                         {entry.isMe && (
                           <span style={{
                             fontSize: 10, padding: "1px 6px", borderRadius: 4,
@@ -462,6 +637,23 @@ export default function CombatPanel() {
                         )}
                       </div>
                     </div>
+                    {!entry.isMe && (
+                      <button
+                        onClick={(e) => visitProfile(entry.characterId, e)}
+                        title="Odwiedź profil"
+                        style={{
+                          flexShrink: 0, padding: "4px 10px", borderRadius: 6,
+                          border: `1px solid ${COLORS.borderSoft}`, background: "transparent",
+                          color: COLORS.textFaint, fontSize: 10, cursor: "pointer",
+                          fontFamily: "Cinzel, serif", fontWeight: 600,
+                          transition: "color 0.15s, border-color 0.15s",
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.color = COLORS.teal; e.currentTarget.style.borderColor = "rgba(89,212,208,0.4)"; }}
+                        onMouseLeave={e => { e.currentTarget.style.color = COLORS.textFaint; e.currentTarget.style.borderColor = COLORS.borderSoft; }}
+                      >
+                        Profil
+                      </button>
+                    )}
                     <span style={{ fontSize: 13, fontWeight: 700, color: COLORS.textDim, flexShrink: 0 }}>
                       {entry.prestige} <span style={{ fontSize: 11, fontWeight: 400, color: COLORS.textFaint }}>prestiżu</span>
                     </span>
@@ -472,67 +664,110 @@ export default function CombatPanel() {
             </div>
           </div>
 
+          {/* Przyciski akcji — pojedynek / turniej */}
           <div style={{ padding: "16px", borderTop: `1px solid ${COLORS.borderSoft}` }}>
             {selected ? (
-              <button
-                onClick={handleChallenge}
-                disabled={fighting}
-                style={{
-                  width: "100%", padding: "12px 0", borderRadius: 8,
-                  border: "none", fontSize: 13, fontWeight: 700,
-                  fontFamily: "Cinzel, serif", letterSpacing: "0.05em",
-                  background: fighting ? "rgba(244,106,78,0.3)" : COLORS.red,
-                  color: COLORS.bg,
-                  cursor: fighting ? "not-allowed" : "pointer",
-                  transition: "all 0.2s",
-                }}
-              >
-                {fighting ? "Trwa walka..." : `⚔️ Wyzwij ${selected.name} na pojedynek`}
-              </button>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button
+                  onClick={handleDuel}
+                  disabled={acting !== null}
+                  style={{
+                    flex: 1, padding: "12px 0", borderRadius: 8,
+                    border: "none", fontSize: 12, fontWeight: 700,
+                    fontFamily: "Cinzel, serif", letterSpacing: "0.04em",
+                    background: acting ? "rgba(244,106,78,0.3)" : COLORS.red,
+                    color: COLORS.bg,
+                    cursor: acting ? "not-allowed" : "pointer",
+                    transition: "all 0.2s",
+                  }}
+                >
+                  {acting === "duel" ? "Trwa walka..." : "⚔️ Wyzwij na pojedynek"}
+                </button>
+                <button
+                  onClick={handleTournament}
+                  disabled={acting !== null}
+                  style={{
+                    flex: 1, padding: "12px 0", borderRadius: 8,
+                    border: `1px solid ${COLORS.purple}`, fontSize: 12, fontWeight: 700,
+                    fontFamily: "Cinzel, serif", letterSpacing: "0.04em",
+                    background: acting ? "rgba(167,139,250,0.1)" : "rgba(167,139,250,0.18)",
+                    color: acting ? COLORS.textFaint : COLORS.purple,
+                    cursor: acting ? "not-allowed" : "pointer",
+                    transition: "all 0.2s",
+                  }}
+                >
+                  {acting === "tournament" ? "Trwa turniej..." : "🎭 Turniej magiczny"}
+                </button>
+              </div>
             ) : (
               <p style={{ textAlign: "center", fontSize: 12, color: COLORS.textGhost, margin: 0 }}>
-                Wybierz przeciwnika z rankingu aby wyzwać go na pojedynek
+                Wybierz przeciwnika z rankingu, aby wyzwać go na pojedynek lub do turnieju magicznego
               </p>
             )}
           </div>
         </Panel>
 
-        {/* Historia walk */}
-        <HistoryPanel />
+        {/* Historia */}
+        <HistoryPanel myCharacterId={myCharacterId} />
       </div>
     </div>
   );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// KOMPONENT: historia walk
+// KOMPONENT: historia pojedynków + turniejów (połączona, posortowana po dacie)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function HistoryPanel() {
-  const [history, setHistory] = useState<any[]>([]);
+function HistoryPanel({ myCharacterId }: { myCharacterId: number | null }) {
+  const [duels, setDuels] = useState<any[]>([]);
+  const [tournaments, setTournaments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [expanded, setExpanded] = useState<number | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   useEffect(() => {
-    api.get("/combat/history")
-      .then(r => setHistory(r.data))
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    Promise.all([
+      api.get("/combat/history").then(r => setDuels(r.data)).catch(() => {}),
+      api.get("/combat/tournament/history").then(r => setTournaments(r.data)).catch(() => {}),
+    ]).finally(() => setLoading(false));
   }, []);
 
   if (loading) return null;
-  if (history.length === 0) return null;
+
+  const combined = [
+    ...duels.map(d => ({ ...d, _type: "duel" as const })),
+    ...tournaments.map(t => ({ ...t, _type: "tournament" as const })),
+  ].sort((a, b) => new Date(b.foughtAt).getTime() - new Date(a.foughtAt).getTime());
+
+  if (combined.length === 0) return null;
 
   return (
     <Panel>
-      <SectionTitle>Historia walk</SectionTitle>
+      <SectionTitle>Historia</SectionTitle>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {history.map((battle: any) => {
-          const isOpen = expanded === battle.id;
+        {combined.map((entry: any) => {
+          const isDuel = entry._type === "duel";
+          const key = `${isDuel ? "d" : "t"}-${entry.id}`;
+          const isOpen = expanded === key;
+
+          const isDraw = isDuel ? !!entry.isDraw : !!entry.draw;
+          const youWon = !isDraw && entry.youWon;
+
+          const tagLabel = isDuel ? "Pojedynek" : "Turniej";
+          const tagColor = isDuel ? COLORS.red : COLORS.purple;
+
+          const resultColor = isDraw ? COLORS.gold : youWon ? COLORS.teal : COLORS.red;
+          const resultIcon  = isDraw ? "🤝" : youWon ? (isDuel ? "⚔️" : "🏆") : (isDuel ? "💀" : "🎭");
+          const resultLabel = isDraw ? "Remis" : youWon ? "Zwycięstwo" : "Porażka";
+
+          const showPrestige = entry.prestigeGain > 0 && (youWon || (isDraw && !isDuel));
+
+          const leftName  = isDuel ? entry.attacker : entry.challenger;
+          const rightName = entry.defender;
+
           return (
-            <div key={battle.id}>
+            <div key={key}>
               <div
-                onClick={() => setExpanded(isOpen ? null : battle.id)}
+                onClick={() => setExpanded(isOpen ? null : key)}
                 style={{
                   display: "flex", alignItems: "center", gap: 12,
                   padding: "12px 14px", borderRadius: 10,
@@ -543,25 +778,47 @@ function HistoryPanel() {
                 onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.03)")}
                 onMouseLeave={e => (e.currentTarget.style.background = COLORS.panelAlt)}
               >
-                <span style={{ fontSize: 16, color: battle.youWon ? COLORS.teal : COLORS.red, flexShrink: 0 }}>
-                  {battle.youWon ? "⚔️" : "💀"}
-                </span>
+                <span style={{ fontSize: 16, color: resultColor, flexShrink: 0 }}>{resultIcon}</span>
+
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: 13, color: COLORS.text, margin: 0 }}>
-                    <span style={{ fontWeight: 600 }}>{battle.attacker}</span>
-                    <span style={{ color: COLORS.textFaint, margin: "0 6px" }}>vs</span>
-                    <span style={{ fontWeight: 600 }}>{battle.defender}</span>
-                  </p>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2, flexWrap: "wrap" }}>
+                    <span style={{
+                      fontSize: 9, padding: "2px 6px", borderRadius: 4, fontWeight: 700,
+                      fontFamily: "Cinzel, serif", letterSpacing: "0.06em",
+                      background: `${tagColor}22`, color: tagColor,
+                      border: `1px solid ${tagColor}44`, flexShrink: 0,
+                    }}>
+                      {tagLabel}
+                    </span>
+                    <p style={{
+                      fontSize: 13, color: COLORS.text, margin: 0,
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                    }}>
+                      <span style={{ fontWeight: 600 }}>{leftName}</span>
+                      <span style={{ color: COLORS.textFaint, margin: "0 6px" }}>vs</span>
+                      <span style={{ fontWeight: 600 }}>{rightName}</span>
+                    </p>
+                  </div>
                   <p style={{ fontSize: 11, color: COLORS.textFaint, margin: "2px 0 0" }}>
-                    {new Date(battle.foughtAt).toLocaleString("pl-PL")}
+                    {new Date(entry.foughtAt).toLocaleString("pl-PL")}
                   </p>
                 </div>
+
                 <div style={{ textAlign: "right", flexShrink: 0 }}>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: battle.youWon ? COLORS.gold : COLORS.textFaint, margin: 0 }}>
-                    {battle.youWon ? `+${battle.prestigeGain} prestiżu` : "Porażka"}
+                  <p style={{ fontSize: 12, fontWeight: 700, color: resultColor, margin: 0 }}>
+                    {resultLabel}
                   </p>
-                  <p style={{ fontSize: 11, color: COLORS.textFaint, margin: "2px 0 0" }}>Wygrał: {battle.winner}</p>
+                  {showPrestige ? (
+                    <p style={{ fontSize: 11, color: COLORS.gold, margin: "2px 0 0", fontWeight: 700 }}>
+                      +{entry.prestigeGain} prestiżu
+                    </p>
+                  ) : !isDraw && entry.winner ? (
+                    <p style={{ fontSize: 11, color: COLORS.textFaint, margin: "2px 0 0" }}>
+                      Wygrał: {entry.winner}
+                    </p>
+                  ) : null}
                 </div>
+
                 <span style={{
                   color: COLORS.textGhost, fontSize: 11, marginLeft: 4,
                   transition: "transform 0.15s", display: "inline-block",
@@ -575,8 +832,9 @@ function HistoryPanel() {
                   background: "rgba(0,0,0,0.15)", border: `1px solid ${COLORS.borderSoft}`,
                   display: "flex", flexDirection: "column", gap: 12,
                 }}>
-                  <p style={{ fontSize: 12, color: COLORS.textDim, margin: 0 }}>{battle.summary}</p>
-                  {battle.log?.length > 0 && (
+                  <p style={{ fontSize: 12, color: COLORS.textDim, margin: 0 }}>{entry.summary}</p>
+
+                  {isDuel && entry.log?.length > 0 && (
                     <div>
                       <ColorLegend />
                       <div style={{
@@ -584,16 +842,34 @@ function HistoryPanel() {
                         background: COLORS.bg, borderRadius: 8, padding: 12,
                         border: `1px solid ${COLORS.borderSoft}`,
                       }}>
-                        {battle.log.map((turn: any) => (
+                        {entry.log.map((turn: any) => (
                           <TurnLogView
                             key={turn.turn}
                             turn={turn}
-                            metadata={battle.metadata}
-                            myCharacterId={battle.myCharacterId ?? null}
+                            metadata={entry.metadata}
+                            myCharacterId={entry.myCharacterId ?? myCharacterId}
                             isFreshResult={false}
                           />
                         ))}
                       </div>
+                    </div>
+                  )}
+
+                  {!isDuel && entry.rounds?.length > 0 && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                      {entry.rounds.map((round: any) => (
+                        <TournamentRoundView
+                          key={round.round}
+                          round={round}
+                          challengerName={entry.challenger}
+                          defenderName={entry.defender}
+                          mySide={
+                            (entry.myCharacterId ?? myCharacterId) === entry.metadata?.challengerId
+                              ? "challenger"
+                              : "defender"
+                          }
+                        />
+                      ))}
                     </div>
                   )}
                 </div>

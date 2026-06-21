@@ -1,5 +1,4 @@
 import prisma from "../lib/prisma.js";
-import { archetypeTriggerService } from "./archetype/archetype-trigger.service.js";
 import { recordSpellbookEntry } from "./spellbook.service.js";
 import { addExperience } from "./character.service.js";
 import { getOrCreateTutorial, advanceTutorialStep } from "./tutorial/tutorial.service.js";
@@ -256,13 +255,6 @@ if (isTutorialStudy) {
     },
   });
 
-  const allLevelsDone = studyLevelsDone.length >= 5;
-
-  await archetypeTriggerService.checkTrigger(
-    character.id,
-    "CRAZY_STUDIES_ALL",
-    { allStudiesDone: allLevelsDone }
-  );
 
 // ── TUTORIAL: pierwsza sesja studiów ──────────────────
   let tutorialMessage: string | null = null;

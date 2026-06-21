@@ -1,0 +1,10 @@
+import { Router } from "express";
+import { requireAuth } from "../middleware/auth.middleware.js";
+import { getPlayerProfileEndpoint } from "../controllers/profile.controller.js";
+
+const router = Router();
+
+// GET /api/profile/:characterId
+router.get("/:characterId", requireAuth, getPlayerProfileEndpoint);
+
+export default router;

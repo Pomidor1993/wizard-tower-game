@@ -7,17 +7,17 @@ import {
 } from "../data/minor-entities.js";
 import { buildEntityFighter } from "./pve-engine.js";
 import { simulateBattle, buildFighter, Fighter } from "./combat.service.js";
-import { archetypeService } from "./archetype/archetype-service.js";
 import { addExperience } from "./character.service.js";
 import { addItemToChaosVaultWithMessage } from "./chaos_vault.service.js";
 import { getOrCreateTutorial, advanceTutorialStep } from "./tutorial/tutorial.service.js";
 import { TUTORIAL_STEPS, TUTORIAL_ENEMIES, TUTORIAL_ITEM_POOL, TUTORIAL_MESSAGES } from "./tutorial/tutorial.constants.js";
-import { getLocation, LocationLetter, EXPLORATION_LOCATIONS } from "../data/exploration-locations.js";
+import { getLocation, LocationLetter } from "../data/exploration-locations.js";
+import { getUtilityBonuses, resolveRandomBonus } from "./utility-spell.service.js";
 
 // ── KONFIGURACJA ──────────────────────────────────────────────────────────────
 
 const EXPLORATION_CONFIG = [
-  { level: 1, durationSeconds: 5,   minPoints: 10, maxPoints: 20, itemChance: 0.90 },
+  { level: 1, durationSeconds: 5,   minPoints: 40, maxPoints: 60, itemChance: 0.90 },
   { level: 2, durationSeconds: 240, minPoints: 20, maxPoints: 40, itemChance: 0.40 },
   { level: 3, durationSeconds: 360, minPoints: 40, maxPoints: 60, itemChance: 0.50 },
   { level: 4, durationSeconds: 480, minPoints: 60, maxPoints: 80, itemChance: 0.60 },
@@ -92,6 +92,17 @@ export async function startExploration(userId: number, level: number, location: 
   const character = await prisma.character.findUnique({ where: { userId } });
   if (!character) throw new Error("Postać nie znaleziona");
 
+  // Pobierz bonusy z aktywnych czarów użytkowych
+// Skrócenie czasu eksploracji przez czary użytkowe
+  const rawBonuses = await getUtilityBonuses(character.id);
+  const bonuses    = resolveRandomBonus(rawBonuses);
+
+  const baseDuration = config.durationSeconds * 1000;
+  const reduction    = bonuses.explorationTimeReduction / 100;
+  const finalDuration = Math.floor(baseDuration * (1 - reduction));
+
+  const finishesAt = new Date(Date.now() + finalDuration);
+
   const tutorial = await getOrCreateTutorial(character.id);
   if (tutorial.step === TUTORIAL_STEPS.INTRO && level !== 1) {
     throw new Error("Samouczek: pierwsza eksploracja musi być na poziomie 1");
@@ -114,8 +125,6 @@ export async function startExploration(userId: number, level: number, location: 
     const typeLabel = activeAction.actionType === "study" ? "studiów" : "eksploracji";
     throw new Error(`Masz już aktywną akcję ${typeLabel}. Poczekaj na jej zakończenie.`);
   }
-
-  const finishesAt = new Date(Date.now() + config.durationSeconds * 1000);
 
   const [action] = await prisma.$transaction([
     prisma.characterAction.create({
@@ -266,11 +275,16 @@ export async function claimExploration(userId: number, actionId: number) {
       summary,
     };
 
-  } else {
-    // ── NORMALNY PRZEBIEG ───────────────────────────────────────────────────
+
+    // NORMALNY PRZEBIEG //
+} else {
+    // Pobierz bonusy utility dla normalnego przebiegu
+    const rawBonuses = await getUtilityBonuses(character.id);
+    const bonuses    = resolveRandomBonus(rawBonuses);
 
     // Przedmiot
-if (randomChance(config.itemChance)) {
+    const effectiveItemChance = config.itemChance + bonuses.bonusItemFindChance / 100;
+    if (randomChance(effectiveItemChance)) {
   const rarity = pickItemRarity(action.actionLevel);
   
   // Pobierz literę lokacji z zapisanego pola (z fallbackiem)
@@ -305,8 +319,11 @@ if (randomChance(config.itemChance)) {
 
   if (pool.length > 0) {
         const chosen = pool[randomInt(0, pool.length - 1)];
-        const result = await addItemToChaosVaultWithMessage(character.id, chosen.id, chosen.name, minTier, maxTier);
-
+const result = await addItemToChaosVaultWithMessage(
+          character.id, chosen.id, chosen.name,
+          minTier,
+          Math.min(maxTier + bonuses.bonusItemTier, 10)
+        );
         droppedItem = {
           chaosVaultItemId: result.chaosVaultItemId,
           ownedItemId: result.ownedItemId,
@@ -322,8 +339,25 @@ if (randomChance(config.itemChance)) {
     }
 
     // Spotkanie
-    if (rollEncounter(action.actionLevel)) {
-      encounterResult = await resolveEncounter(character.id, action.actionLevel);
+// Spotkanie — modyfikowane przez czary użytkowe
+    const baseEncounter = rollEncounter(action.actionLevel);
+    const shouldEncounter = (() => {
+      if (baseEncounter && bonuses.avoidEncounterChance > 0) {
+        return !randomChance(bonuses.avoidEncounterChance / 100);
+      }
+      if (!baseEncounter && bonuses.bonusEncounterChance > 0) {
+        return randomChance(bonuses.bonusEncounterChance / 100);
+      }
+      return baseEncounter;
+    })();
+
+    if (shouldEncounter) {
+      encounterResult = await resolveEncounter(
+        character.id,
+        action.actionLevel,
+        bonuses.avoidHitChance,
+        bonuses.alwaysFirstInPve
+      );
 
       if (encounterResult.fought) {
         if (encounterResult.playerWon) {
@@ -411,7 +445,12 @@ if (randomChance(config.itemChance)) {
 // MECHANIKA SPOTKANIA
 // ═══════════════════════════════════════════════════════════════════════════════
 
-async function resolveEncounter(characterId: number, locationLevel: number): Promise<EncounterResult> {
+async function resolveEncounter(
+  characterId: number,
+  locationLevel: number,
+  avoidHitChance: number = 0,
+  alwaysFirst: boolean = false
+): Promise<EncounterResult> {
   const element = rollElementForLocation(locationLevel);
   if (!element) return noEncounter();
 
@@ -420,6 +459,26 @@ async function resolveEncounter(characterId: number, locationLevel: number): Pro
 
   const playerFighter = await buildFighter(characterId);
   const initialPowerShards = playerFighter.powerShards;
+
+  if (avoidHitChance > 0) {
+    playerFighter.appliedStatuses.push({
+      effectDef: {
+        type: "invisibility",
+        target: "self",
+        duration: 99,
+        invisChance: avoidHitChance,
+      },
+      sourceName: "Czar użytkowy",
+      turnsLeft: 99,
+      applyInfo: null,
+      tickInfo: null,
+      endInfo: null,
+    });
+  }
+
+  if (alwaysFirst) {
+    playerFighter.initiative = 9999;
+  }
 
   const entityFighter = buildEntityFighter(entity);
   const battleResult = simulateBattle([playerFighter], [entityFighter as unknown as Fighter]);
@@ -447,19 +506,6 @@ async function resolveEncounter(characterId: number, locationLevel: number): Pro
       summary: battleResult.summary,
     },
   });
-
-  if (playerWon) {
-    const totalKills = await prisma.pveEncounter.count({
-      where: { characterId, playerWon: true },
-    });
-
-    await archetypeService.handleGameEvent(characterId, "FIRST_ENEMY_KILLED", { enemyCount: totalKills });
-    await archetypeService.handleGameEvent(characterId, "TEN_ENEMIES_KILLED", { enemyCount: totalKills });
-
-    if (entity.isBoss) {
-      await archetypeService.handleGameEvent(characterId, "FIRST_PVE_BOSS", { isBoss: true });
-    }
-  }
 
   return {
     fought: true,
