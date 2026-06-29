@@ -440,6 +440,8 @@ model SpellbookEntry {
   // Źródło odkrycia: "study" | "battle_cast" | "school"
   source      String
   discoveredAt DateTime @default(now())
+  lastUpgradedAt DateTime?
+  upgradeTier    Int    @default(0)
 
   @@unique([characterId, spellId])
   @@index([characterId])
