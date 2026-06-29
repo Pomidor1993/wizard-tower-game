@@ -7,23 +7,27 @@ import api from "../api/client";
 
 // ── PEŁNE MENU ────────────────────────────────────────────────────────────────
 
-const FULL_NAV = [
-  { to: "/premium",     label: "✦ Premium",      tabKey: "premium"    },
-  { to: "/overview",    label: "Przegląd konta",  tabKey: "character"  },
-  { to: "/training",    label: "Trening",          tabKey: "training"   },
-  { to: "/vault",       label: "Komnata Nieładu", tabKey: "vault"      },
-  { to: "/spellbook",   label: "Księga Magii",    tabKey: "spellbook"  },
-  { to: "/tower",       label: "Wieża",           tabKey: "tower"      },
-  { to: "/study",       label: "Studia",          tabKey: "study"      },
-  { to: "/exploration", label: "Eksploracja",     tabKey: "exploration"},
-  { to: "/combat",      label: "Pojedynki",       tabKey: "combat"     },
-  { to: "/rankings",    label: "Rankingi",        tabKey: "rankings"   },
-  { to: "/messages",    label: "Wiadomości",      tabKey: "messages"   },
-  { to: "/school",      label: "Szkoła Magii",    tabKey: "school"     },
-  { to: "/settings",    label: "Ustawienia",      tabKey: "settings"   },
+const NAV_GENERAL = [
+  { to: "/premium",   label: "✦ Premium",      tabKey: "premium"   },
+  { to: "/overview",  label: "Przegląd konta", tabKey: "character" },
+  { to: "/messages",  label: "Wiadomości",     tabKey: "messages"  },
+  { to: "/rankings",  label: "Rankingi",       tabKey: "rankings"  },
+  { to: "/notes",     label: "Magiczny Notes", tabKey: "notes"     },
+  { to: "/settings",  label: "Ustawienia",     tabKey: "settings"  },
 ];
 
-// Menu tutorialowe — kolejność i zestaw odpowiada logice tutoriala
+const NAV_ACTIVITIES = [
+  { to: "/training",    label: "Trening",         tabKey: "training"    },
+  { to: "/tower",       label: "Wieża",           tabKey: "tower"       },
+  { to: "/vault",       label: "Komnata Nieładu", tabKey: "vault"       },
+  { to: "/spellbook",   label: "Księga Magii",    tabKey: "spellbook"   },
+  { to: "/rifts",       label: "Szczeliny",       tabKey: "rifts"       },
+  { to: "/study",       label: "Studia",          tabKey: "study"       },
+  { to: "/exploration", label: "Eksploracja",     tabKey: "exploration" },
+  { to: "/combat",      label: "Pojedynki",       tabKey: "combat"      },
+  { to: "/school",      label: "Szkoła Magii",    tabKey: "school"      },
+];
+
 const TUTORIAL_NAV = [
   { to: "/home",        label: "Zniszczony Dom",  tabKey: "home"       },
   { to: "/exploration", label: "Eksploracja",     tabKey: "exploration"},
@@ -63,8 +67,8 @@ export default function AppLayout() {
   useEffect(() => {
     if (!tutorial?.active) return;
     const visibleTabs = tutorial.visibleTabs;
-    const currentTab = FULL_NAV.find(n => location.pathname.startsWith(n.to));
-    if (currentTab && !visibleTabs.includes(currentTab.tabKey)) {
+const allNav = [...NAV_GENERAL, ...NAV_ACTIVITIES];
+    const currentTab = allNav.find(n => location.pathname.startsWith(n.to));    if (currentTab && !visibleTabs.includes(currentTab.tabKey)) {
       navigate("/home", { replace: true });
     }
   }, [location.pathname, tutorial, navigate]);
@@ -114,13 +118,13 @@ export default function AppLayout() {
     navigate("/login");
   }
 
-  // ── Oblicz widoczne pozycje menu ──────────────────────────────────────────
+// ── Oblicz widoczne pozycje menu ──────────────────────────────────────────
   const isTutorialActive = tutorial?.active ?? false;
   const visibleTabs = tutorial?.visibleTabs ?? [];
 
-  const navItems = isTutorialActive
-    ? TUTORIAL_NAV.filter(item => visibleTabs.includes(item.tabKey))
-    : FULL_NAV;
+  const tutorialItems = TUTORIAL_NAV.filter(item => visibleTabs.includes(item.tabKey));
+  const generalItems  = isTutorialActive ? [] : NAV_GENERAL;
+  const activityItems = isTutorialActive ? tutorialItems : NAV_ACTIVITIES;
 
   return (
     <div style={{ minHeight: "100vh", background: "#161d38", color: "#F7F0DD", fontFamily: "Inter, sans-serif" }}>
@@ -195,39 +199,52 @@ export default function AppLayout() {
           </div>
         )}
 
-        {/* Pozycje nawigacji */}
-        <div style={{ display: "flex", padding: "0 24px", overflowX: "auto", gap: 2 }}>
-          {navItems.map(item => (
+{/* Pasek ogólny */}
+        {generalItems.length > 0 && (
+<div style={{ display: "flex", padding: "0 24px", overflowX: "auto", gap: 2, borderBottom: "1px solid rgba(247,240,221,0.05)", justifyContent: "center" }}>            {generalItems.map(item => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                style={({ isActive }) => ({
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "9px 14px", fontSize: 11,
+                  fontFamily: item.to === "/premium" ? "Cinzel, serif" : "Inter, sans-serif",
+                  fontWeight: item.to === "/premium" ? 700 : 500,
+                  color: isActive ? "#F5C451" : item.to === "/premium" ? "#F46A4E" : "rgba(247,240,221,0.5)",
+                  textDecoration: "none",
+                  borderBottom: isActive ? "2px solid #F5C451" : "2px solid transparent",
+                  whiteSpace: "nowrap", transition: "color 0.15s, border-color 0.15s",
+                })}
+                onMouseEnter={e => { const el = e.currentTarget as HTMLAnchorElement; if (!el.classList.contains("active")) el.style.color = "#F7F0DD"; }}
+                onMouseLeave={e => { const el = e.currentTarget as HTMLAnchorElement; if (!el.classList.contains("active")) el.style.color = "rgba(247,240,221,0.5)"; }}
+              >
+                {item.tabKey === "messages" && hasUnreadMessages && (
+                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#F46A4E", display: "inline-block", boxShadow: "0 0 4px rgba(244,106,78,0.8)", flexShrink: 0 }} />
+                )}
+                {item.label}
+              </NavLink>
+            ))}
+          </div>
+        )}
+
+        {/* Pasek aktywności */}
+<div style={{ display: "flex", padding: "0 24px", overflowX: "auto", gap: 2, justifyContent: "center" }}>          {activityItems.map(item => (
             <NavLink
               key={item.to}
               to={item.to}
               style={({ isActive }) => ({
                 display: "flex", alignItems: "center", gap: 6,
                 padding: "12px 14px", fontSize: 12,
-                fontFamily: item.to === "/premium" ? "Cinzel, serif" : "Inter, sans-serif",
-                fontWeight: item.to === "/premium" ? 700 : 500,
-                color: isActive ? "#F5C451" : item.to === "/premium" ? "#F46A4E" : "rgba(247,240,221,0.65)",
+                fontFamily: "Inter, sans-serif", fontWeight: 500,
+                color: isActive ? "#F5C451" : "rgba(247,240,221,0.65)",
                 textDecoration: "none",
                 borderBottom: isActive ? "2px solid #F5C451" : "2px solid transparent",
                 whiteSpace: "nowrap", transition: "color 0.15s, border-color 0.15s",
               })}
-              onMouseEnter={e => {
-                const el = e.currentTarget as HTMLAnchorElement;
-                if (!el.classList.contains("active")) el.style.color = "#F7F0DD";
-              }}
-              onMouseLeave={e => {
-                const el = e.currentTarget as HTMLAnchorElement;
-                if (!el.classList.contains("active")) el.style.color = "rgba(247,240,221,0.65)";
-              }}
+              onMouseEnter={e => { const el = e.currentTarget as HTMLAnchorElement; if (!el.classList.contains("active")) el.style.color = "#F7F0DD"; }}
+              onMouseLeave={e => { const el = e.currentTarget as HTMLAnchorElement; if (!el.classList.contains("active")) el.style.color = "rgba(247,240,221,0.65)"; }}
             >
               {item.label}
-              {item.tabKey === "messages" && hasUnreadMessages && (
-                <span style={{
-                  width: 7, height: 7, borderRadius: "50%",
-                  background: "#F46A4E", display: "inline-block",
-                  boxShadow: "0 0 4px rgba(244,106,78,0.8)",
-                }} />
-              )}
             </NavLink>
           ))}
         </div>

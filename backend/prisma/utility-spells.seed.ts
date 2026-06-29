@@ -1,14 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 // SEED — CZARY UŻYTKOWE
-// Dodaj do swojego seed.ts (np. w sekcji po seedowaniu czarów bojowych)
+// prisma/utility-spells.seed.ts
 // ═══════════════════════════════════════════════════════════════════════════════
-//
-// Struktura:
-//   spellType: "utility"
-//   utilityEffect: JSON UtilityEffectDef
-//   utilityDescriptions: JSON { "1": "...", "2": "...", "3": "...", "4": "...", "5": "..." }
-//   category: "utility" (wyłącza czar z puli bojowej)
-//   damage: 0, statusEffects: "[]", basicCost: 0 (brak kosztów bojowych)
 
 import type { UtilityEffectDef } from "../src/types/utility-types.js";
 
@@ -16,22 +9,19 @@ function uEff(def: UtilityEffectDef): string {
   return JSON.stringify(def);
 }
 
-function uDesc(descs: Record<1|2|3|4|5, string>): string {
+function uDesc(descs: Record<1 | 2 | 3 | 4 | 5, string>): string {
   return JSON.stringify(descs);
 }
 
 export const UTILITY_SPELLS = [
-  // ── 1. Otwieranie zamków ──────────────────────────────────────────────────
+
   {
     name: "Otwieranie zamków",
-    spellType: "utility",
     category: "utility",
     spellPool: "controlled",
     rarity: "common",
     element: "none",
     damage: 0,
-    isDirectional: false,
-    statusEffects: "[]",
     basicCost: 0,
     special: null,
     utilityEffect: uEff({ bonusItemFindChance: 10 }),
@@ -44,17 +34,13 @@ export const UTILITY_SPELLS = [
     }),
   },
 
-  // ── 2. Telekineza ─────────────────────────────────────────────────────────
   {
     name: "Telekineza",
-    spellType: "utility",
     category: "utility",
     spellPool: "controlled",
     rarity: "uncommon",
     element: "none",
     damage: 0,
-    isDirectional: false,
-    statusEffects: "[]",
     basicCost: 0,
     special: null,
     reqAstralMagic: 10,
@@ -68,17 +54,13 @@ export const UTILITY_SPELLS = [
     }),
   },
 
-  // ── 3. Teleportacja ───────────────────────────────────────────────────────
   {
     name: "Teleportacja",
-    spellType: "utility",
     category: "utility",
     spellPool: "chaotic",
     rarity: "uncommon",
     element: "chaos",
     damage: 0,
-    isDirectional: false,
-    statusEffects: "[]",
     basicCost: 0,
     special: null,
     utilityEffect: uEff({ bonusEncounterChance: 10 }),
@@ -91,17 +73,13 @@ export const UTILITY_SPELLS = [
     }),
   },
 
-  // ── 4. Lewitacja ─────────────────────────────────────────────────────────
   {
     name: "Lewitacja",
-    spellType: "utility",
     category: "utility",
     spellPool: "controlled",
     rarity: "common",
     element: "air",
     damage: 0,
-    isDirectional: false,
-    statusEffects: "[]",
     basicCost: 0,
     special: null,
     utilityEffect: uEff({ avoidHitChance: 10 }),
@@ -114,17 +92,13 @@ export const UTILITY_SPELLS = [
     }),
   },
 
-  // ── 5. Jasnowidztwo ───────────────────────────────────────────────────────
   {
     name: "Jasnowidztwo",
-    spellType: "utility",
     category: "utility",
     spellPool: "incantation",
     rarity: "rare",
-    element: "astral",
+    element: "none",
     damage: 0,
-    isDirectional: false,
-    statusEffects: "[]",
     basicCost: 0,
     special: null,
     reqAstralMagic: 20,
@@ -138,17 +112,13 @@ export const UTILITY_SPELLS = [
     }),
   },
 
-  // ── 6. Naprawa ────────────────────────────────────────────────────────────
   {
     name: "Naprawa",
-    spellType: "utility",
     category: "utility",
     spellPool: "controlled",
     rarity: "uncommon",
     element: "none",
     damage: 0,
-    isDirectional: false,
-    statusEffects: "[]",
     basicCost: 0,
     special: null,
     utilityEffect: uEff({ bonusItemTier: 1 }),
@@ -161,17 +131,13 @@ export const UTILITY_SPELLS = [
     }),
   },
 
-  // ── 7. Ukrycie ────────────────────────────────────────────────────────────
   {
     name: "Ukrycie",
-    spellType: "utility",
     category: "utility",
     spellPool: "chaotic",
     rarity: "common",
     element: "none",
     damage: 0,
-    isDirectional: false,
-    statusEffects: "[]",
     basicCost: 0,
     special: null,
     utilityEffect: uEff({ avoidEncounterChance: 10 }),
@@ -184,17 +150,13 @@ export const UTILITY_SPELLS = [
     }),
   },
 
-  // ── 8. Niewidzialność ─────────────────────────────────────────────────────
   {
     name: "Niewidzialność",
-    spellType: "utility",
     category: "utility",
     spellPool: "incantation",
     rarity: "rare",
     element: "none",
     damage: 0,
-    isDirectional: false,
-    statusEffects: "[]",
     basicCost: 0,
     special: null,
     reqAstralMagic: 15,
@@ -208,17 +170,13 @@ export const UTILITY_SPELLS = [
     }),
   },
 
-  // ── 9. Portal ─────────────────────────────────────────────────────────────
   {
     name: "Portal",
-    spellType: "utility",
     category: "utility",
     spellPool: "professional",
     rarity: "rare",
     element: "chaos",
     damage: 0,
-    isDirectional: false,
-    statusEffects: "[]",
     basicCost: 0,
     special: null,
     reqElementalMagic: 15,
@@ -232,17 +190,13 @@ export const UTILITY_SPELLS = [
     }),
   },
 
-  // ── 10. Lot ───────────────────────────────────────────────────────────────
   {
     name: "Fajerwerki",
-    spellType: "utility",
     category: "utility",
     spellPool: "controlled",
     rarity: "uncommon",
     element: "air",
     damage: 0,
-    isDirectional: false,
-    statusEffects: "[]",
     basicCost: 0,
     special: null,
     utilityEffect: uEff({ explorationTimeReduction: 10 }),
@@ -255,17 +209,13 @@ export const UTILITY_SPELLS = [
     }),
   },
 
-  // ── 11. Luminescencja ─────────────────────────────────────────────────────
   {
     name: "Luminescencja",
-    spellType: "utility",
     category: "utility",
     spellPool: "chaotic",
     rarity: "uncommon",
     element: "none",
     damage: 0,
-    isDirectional: false,
-    statusEffects: "[]",
     basicCost: 0,
     special: null,
     utilityEffect: uEff({ bonusItemFindChance: 10, bonusEncounterChance: 20 }),
@@ -278,17 +228,13 @@ export const UTILITY_SPELLS = [
     }),
   },
 
-  // ── 12. Czary-mary ────────────────────────────────────────────────────────
   {
     name: "Czary-mary",
-    spellType: "utility",
     category: "utility",
     spellPool: "chaotic",
     rarity: "common",
     element: "chaos",
     damage: 0,
-    isDirectional: false,
-    statusEffects: "[]",
     basicCost: 0,
     special: null,
     utilityEffect: uEff({
@@ -304,17 +250,13 @@ export const UTILITY_SPELLS = [
     }),
   },
 
-  // ── 13. Hokus-pokus ───────────────────────────────────────────────────────
   {
     name: "Hokus-pokus",
-    spellType: "utility",
     category: "utility",
     spellPool: "chaotic",
     rarity: "uncommon",
     element: "chaos",
     damage: 0,
-    isDirectional: false,
-    statusEffects: "[]",
     basicCost: 0,
     special: null,
     utilityEffect: uEff({
@@ -329,4 +271,5 @@ export const UTILITY_SPELLS = [
       5: "Dwadzieścia procent na wszystko naraz. Chaos skoncentrowany w tobie. Niepowtarzalne.",
     }),
   },
+
 ] as const;

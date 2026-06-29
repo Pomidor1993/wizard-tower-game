@@ -1,6 +1,7 @@
 import prisma from "../lib/prisma.js";
 import { getVaultCapacity } from "./chaos_vault.service.js";
 import { getUnlockedUtilitySlots } from "./utility-spell.service.js";
+import { getRiftTrophyBonuses, applyTowerReqReduction } from "./rift-trophy-bonus.service.js";
 
 // ── KONFIGURACJA BUDYNKÓW ────────────────────────────
 
@@ -46,19 +47,8 @@ const BUILDING_CONFIG: Record<string, BuildingConfig> = {
     baseDurationSeconds: 120,
     scaleMultiplier: 5.0,
 },
-  // ── PLACEHOLDER — bez funkcji na razie ──────────────
-  magic_hands: {
-    requiredTowerLevel: 5,
-    maxLevel: null,
-    baseCostShards: 15,
-    baseReqKnowledge: 10,
-    baseReqIntelligence: 10,
-    baseReqPower: 5,
-    baseDurationSeconds: 300,
-    scaleMultiplier: 1.3,
-  },
-  // ── PLACEHOLDER — bez funkcji na razie ──────────────
-  spy_orb: {
+  // ── NOTATNIK - śledzenie świata z perspektywy gracza ──────────────
+  magic_notebook: {
     requiredTowerLevel: 10,
     maxLevel: 1,
     baseCostShards: 200,
@@ -92,7 +82,7 @@ const BUILDING_CONFIG: Record<string, BuildingConfig> = {
     baseDurationSeconds: 150, // 2.5 minuty
     scaleMultiplier: 1.3,
   },
-  disintegrator: {
+disintegrator: {
     requiredTowerLevel: 1,
     maxLevel: 1,
     baseCostShards: 30,
@@ -102,7 +92,22 @@ const BUILDING_CONFIG: Record<string, BuildingConfig> = {
     baseDurationSeconds: 300,
     scaleMultiplier: 1,
   },
+  trophy_cabinet: {
+    requiredTowerLevel: 5,
+    maxLevel: 10,
+    baseCostShards: 50,
+    baseReqKnowledge: 8,
+    baseReqIntelligence: 8,
+    baseReqPower: 5,
+    baseDurationSeconds: 300,
+    scaleMultiplier: 1.4,
+    towerLevelPerUpgrade: [5, 10, 15, 20, 25, 30, 35, 40, 45, 50],
+  },
 };
+
+export function getActiveTrophySlots(cabinetLevel: number): number {
+  return Math.max(0, Math.min(cabinetLevel, 10));
+}
 
 function scaleValue(base: number, level: number, multiplier = 1.3): number {
   if (base === 0) return 0;
@@ -355,8 +360,7 @@ library: {
   combatSlots: getSpellSlotCount(libraryInfo.level),
   utilitySlots: getUnlockedUtilitySlots(libraryInfo.level),
 },   
-      magic_hands:     buildingInfo("magic_hands"),
-      spy_orb:         buildingInfo("spy_orb"),
+      magic_notebook:         buildingInfo("magic_notebook"),
       Altair: {
         ...buildingInfo("Altair"),
         unlockedPairs: altairUnlockedPairs,
@@ -365,7 +369,9 @@ library: {
         boostPercent: ALTAIR_BOOST_PERCENT,
         penaltyPercent: ALTAIR_PENALTY_PERCENT,
       },
-chaos_vault: { ...buildingInfo("chaos_vault"), visibleSlots: getVaultCapacity(cvLevel) },      disintegrator: buildingInfo("disintegrator"),
+chaos_vault: { ...buildingInfo("chaos_vault"), visibleSlots: getVaultCapacity(cvLevel) },      
+disintegrator: buildingInfo("disintegrator"), 
+trophy_cabinet: {...buildingInfo("trophy_cabinet"), activeSlots: getActiveTrophySlots(buildingInfo("trophy_cabinet").level),}
     },
     resources: {
       powerShards: char.powerShards,
@@ -383,11 +389,15 @@ async function startBuildingUpgrade(userId: number, buildingType: string) {
   });
   if (!character || !character.tower) throw new Error("Wieża nie znaleziona");
 
-  const cfg = BUILDING_CONFIG[buildingType];
+const cfg = BUILDING_CONFIG[buildingType];
   if (!cfg) throw new Error("Nieznany budynek");
 
-  if (character.tower.level < cfg.requiredTowerLevel)
-    throw new Error(`Wymagany poziom wieży: ${cfg.requiredTowerLevel}`);
+  // C9: redukcja wymagań poziomu wieży z trofeów
+  const trophyBonuses = await getRiftTrophyBonuses(character.id);
+  const effectiveRequiredTowerLevel = applyTowerReqReduction(cfg.requiredTowerLevel, trophyBonuses);
+
+  if (character.tower.level < effectiveRequiredTowerLevel)
+    throw new Error(`Wymagany poziom wieży: ${effectiveRequiredTowerLevel}`);
 
   const existing = character.tower.buildings.find(b => b.buildingType === buildingType);
   if (existing?.isUpgrading) throw new Error("Budynek jest już w trakcie rozbudowy");
@@ -397,8 +407,7 @@ async function startBuildingUpgrade(userId: number, buildingType: string) {
     throw new Error(`Budynek osiągnął maksymalny poziom (${cfg.maxLevel})`);
 
   const reqs = getBuildingReqs(buildingType, currentLevel);
-  const unmet = checkUnmet(reqs, character, character.tower.level, cfg.requiredTowerLevel);
-  if (unmet.length > 0) throw new Error(`Nie spełniasz wymagań: ${unmet.join(", ")}`);
+  const unmet = checkUnmet(reqs, character, character.tower.level, effectiveRequiredTowerLevel);  if (unmet.length > 0) throw new Error(`Nie spełniasz wymagań: ${unmet.join(", ")}`);
 
   if (character.powerShards < reqs.costShards) {
   throw new Error(`Za mało okruchów mocy: wymagane ${reqs.costShards}, masz ${character.powerShards}`);
@@ -503,10 +512,10 @@ export const startPowerCollectorUpgrade   = (userId: number) => startBuildingUpg
 export const claimPowerCollectorUpgrade   = (userId: number) => claimBuildingUpgrade(userId, "power_collector");
 export const startLibraryUpgrade          = (userId: number) => startBuildingUpgrade(userId, "library");
 export const claimLibraryUpgrade          = (userId: number) => claimBuildingUpgrade(userId, "library");
-export const startMagicHandsUpgrade       = (userId: number) => startBuildingUpgrade(userId, "magic_hands");
-export const claimMagicHandsUpgrade       = (userId: number) => claimBuildingUpgrade(userId, "magic_hands");
-export const startSpyOrbUpgrade           = (userId: number) => startBuildingUpgrade(userId, "spy_orb");
-export const claimSpyOrbUpgrade           = (userId: number) => claimBuildingUpgrade(userId, "spy_orb");
+export const startTrophyCabinetUpgrade       = (userId: number) => startBuildingUpgrade(userId, "trophy_cabinet");
+export const claimTrophyCabinetUpgrade       = (userId: number) => claimBuildingUpgrade(userId, "trophy_cabinet");
+export const startMagicNotebookUpgrade    = (userId: number) => startBuildingUpgrade(userId, "magic_notebook");
+export const claimMagicNotebookUpgrade    = (userId: number) => claimBuildingUpgrade(userId, "magic_notebook");
 export const startAltairUpgrade           = (userId: number) => startBuildingUpgrade(userId, "Altair");
 export const claimAltairUpgrade           = (userId: number) => claimBuildingUpgrade(userId, "Altair");
 export const startChaosVaultUpgrade       = (userId: number) => startBuildingUpgrade(userId, "chaos_vault");

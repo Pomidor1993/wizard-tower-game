@@ -9,6 +9,7 @@
 
 import prisma from "../lib/prisma.js";
 import { parseUtilityDescriptions } from "../types/utility-types.js";
+import { getRiftTrophyBonuses, hasGuaranteedHit } from "./rift-trophy-bonus.service.js";
 
 // ── Stałe ────────────────────────────────────────────────────────────────────
 
@@ -38,8 +39,9 @@ export interface TournamentParticipant {
   characterId: number;
   name: string;
   intelligence: number;
-  activeSpells: TournamentSpell[]; // ze slotów użytkowych
-  spellPool: TournamentSpell[];    // WSZYSTKIE czary utility spełniające wymagania (posiadanie nieistotne)
+  activeSpells: TournamentSpell[];
+  spellPool: TournamentSpell[];
+  guaranteedHit: boolean;  // C11
 }
 
 export interface TournamentRoundCast {
@@ -171,7 +173,7 @@ function pickTournamentSpell(
   if (available.length === 0) return null;
 
   const spell = available[Math.floor(Math.random() * available.length)]!;
-  const castSucceeded = rollCastSuccess(spell, participant.intelligence);
+  const castSucceeded = participant.guaranteedHit || rollCastSuccess(spell, participant.intelligence);
 
   return { spell, wasImprovised: true, castSucceeded };
 }
@@ -204,7 +206,7 @@ async function buildParticipant(characterId: number): Promise<TournamentParticip
 
   // Cała pula czarów utility w grze — posiadanie nieistotne, liczą się tylko wymagania
   const allUtilitySpells = await prisma.spell.findMany({
-    where: { spellType: "utility" },
+    where: { category: "utility" },
   });
 
   const meetsRequirements = (s: any): boolean =>
@@ -216,12 +218,15 @@ async function buildParticipant(characterId: number): Promise<TournamentParticip
     .filter(s => !activeIds.has(s.id) && meetsRequirements(s))
     .map(mapSpell);
 
+const trophyBonuses = await getRiftTrophyBonuses(character.id);
+
   return {
     characterId: character.id,
     name: character.name,
     intelligence: character.intelligence,
     activeSpells,
     spellPool,
+    guaranteedHit: hasGuaranteedHit(trophyBonuses, "tournament"),  // C11
   };
 }
 

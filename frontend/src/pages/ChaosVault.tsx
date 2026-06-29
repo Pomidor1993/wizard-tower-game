@@ -100,6 +100,7 @@ const RARITY_VALUE: Record<string, number> = {
 };
 
 const ALL_SLOTS = Object.keys(SLOT_CONFIG);
+const ALL_TIERS = Array.from({ length: 10 }, (_, i) => i + 1); // 1–10, zakres stały
 
 function getVaultBackground(total: number): string {
   if (total >= 60) return vault4;
@@ -213,11 +214,12 @@ function btnStyle(bg: string, color: string, disabled = false): React.CSSPropert
 // ── POPUP PRZEDMIOTU ──────────────────────────────────────────────────────────
 
 function ItemPopup({
-  entry, equipped, meetsReqs, onClose, onEquip, onUnequip, equipping,
+  entry, equipped, meetsReqs, charStats, onClose, onEquip, onUnequip, equipping,
 }: {
   entry: VaultItem;
   equipped: EquippedSlots;
   meetsReqs: boolean;
+  charStats: CharacterStats | null;
   onClose: () => void;
   onEquip: (ownedItemId: number) => Promise<void>;
   onUnequip: (slot: string) => Promise<void>;
@@ -324,12 +326,21 @@ function ItemPopup({
         {reqs.length > 0 && (
           <Section title="Wymagania">
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 16px" }}>
-              {reqs.map(r => (
-                <div key={r.label} style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
-                  <span style={{ color: "rgba(247,240,221,0.5)" }}>{r.label}</span>
-                  <span style={{ color: meetsReqs ? "#59D4D0" : "#F46A4E", fontWeight: 600 }}>{r.val}</span>
-                </div>
-              ))}
+{reqs.map(r => {
+                const statKey = Object.entries({
+                  "Wiedza": "knowledge", "Inteligencja": "intelligence", "Moc": "power",
+                  "Wytrzymałość": "endurance", "Odporność": "resistance", "Inicjatywa": "initiative",
+                  "Magia Żywiołów": "elementalMagic", "Magia Astralna": "astralMagic", "Magia Krwi": "bloodMagic",
+                }).find(([label]) => label === r.label)?.[1];
+                const charVal = statKey && charStats ? (charStats as any)[statKey] ?? 0 : 0;
+                const met = charVal >= r.val;
+                return (
+                  <div key={r.label} style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                    <span style={{ color: "rgba(247,240,221,0.5)" }}>{r.label}</span>
+                    <span style={{ color: met ? "#4ddb60" : "#F46A4E", fontWeight: 600 }}>{r.val}</span>
+                  </div>
+                );
+              })}
             </div>
             {!meetsReqs && (
               <p style={{ fontSize: 11, color: "#F46A4E", marginTop: 8, fontStyle: "italic" }}>
@@ -700,11 +711,32 @@ const [checkedIds, setCheckedIds]       = useState<Set<number>>(new Set());
   const [savePresetModal, setSavePresetModal] = useState(false);
   const [applyConfirm, setApplyConfirm] = useState<EquipmentPreset | null>(null);
 
+  // tiers: pusty Set = brak filtra (pokaż wszystkie) — tak samo jak rarity/slot === "all"
   const [filters, setFilters] = useState({
     rarity: "all",
     slot:   "all",
     onlyMeetsReqs: false,
+    tiers: new Set<number>(),
   });
+
+  const hasActiveFilters =
+    filters.rarity !== "all" ||
+    filters.slot !== "all" ||
+    filters.onlyMeetsReqs ||
+    filters.tiers.size > 0;
+
+  function clearAllFilters() {
+    setFilters({ rarity: "all", slot: "all", onlyMeetsReqs: false, tiers: new Set() });
+  }
+
+  function toggleTierFilter(tier: number) {
+    setFilters(f => {
+      const next = new Set(f.tiers);
+      if (next.has(tier)) next.delete(tier);
+      else next.add(tier);
+      return { ...f, tiers: next };
+    });
+  }
 
 const fetchAll = useCallback(async () => {
     try {
@@ -820,6 +852,7 @@ async function handleDisintegratePreview(currency: "shards" | "prestige") {
     if (filters.rarity !== "all" && item.rarity !== filters.rarity) return false;
     if (filters.slot   !== "all" && item.slot   !== filters.slot)   return false;
     if (filters.onlyMeetsReqs && !meetsRequirements(item, charStats)) return false;
+    if (filters.tiers.size > 0 && !filters.tiers.has(entry.tier ?? 1)) return false;
     return true;
   });
 
@@ -1005,6 +1038,39 @@ const checkedPrestigePreview = checkedItems.reduce(
             ))}
           </div>
 
+          {/* ── PASEK TIERÓW — multi-select boxy 1–10 na jednym pasku ── */}
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+            <span style={{ fontSize: 11, color: "rgba(247,240,221,0.4)", minWidth: 52 }}>Tier:</span>
+            <div style={{ display: "flex", gap: 4 }}>
+              {ALL_TIERS.map(t => {
+                const active = filters.tiers.has(t);
+                return (
+                  <button
+                    key={t}
+                    onClick={() => toggleTierFilter(t)}
+                    title={`Tier ${t}`}
+                    style={{
+                      width: 24, height: 24, borderRadius: 5, fontSize: 11, cursor: "pointer",
+                      padding: 0, lineHeight: "24px", textAlign: "center",
+                      background: active ? "#e7aa00" : "rgba(0,0,0,0.2)",
+                      color: active ? "#161d38" : "rgba(247,240,221,0.5)",
+                      border: `1px solid ${active ? "#e7aa00" : "rgba(231,170,0,0.2)"}`,
+                      fontWeight: active ? 700 : 400,
+                      transition: "all 0.12s",
+                    }}
+                  >
+                    {t}
+                  </button>
+                );
+              })}
+            </div>
+            {filters.tiers.size > 0 && (
+              <span style={{ fontSize: 10, color: "#e7aa00" }}>
+                ({filters.tiers.size} zaznaczonych)
+              </span>
+            )}
+          </div>
+
           <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
             <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
               <input
@@ -1015,6 +1081,19 @@ const checkedPrestigePreview = checkedItems.reduce(
               />
               <span style={{ fontSize: 11, color: "rgba(247,240,221,0.6)" }}>Spełniasz wymagania</span>
             </label>
+
+            {hasActiveFilters && (
+              <button
+                onClick={clearAllFilters}
+                style={{
+                  marginLeft: "auto", padding: "4px 10px", borderRadius: 6,
+                  background: "rgba(244,106,78,0.1)", border: "1px solid rgba(244,106,78,0.3)",
+                  color: "#F46A4E", fontSize: 11, cursor: "pointer", fontFamily: "Cinzel, serif",
+                }}
+              >
+                Wyczyść filtry
+              </button>
+            )}
           </div>
 
           {/* Separator */}
@@ -1283,6 +1362,7 @@ const checkedPrestigePreview = checkedItems.reduce(
           entry={selected}
           equipped={equipped}
           meetsReqs={meetsRequirements(selected.item, charStats)}
+          charStats={charStats}
           onClose={() => setSelected(null)}
           onEquip={handleEquip}
           onUnequip={handleUnequip}

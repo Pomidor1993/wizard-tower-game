@@ -14,8 +14,7 @@ interface SpellbookSpell {
   name?: string;
   damage?: number;
   special?: string;
-  spellbookDescription?: string;
-  isDirectional?: boolean;
+  bookDescription?: string;
   statusEffects?: string;
   reqElementalMagic?: number;
   reqAstralMagic?: number;
@@ -46,7 +45,7 @@ interface UtilitySpell {
   element: string;
   utilityEffect: Record<string, any>;
   descriptions: Record<string, string>;
-  spellbookDescription?: string;
+  bookDescription?: string;
   reqElementalMagic?: number;
   reqAstralMagic?: number;
   reqBloodMagic?: number;
@@ -599,9 +598,9 @@ function SpellDetailModal({
           </div>
         </div>
 
-        {spell.spellbookDescription && (
+        {spell.bookDescription && (
           <div className="modal-description">
-            <p className="modal-flavor">{spell.spellbookDescription}</p>
+            <p className="modal-flavor">{spell.bookDescription}</p>
           </div>
         )}
 
@@ -736,9 +735,9 @@ function UtilitySpellDetailModal({
           </div>
         </div>
 
-        {spell.spellbookDescription && (
+        {spell.bookDescription && (
           <div className="modal-description">
-            <p className="modal-flavor">{spell.spellbookDescription}</p>
+            <p className="modal-flavor">{spell.bookDescription}</p>
           </div>
         )}
 

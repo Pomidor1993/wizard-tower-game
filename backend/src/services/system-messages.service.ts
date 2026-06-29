@@ -16,7 +16,7 @@ import { RANDOM_MESSAGES, getRandomMessageByKey } from "../data/random-messages.
 const RETENTION_DAYS = 30;
 const DAILY_ROLL_CHANCE = 0.08; // 8% — środek widełek 5-10% ustalonych w specyfikacji
 
-export type SystemMessageType = "random" | "levelup" | "tutorial";
+export type SystemMessageType = "random" | "levelup" | "tutorial" | "school" | "rift";
 
 // ── LAZY CLEANUP ──────────────────────────────────────────────────
 // Usuwa niezapisane wiadomości systemowe starsze niż 30 dni dla danej postaci.
@@ -136,6 +136,22 @@ export async function createTutorialMessage(
   });
 }
 
+// ── E: WIADOMOŚĆ O SZCZELINIE ─────────────────────────────────────
+// Wywoływane z rift.service.ts gdy niestabilna szczelina się otworzy.
+export async function createSystemMessage(
+  characterId: number,
+  data: { type: SystemMessageType; title?: string; content: string }
+): Promise<void> {
+  await prisma.systemMessage.create({
+    data: {
+      characterId,
+      type: data.type,
+      title: data.title ?? null,
+      content: data.content,
+    },
+  });
+}
+
 // ── POBIERANIE LISTY WIADOMOŚCI (z filtrowaniem) ──────────────────
 export interface GetSystemMessagesOptions {
   type?: SystemMessageType;
@@ -155,10 +171,10 @@ export async function getSystemMessages(characterId: number, options: GetSystemM
     ? Math.min(options.pageSize, MAX_PAGE_SIZE)
     : DEFAULT_PAGE_SIZE;
 
-  const where = {
+const where = {
     characterId,
     ...(options.type ? { type: options.type } : {}),
-    ...(options.savedOnly ? { isSaved: true } : {}),
+    ...(options.savedOnly ? { isSaved: true } : { isSaved: false }),
   };
 
   const [totalEntries, messages, unreadCount] = await Promise.all([
@@ -213,6 +229,17 @@ export async function setSystemMessageSaved(characterId: number, messageId: numb
   return prisma.systemMessage.update({
     where: { id: messageId },
     data: { isSaved },
+  });
+}
+
+export async function markSystemMessageUnread(characterId: number, messageId: number) {
+  const message = await prisma.systemMessage.findUnique({ where: { id: messageId } });
+  if (!message || message.characterId !== characterId) {
+    throw new Error("Wiadomość nie znaleziona");
+  }
+  return prisma.systemMessage.update({
+    where: { id: messageId },
+    data: { isRead: false },
   });
 }
 

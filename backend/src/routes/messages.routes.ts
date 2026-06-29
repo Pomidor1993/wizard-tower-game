@@ -6,6 +6,7 @@ import {
   markAllSystemMessagesReadEndpoint,
   setSystemMessageSavedEndpoint,
   deleteSystemMessageEndpoint,
+  markSystemMessageUnreadEndpoint,
 } from "../controllers/messages.controller.js";
 
 const router = Router();
@@ -22,7 +23,10 @@ router.patch("/:id/read", requireAuth, markSystemMessageReadEndpoint);
 // PATCH /api/messages/system/:id/save  body: { isSaved: boolean }
 router.patch("/:id/save", requireAuth, setSystemMessageSavedEndpoint);
 
+router.patch("/:id/unread", requireAuth, markSystemMessageUnreadEndpoint);
+
 // DELETE /api/messages/system/:id
 router.delete("/:id", requireAuth, deleteSystemMessageEndpoint);
+
 
 export default router;

@@ -7,6 +7,7 @@ import {
   getUnlockedUtilitySlots,
   getUtilitySpellbook,
 } from "../services/utility-spell.service.js";
+import { getCharacterSchoolBonuses } from "../services/magic-school.service.js";
 
 // ── GET /equipment/utility ────────────────────────────────────────────────────
 // Zwraca aktywne sloty czarów użytkowych + maksymalną liczbę odblokowanych slotów
@@ -20,7 +21,9 @@ export async function getUtilityEquipmentEndpoint(req: Request, res: Response) {
 
     const library = character.tower?.buildings.find(b => b.buildingType === "library");
     const libraryLevel = library?.level ?? 0;
-    const maxSlots = getUnlockedUtilitySlots(libraryLevel);
+    const schoolBonuses = await getCharacterSchoolBonuses(character.id);
+    const extraUtilitySlots = schoolBonuses?.utility_slot ?? 0;
+    const maxSlots = getUnlockedUtilitySlots(libraryLevel, extraUtilitySlots);
 
     const rawSlots = await getUtilitySlots(character.id);
     const utilitySlots = rawSlots.map(s => ({

@@ -104,6 +104,19 @@ model Character {
   privateMessagesSent   PrivateMessage[] @relation("MessagesSent")
   blocksIssued          BlockedPlayer[] @relation("BlocksIssued")
   blocksReceived        BlockedPlayer[] @relation("BlocksReceived")
+  directedSchool       MagicSchool?    @relation("SchoolDirector")
+  schoolMembership     SchoolMember?   @relation("SchoolMembership")
+  libraryProposals     SchoolLibrarySpell[] @relation("LibraryProposals")
+  libraryReviews       SchoolLibrarySpell[] @relation("LibraryReviews")
+  schoolJoinRequests SchoolJoinRequest[] @relation("SchoolJoinRequests")
+  riftTrophies        CharacterRiftTrophy[]
+  stableRiftParties   StableRiftParty[]       @relation("StableRiftPartyLeader")
+  stableRiftMembers   StableRiftMember[]      @relation("StableRiftMemberChar")
+  riftRuns            RiftRun[]
+  unstableRift        UnstableRift?
+  riftTriggerProgress RiftTriggerProgress[]
+  riftWorldHistory    RiftWorldHistory[]
+
 
 }
 
@@ -164,55 +177,67 @@ model TowerBuilding {
 model Spell {
   id        Int    @id @default(autoincrement())
   name      String @unique
-  element   String // "fire"|"water"|"earth"|"air"|"chaos"|"life"|"death"|"harmony"|"none"
-  rarity    String // "common"|"uncommon"|"rare"|"unique"
-  damage    Int
+
+  // ── Kategoria ─────────────────────────────────────────────────────────────
+  // "offensive" | "supportive" | "summoner" | "utility"
+  category  String @default("offensive")
+
+  // ── Info podstawowe ───────────────────────────────────────────────────────
   spellPool String @default("chaotic") // "chaotic"|"controlled"|"incantation"|"professional"|"master"
-  castEffects String @default("[]")  // JSON array: CastEffectDef[]
-  category String @default("offensive") // "offensive"|"defensive"|"summoner"
-  basicCost Int     @default(0)
-  isTutorialReward Boolean @default(false) // "Podstawowe Przywołanie" — gwarantowany pierwszy czar
+  rarity    String @default("common")  // "common"|"uncommon"|"rare"|"unique"
+  basicCost Int    @default(0)
+  element   String @default("none")
 
+  // Opis w Księdze Magii (kafelek + modal)
+  bookDescription String @default("")
 
-  // ── NOWY SYSTEM STATUSÓW ──────────────────────────
-  // JSON array: StatusEffectDef[]
-  // Przykład: [{"type":"dot","element":"fire","damage":2,"target":"target","duration":3}]
-  // Pełna specyfikacja typów w: src/types/status.types.ts
+  // ── Wymagania statystyk ───────────────────────────────────────────────────
+  reqElementalMagic Int @default(0)
+  reqAstralMagic    Int @default(0)
+  reqBloodMagic     Int @default(0)
+
+  // ── Czary bojowe — pola wspólne ───────────────────────────────────────────
+  damage  Int     @default(0)
+  special String?
+
+  // Cel czaru ofensywnego/wspierającego
+  // "randomEnemy"|"nEnemies"|"allEnemies"|"all"|"self"|"nAllies"|"allAllies"
+  spellTarget      String? 
+  spellTargetCount Int?    // tylko dla nEnemies / nAllies
+
+  // Statusy nakładane przez czar — JSON: StatusEffectDef[]
   statusEffects String @default("[]")
 
-  // ── MECHANIKI SPECJALNE ───────────────────────────
-  // Czy czar jest kierunkowy (może chybić przy miss_chance)
-  isDirectional Boolean @default(true)
+  // Tekst wyświetlany gdy wygasają WSZYSTKIE statusy tego czaru (duration > 1)
+  // Jedno pole na czar, niezależnie od liczby statusów
+  endInfo String?
 
-  // Tekst fabularny / opis efektu widoczny w logu walki
-  special  String?
-  descAlt  String?  // Opis gdy efekt statusu zadziałał (np. "Piorun ogłusza {target} na 2 tury!")
-  endInfo  String?  // Komunikat gdy status wygasa (np. "Lód roztapia się.")
-  spellbookDescription String @default("")  // opis prezentacyjny używany WYŁĄCZNIE w Księdze Magii (kafelek + modal)
-
-
-  // Mechanika przywołań
-  summonCount      Int     @default(0)
-  summonDamage         Int     @default(0)
-  summonInitiative     Int     @default(0) 
-  summonHp             Int     @default(0) 
+  // ── Czary summonerskie ────────────────────────────────────────────────────
+  summonCount      Int    @default(0)
+  summonHp         Int    @default(0)
+  summonDamage     Int    @default(0)
+  summonInitiative Int    @default(0)
   summonElement    String?
-  summonTargetType String? // "randomEnemy"|"randomAlly"|"allEnemies"|"allAllies"|"all"|"randomAny"
+  summonTargetType String? // domyślny target minionów
 
-  // Wymagania statystyk
-  reqElementalMagic   Int @default(0)
-  reqAstralMagic      Int @default(0)
-  reqBloodMagic       Int @default(0)
+  // Pula ataków minionów — JSON: MinionAttack[]
+  // Każdy atak ma: name, damage, element, target, actionDesc, statusEffects[], weight
+  minionAttacks String @default("[]")
 
+  // ── Czary użytkowe ────────────────────────────────────────────────────────
+  utilityEffect       String @default("{}")  // JSON: UtilityEffectDef
+  utilityDescriptions String @default("{}")  // JSON: { "1": "...", ..., "5": "..." }
 
-  spellSlots  CharacterSpellSlots[]
-  characters  CharacterSpell[]
-  spellbookEntries SpellbookEntry[]
-  allowedClasses String @default("[]")
-  utilitySlots CharacterUtilitySlots[]
-  spellType       String  @default("combat")    // "combat" | "utility"
-  utilityEffect   String  @default("{}")        // JSON: UtilityEffectDef
-  utilityDescriptions String @default("{}")     // JSON: { "1": "...", "2": "...", "3": "...", "4": "...", "5": "..." }
+  // ── Flagi specjalne ───────────────────────────────────────────────────────
+  isTutorialReward Boolean @default(false)
+
+  // ── Relacje ───────────────────────────────────────────────────────────────
+  spellSlots         CharacterSpellSlots[]
+  characters         CharacterSpell[]
+  spellbookEntries   SpellbookEntry[]
+  utilitySlots       CharacterUtilitySlots[]
+  schoolLibraryEntries SchoolLibrarySpell[]
+
 }
 
 model CharacterSpell {
@@ -230,7 +255,7 @@ model CharacterSpell {
 // ── ARTEFAKTY ────────────────────────────────────────
 model Item {
   id             Int    @id @default(autoincrement())
-  name           String
+  name           String @unique
   rarity         String
   slot           String
   weaponType     String?
@@ -608,4 +633,258 @@ model MessageCooldown {
   lastSentAt  DateTime @default(now())
 
   @@unique([senderId, receiverId])
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SZKOŁA MAGII
+// ═══════════════════════════════════════════════════════════════════
+
+model MagicSchool {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  abbreviation String   @default("") 
+  description String   @default("")
+  emblem      String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  directorId  Int      @unique
+  director    Character @relation("SchoolDirector", fields: [directorId], references: [id])
+
+  members     SchoolMember[]
+  buildings   SchoolBuilding[]
+  library     SchoolLibrarySpell[]
+  activeBonus SchoolActiveBonus[]
+  joinRequests SchoolJoinRequest[]
+  riftParties   StableRiftParty[]
+
+}
+
+// Rola w szkole: "deputy" = zastępca dyrektora, "member" = zwykły członek
+model SchoolMember {
+  id          Int       @id @default(autoincrement())
+  schoolId    Int
+  school      MagicSchool @relation(fields: [schoolId], references: [id])
+  characterId Int       @unique  // gracz może być tylko w jednej szkole
+  character   Character @relation("SchoolMembership", fields: [characterId], references: [id])
+  role        String    @default("member") // "deputy" | "member"
+  joinedAt    DateTime  @default(now())
+
+  @@index([schoolId])
+}
+
+// Budynki szkoły
+model SchoolBuilding {
+  id                Int         @id @default(autoincrement())
+  schoolId          Int
+  school            MagicSchool @relation(fields: [schoolId], references: [id])
+  buildingType      String      // "main_hall" | "astro_tower" | "library" | "rift_chamber" | "canteen"
+  level             Int         @default(0) // 0 = nie wybudowany
+  isUpgrading       Boolean     @default(false)
+  upgradeFinishesAt DateTime?
+  updatedAt         DateTime    @updatedAt
+
+  @@unique([schoolId, buildingType])
+}
+
+// Czary w bibliotece szkolnej
+model SchoolLibrarySpell {
+  id          Int         @id @default(autoincrement())
+  schoolId    Int
+  school      MagicSchool @relation(fields: [schoolId], references: [id])
+  spellId     Int
+  spell       Spell       @relation(fields: [spellId], references: [id])
+
+  proposedById Int
+  proposedBy   Character  @relation("LibraryProposals", fields: [proposedById], references: [id])
+  proposedAt   DateTime   @default(now())
+
+  status      String      @default("pending") // "pending" | "approved" | "rejected"
+  reviewedById Int?
+  reviewedBy   Character? @relation("LibraryReviews", fields: [reviewedById], references: [id])
+  reviewedAt   DateTime?
+
+  @@unique([schoolId, spellId])
+  @@index([schoolId, status])
+}
+
+// Aktywne bonusy stołówki (dyrektor/zastępca wybiera max N bonusów)
+model SchoolActiveBonus {
+  id       Int         @id @default(autoincrement())
+  schoolId Int
+  school   MagicSchool @relation(fields: [schoolId], references: [id])
+  bonusKey String      // "stats" | "item_find" | "spell_find" | "hp" | "rift" | "dodge" | "spell_slot" | "utility_slot"
+
+  @@unique([schoolId, bonusKey])
+}
+
+// Prośby o dołączenie do szkoły (wymagają akceptacji dyrektora/zastępcy)
+model SchoolJoinRequest {
+  id          Int         @id @default(autoincrement())
+  schoolId    Int
+  school      MagicSchool @relation(fields: [schoolId], references: [id])
+  characterId Int
+  character   Character   @relation("SchoolJoinRequests", fields: [characterId], references: [id])
+  status      String      @default("pending") // "pending" | "approved" | "rejected"
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@unique([schoolId, characterId])
+  @@index([schoolId, status])
+  @@index([characterId])
+}
+
+model RiftTrophy {
+  id          Int      @id @default(autoincrement())
+  key         String   @unique  // np. "stokrotka" | "pierscien_z_dziwnymi_znakami"
+  name        String   @unique  // wyświetlana nazwa, np. "Stokrotka"
+  description String   @default("")
+  icon        String   @default("")  // nazwa pliku grafiki, np. "trophy_daisy.png"
+  riftKey     String   // szczelina, w której można zdobyć, np. "green" | "red"
+  bonuses     String   @default("{}")  // JSON: RiftTrophyBonuses (patrz typy)
+  createdAt   DateTime @default(now())
+
+  owners      CharacterRiftTrophy[]
+}
+
+// ── POSIADANIE TROFEUM PRZEZ POSTAĆ ─────────────────────────────
+// Unikalne — gracz albo ma trofeum, albo nie.
+// earnedInRiftKey — z jakiej szczeliny pochodzi (dla historii).
+// earnedInWorldKey — z jakiej krainy pochodzi (dla historii).
+
+model CharacterRiftTrophy {
+  id            Int        @id @default(autoincrement())
+  characterId   Int
+  character     Character  @relation(fields: [characterId], references: [id])
+  trophyId      Int
+  trophy        RiftTrophy @relation(fields: [trophyId], references: [id])
+
+  earnedInRiftKey  String  // np. "green"
+  earnedInWorldKey String  // np. "stokrotka"
+
+  earnedAt      DateTime   @default(now())
+
+  @@unique([characterId, trophyId])  // gracz może mieć trofeum tylko raz
+  @@index([characterId])
+}
+
+model UnstableRift {
+  id          Int       @id @default(autoincrement())
+  characterId Int       @unique
+  character   Character @relation(fields: [characterId], references: [id])
+  riftKey     String
+  worldKey    String
+  status      String    @default("open")
+  openedAt    DateTime  @default(now())
+  enteredAt   DateTime?
+  finishedAt  DateTime?
+  runs        RiftRun[]
+
+  @@index([characterId, status])
+}
+
+
+model RiftRun {
+  id          Int          @id @default(autoincrement())
+  riftId      Int
+  rift        UnstableRift @relation(fields: [riftId], references: [id])
+  characterId Int
+  character   Character    @relation(fields: [characterId], references: [id])
+  worldKey    String
+  status      String       @default("in_progress")
+  xpEarned        Int?
+  prestigeEarned  Int?
+  itemOwnedItemId Int?
+  trophyId        Int?
+  xpModifier      Int      @default(0)
+  startedAt   DateTime     @default(now())
+  finishedAt  DateTime?
+  steps       RiftRunStep[]
+
+  @@index([characterId])
+}
+
+model RiftRunStep {
+  id        Int     @id @default(autoincrement())
+  runId     Int
+  run       RiftRun @relation(fields: [runId], references: [id])
+  stepIndex Int
+  nodeKey   String
+  choiceKey String
+  testRolled    Boolean?
+  testSuccess   Boolean?
+  fightOccurred Boolean?
+  fightWon      Boolean?
+  fightLog      String?
+  resolvedAt DateTime @default(now())
+
+  @@index([runId])
+}
+
+model StableRiftParty {
+  id          Int         @id @default(autoincrement())
+  schoolId    Int
+  school      MagicSchool @relation(fields: [schoolId], references: [id])
+  leaderId    Int
+  leader      Character   @relation("StableRiftPartyLeader", fields: [leaderId], references: [id])
+  riftKey     String
+  status      String      @default("forming")
+  createdAt   DateTime    @default(now())
+  scheduledAt DateTime?
+  finishedAt  DateTime?
+  members     StableRiftMember[]
+  run         StableRiftRun?
+
+  @@index([schoolId, status])
+  @@index([leaderId])
+}
+
+model StableRiftMember {
+  id          Int             @id @default(autoincrement())
+  partyId     Int
+  party       StableRiftParty @relation(fields: [partyId], references: [id])
+  characterId Int
+  character   Character       @relation("StableRiftMemberChar", fields: [characterId], references: [id])
+  status      String          @default("pending")
+  joinedAt    DateTime        @default(now())
+
+  @@unique([partyId, characterId])
+  @@index([partyId, status])
+  @@index([characterId])
+}
+
+model StableRiftRun {
+  id        Int             @id @default(autoincrement())
+  partyId   Int             @unique
+  party     StableRiftParty @relation(fields: [partyId], references: [id])
+  riftKey   String
+  worldKey  String
+  success   Boolean
+  results   String          @default("[]")
+  battleLogs String         @default("[]")
+  foughtAt  DateTime        @default(now())
+
+  @@index([partyId])
+}
+
+model RiftTriggerProgress {
+  id          Int       @id @default(autoincrement())
+  characterId Int
+  character   Character @relation(fields: [characterId], references: [id])
+  riftKey     String
+  actionCount Int       @default(0)  // liczba akcji od ostatniego resetu
+
+  @@unique([characterId, riftKey])
+  @@index([characterId])
+}
+
+model RiftWorldHistory {
+  id          Int       @id @default(autoincrement())
+  characterId Int
+  character   Character @relation(fields: [characterId], references: [id])
+  riftKey     String
+  worldKey    String
+  visitedAt   DateTime  @default(now())
+
+  @@index([characterId, riftKey])
 }

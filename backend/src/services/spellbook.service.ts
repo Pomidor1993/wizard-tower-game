@@ -4,7 +4,7 @@
 
 import prisma from "../lib/prisma.js";
 
-export type SpellbookSource = "study";
+export type SpellbookSource = "study" | "school";
 
 // ── REJESTRACJA ODKRYCIA ──────────────────────────────────────────────────────
 
@@ -58,7 +58,6 @@ export interface SpellbookSpell {
   name?: string;
   damage?: number;
   special?: string;
-  isDirectional?: boolean;
   statusEffects?: string;
   reqElementalMagic?: number;
   reqAstralMagic?: number;
@@ -92,7 +91,7 @@ export async function getSpellbook(userId: number): Promise<SpellbookSpell[]> {
   const equippedMap = new Map(equippedSlots.map(s => [s.spellId, s.slotIndex]));
 
   const allSpellsRaw = await prisma.spell.findMany({
-  where: { spellType: "combat" },
+where: { category: { not: "utility" } },
   orderBy: [{ element: "asc" }, { spellPool: "asc" }, { rarity: "asc" }],
 });
 
@@ -120,8 +119,6 @@ export async function getSpellbook(userId: number): Promise<SpellbookSpell[]> {
         name:          spell.name,
         damage:        spell.damage,
         special:       spell.special ?? undefined,
-        spellbookDescription: spell.spellbookDescription,
-        isDirectional: spell.isDirectional,
         statusEffects: spell.statusEffects,
         reqElementalMagic: spell.reqElementalMagic,
         reqAstralMagic:    spell.reqAstralMagic,
@@ -151,12 +148,9 @@ export async function getSpellbookStats(userId: number) {
   const character = await prisma.character.findUnique({ where: { userId } });
   if (!character) throw new Error("Postać nie znaleziona");
 
-
-const allSpellsRaw = await prisma.spell.findMany({
-  where: { spellType: "combat" },
-  select: { allowedClasses: true },
-});
-const total = allSpellsRaw.filter(spell => {}).length;
+  const total = await prisma.spell.count({
+    where: { category: { not: "utility" } },
+  });
 
   const discovered = await prisma.spellbookEntry.count({
     where: { characterId: character.id },

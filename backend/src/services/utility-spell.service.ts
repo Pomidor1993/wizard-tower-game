@@ -17,6 +17,7 @@ import {
   parseUtilityDescriptions,
   EMPTY_BONUSES,
 } from "../types/utility-types.js";
+import { getCharacterSchoolBonuses } from "./magic-school.service.js";
 
 // ── Stałe ────────────────────────────────────────────────────────────────────
 
@@ -82,12 +83,12 @@ export function resolveRandomBonus(
 /**
  * Zwraca dostępną liczbę slotów użytkowych na podstawie poziomu biblioteki.
  */
-export function getUnlockedUtilitySlots(libraryLevel: number): number {
+export function getUnlockedUtilitySlots(libraryLevel: number, extraSlots: number = 0): number {
   let unlocked = 0;
   for (const requiredLevel of UTILITY_SLOT_LIBRARY_LEVELS) {
     if (libraryLevel >= requiredLevel) unlocked++;
   }
-  return unlocked;
+  return Math.min(unlocked + extraSlots, MAX_UTILITY_SLOTS);
 }
 
 /**
@@ -116,7 +117,7 @@ export async function equipUtilitySpell(
   // Walidacja czaru
   const spell = await prisma.spell.findUnique({ where: { id: spellId } });
   if (!spell) throw new Error("Czar nie istnieje");
-  if (spell.spellType !== "utility") throw new Error("To nie jest czar użytkowy");
+  if (spell.category !== "utility") throw new Error("To nie jest czar użytkowy");
 
 // Walidacja posiadania czaru (= odkrycia, tak jak przy czarach bojowych)
   const discovered = await prisma.spellbookEntry.findUnique({
@@ -133,7 +134,9 @@ export async function equipUtilitySpell(
 
   const library = character.tower?.buildings.find(b => b.buildingType === "library");
   const libraryLevel = library?.level ?? 0;
-  const unlockedSlots = getUnlockedUtilitySlots(libraryLevel);
+  const schoolBonusesForUtility = await getCharacterSchoolBonuses(character.id);
+  const extraUtilitySlotsForEquip = schoolBonusesForUtility?.utility_slot ?? 0;
+  const unlockedSlots = getUnlockedUtilitySlots(libraryLevel, extraUtilitySlotsForEquip);
 
   if (slotIndex < 0 || slotIndex >= unlockedSlots) {
     throw new Error(
@@ -195,7 +198,7 @@ export async function getUtilitySpellbook(userId: number): Promise<UtilitySpellV
   const ownedIds = discoveredIds;
 
   const allUtility = await prisma.spell.findMany({
-    where: { spellType: "utility" },
+    where: { category: "utility" },
     orderBy: [{ rarity: "asc" }, { name: "asc" }],
   });
 
@@ -209,7 +212,7 @@ export async function getUtilitySpellbook(userId: number): Promise<UtilitySpellV
         spellPool: spell.spellPool,
         element: spell.element,
         utilityEffect: {},
-        spellbookDescription: spell.spellbookDescription,
+        bookDescription: spell.bookDescription,
         descriptions: {},
         slotIndex: null,
         owned: false,

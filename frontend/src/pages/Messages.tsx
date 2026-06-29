@@ -2,7 +2,6 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import api from "../api/client";
 
-// ── PALETA ───────────────────────────────────────────────────────────────────
 const COLORS = {
   bg:        "#161d38",
   panel:     "#372b5d",
@@ -19,20 +18,18 @@ const COLORS = {
   textGhost: "rgba(247,240,221,0.2)",
 };
 
-type ViewKey = "all" | "random" | "private" | "levelup" | "tutorial" | "saved";
+type ViewKey = "all" | "saved" | "private";
 
 const VIEWS: { key: ViewKey; label: string; icon: string }[] = [
-  { key: "all",      label: "Wszystkie",  icon: "✦" },
-  { key: "private",  label: "Prywatne",   icon: "✉" },
-  { key: "random",   label: "Losowe",     icon: "☾" },
-  { key: "levelup",  label: "Poziomy",    icon: "★" },
-  { key: "tutorial", label: "Tutorial",   icon: "◈" },
-  { key: "saved",    label: "Zapisane",   icon: "📌" },
+  { key: "all",     label: "Ogólne",             icon: "✦" },
+  { key: "private", label: "Magiczne ploteczki", icon: "✉" },
+  { key: "saved",   label: "Zapisane",            icon: "📌" },
 ];
 
 interface SystemMessage {
   id: number;
-  type: "random" | "levelup" | "tutorial";
+  // pkt 4: dodano "school" jako typ wiadomości
+  type: "random" | "levelup" | "tutorial" | "school" | "rift";
   title: string | null;
   content: string;
   isRead: boolean;
@@ -50,13 +47,7 @@ interface ConversationSummary {
 
 function Panel({ children, style = {} }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
-    <div style={{
-      background: COLORS.panel,
-      borderRadius: 12,
-      border: `1px solid ${COLORS.border}`,
-      padding: 20,
-      ...style,
-    }}>
+    <div style={{ background: COLORS.panel, borderRadius: 12, border: `1px solid ${COLORS.border}`, padding: 20, ...style }}>
       {children}
     </div>
   );
@@ -66,11 +57,53 @@ function formatDateTime(value: string): string {
   return new Date(value).toLocaleString("pl-PL", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
-const TYPE_LABELS: Record<SystemMessage["type"], { label: string; color: string }> = {
-  random:   { label: "Losowe",   color: COLORS.purple },
-  levelup:  { label: "Poziom",   color: COLORS.gold },
+// pkt 4: "school" → "Magiczne wieści"; "tutorial" pozostaje dla wiadomości tutorialowych
+const TYPE_LABELS: Record<string, { label: string; color: string }> = {
+  random:   { label: "Magia",   color: COLORS.purple },
+  rift:     { label: "Magia",   color: COLORS.purple },
+  levelup:  { label: "Poziom",  color: COLORS.gold },
   tutorial: { label: "Tutorial", color: COLORS.teal },
+  school:   { label: "Szkoła",  color: "#4ade80" },
 };
+
+// ── PARSER LINKÓW W TREŚCI WIADOMOŚCI ────────────────────────────────────────
+// [PROFIL:id:nazwa]  → klikalny nick → /profile/:id
+// [DOŁĄCZ:schoolId] → przycisk dołączenia do szkoły
+
+function renderContent(
+  content: string,
+  navigate: ReturnType<typeof useNavigate>,
+  onJoinSchool?: (schoolId: number) => void
+): React.ReactNode {
+  const parts = content.split(/(\[PROFIL:\d+:[^\]]+\]|\[DOŁĄCZ:\d+\])/g);
+
+  return parts.map((part, i) => {
+    const profileMatch = part.match(/^\[PROFIL:(\d+):([^\]]+)\]$/);
+    if (profileMatch) {
+      const charId   = parseInt(profileMatch[1], 10);
+      const charName = profileMatch[2];
+      return (
+        <span key={i} onClick={() => navigate(`/profile/${charId}`)}
+          style={{ color: COLORS.gold, cursor: "pointer", fontWeight: 600, textDecoration: "underline" }}>
+          {charName}
+        </span>
+      );
+    }
+
+    const joinMatch = part.match(/^\[DOŁĄCZ:(\d+)\]$/);
+    if (joinMatch) {
+      const schoolId = parseInt(joinMatch[1], 10);
+      return (
+        <button key={i} onClick={() => onJoinSchool?.(schoolId)}
+          style={{ display: "inline-block", padding: "4px 12px", borderRadius: 6, border: `1px solid ${COLORS.teal}`, background: "rgba(89,212,208,0.1)", color: COLORS.teal, fontSize: 12, fontFamily: "Cinzel, serif", fontWeight: 600, cursor: "pointer", marginLeft: 6 }}>
+          Dołącz do szkoły →
+        </button>
+      );
+    }
+
+    return <span key={i}>{part}</span>;
+  });
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // GŁÓWNY KOMPONENT
@@ -97,27 +130,14 @@ export default function Messages() {
         Wiadomości
       </h1>
 
-      {/* ── PRZEŁĄCZNIK WIDOKÓW ── */}
       <Panel style={{ marginBottom: 20, padding: 14 }}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {VIEWS.map(v => {
             const active = v.key === view;
             return (
-              <button
-                key={v.key}
-                onClick={() => selectView(v.key)}
-                style={{
-                  display: "flex", alignItems: "center", gap: 8,
-                  padding: "9px 16px", borderRadius: 8,
-                  border: active ? "1px solid rgba(245,196,81,0.5)" : "1px solid rgba(247,240,221,0.1)",
-                  background: active ? "rgba(245,196,81,0.12)" : "transparent",
-                  color: active ? COLORS.gold : COLORS.textDim,
-                  fontFamily: "Cinzel, serif", fontSize: 12, fontWeight: active ? 700 : 500,
-                  letterSpacing: "0.04em", cursor: "pointer", transition: "all 0.15s",
-                }}
-              >
-                <span>{v.icon}</span>
-                {v.label}
+              <button key={v.key} onClick={() => selectView(v.key)}
+                style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 16px", borderRadius: 8, border: active ? "1px solid rgba(245,196,81,0.5)" : "1px solid rgba(247,240,221,0.1)", background: active ? "rgba(245,196,81,0.12)" : "transparent", color: active ? COLORS.gold : COLORS.textDim, fontFamily: "Cinzel, serif", fontSize: 12, fontWeight: active ? 700 : 500, letterSpacing: "0.04em", cursor: "pointer", transition: "all 0.15s" }}>
+                <span>{v.icon}</span>{v.label}
               </button>
             );
           })}
@@ -125,87 +145,71 @@ export default function Messages() {
       </Panel>
 
       {view === "private" ? (
-        <PrivateMessagesView
-          initialConversationId={openConversationId}
-          onConversationOpened={() => setSearchParams({})}
-        />
+        <PrivateMessagesView initialConversationId={openConversationId} onConversationOpened={() => setSearchParams({})} />
       ) : (
-        <SystemMessagesView view={view} />
+        <SystemMessagesView savedOnly={view === "saved"} />
       )}
     </div>
   );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// WIDOK: WIADOMOŚCI SYSTEMOWE (Wszystkie / Losowe / Poziomy / Tutorial / Zapisane)
+// WIDOK: WIADOMOŚCI SYSTEMOWE
 // ═══════════════════════════════════════════════════════════════════════════
 
 const PAGE_SIZE = 20;
 
-function SystemMessagesView({ view }: { view: ViewKey }) {
-  const [messages, setMessages] = useState<SystemMessage[]>([]);
-  const [page, setPage] = useState(1);
+function SystemMessagesView({ savedOnly }: { savedOnly: boolean }) {
+  const navigate = useNavigate();
+  const [messages, setMessages]   = useState<SystemMessage[]>([]);
+  const [page, setPage]           = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState<number | null>(null);
+  const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState<string | null>(null);
+  const [expanded, setExpanded]   = useState<number | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkBusy, setBulkBusy]   = useState(false);
+  const [joinBusy, setJoinBusy]   = useState(false);
 
   const fetchMessages = useCallback(async (pageToLoad: number) => {
-    setLoading(true);
-    setError(null);
+    setLoading(true); setError(null);
     try {
       const params: Record<string, any> = { page: pageToLoad, pageSize: PAGE_SIZE };
-      if (view === "saved") {
-        params.savedOnly = true;
-      } else if (view !== "all") {
-        params.type = view;
-      }
+      if (savedOnly) params.savedOnly = true;
       const res = await api.get("/messages/system", { params });
       setMessages(res.data.messages);
       setTotalPages(res.data.totalPages);
     } catch (err: any) {
       setError(err.response?.data?.error ?? "Błąd ładowania wiadomości");
-    } finally {
-      setLoading(false);
+    } finally { setLoading(false); }
+  }, [savedOnly]);
+
+  useEffect(() => { setPage(1); setSelectedIds(new Set()); }, [savedOnly]);
+  useEffect(() => { fetchMessages(page); }, [page, fetchMessages]);
+  useEffect(() => { setSelectedIds(new Set()); }, [page]);
+
+  // pkt 3: po dołączeniu do szkoły przekieruj na /school
+  async function handleJoinSchool(schoolId: number) {
+    if (joinBusy) return;
+    setJoinBusy(true);
+    try {
+      await api.post(`/schools/${schoolId}/accept-invite`);
+      navigate("/school");
+    } catch (err: any) {
+      alert(err.response?.data?.error ?? "Błąd dołączania do szkoły.");
+      setJoinBusy(false);
     }
-  }, [view]);
-
-  useEffect(() => {
-    setPage(1);
-    fetchMessages(1);
-  }, [fetchMessages]);
-
-  useEffect(() => {
-    fetchMessages(page);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page]);
+  }
 
   async function markRead(id: number) {
     setMessages(prev => prev.map(m => (m.id === id ? { ...m, isRead: true } : m)));
-    try {
-      await api.patch(`/messages/system/${id}/read`);
-    } catch {
-      // ciche niepowodzenie — UI już zaktualizowany optymistycznie
-    }
+    try { await api.patch(`/messages/system/${id}/read`); } catch { /* ciche */ }
   }
 
-  async function toggleSave(id: number, current: boolean) {
-    setMessages(prev => prev.map(m => (m.id === id ? { ...m, isSaved: !current } : m)));
-    try {
-      await api.patch(`/messages/system/${id}/save`, { isSaved: !current });
-    } catch (err: any) {
-      alert(err.response?.data?.error ?? "Błąd zapisu wiadomości");
-      setMessages(prev => prev.map(m => (m.id === id ? { ...m, isSaved: current } : m)));
-    }
-  }
-
-  async function deleteMessage(id: number) {
-    try {
-      await api.delete(`/messages/system/${id}`);
-      setMessages(prev => prev.filter(m => m.id !== id));
-    } catch (err: any) {
-      alert(err.response?.data?.error ?? "Błąd usuwania wiadomości");
-    }
+  async function markUnread(id: number, e: React.MouseEvent) {
+    e.stopPropagation();
+    setMessages(prev => prev.map(m => (m.id === id ? { ...m, isRead: false } : m)));
+    try { await api.patch(`/messages/system/${id}/unread`); } catch { /* ciche */ }
   }
 
   function toggleExpand(id: number, isRead: boolean) {
@@ -213,88 +217,160 @@ function SystemMessagesView({ view }: { view: ViewKey }) {
     if (!isRead) markRead(id);
   }
 
+  function toggleSelect(id: number, e: React.MouseEvent) {
+    e.stopPropagation();
+    setSelectedIds(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
+  }
+
+  function toggleSelectAll() {
+    setSelectedIds(prev => (prev.size === messages.length ? new Set() : new Set(messages.map(m => m.id))));
+  }
+
+  async function bulkSave(isSaved: boolean) {
+    if (selectedIds.size === 0) return;
+    setBulkBusy(true);
+    const ids = [...selectedIds];
+    try {
+      await Promise.all(ids.map(id => api.patch(`/messages/system/${id}/save`, { isSaved })));
+if (isSaved && !savedOnly) {
+        // Zapisane znikają z zakładki ogólnej
+        setMessages(prev => prev.filter(m => !selectedIds.has(m.id)));
+      } else if (!isSaved && savedOnly) {
+        // Odpięte znikają z zakładki zapisanych
+        setMessages(prev => prev.filter(m => !selectedIds.has(m.id)));
+      } else {
+        setMessages(prev => prev.map(m => (selectedIds.has(m.id) ? { ...m, isSaved } : m)));
+      }
+      setSelectedIds(new Set());
+    } catch (err: any) {
+      alert(err.response?.data?.error ?? "Błąd zbiorczego zapisu");
+    } finally { setBulkBusy(false); }
+  }
+
+
+  async function bulkMarkRead() {
+    if (selectedIds.size === 0) return;
+    setBulkBusy(true);
+    const ids = [...selectedIds];
+    try {
+      await Promise.all(ids.map(id => api.patch(`/messages/system/${id}/read`)));
+      setMessages(prev => prev.map(m => selectedIds.has(m.id) ? { ...m, isRead: true } : m));
+      setSelectedIds(new Set());
+    } catch (err: any) {
+      alert(err.response?.data?.error ?? "Błąd zbiorczego oznaczania");
+    } finally { setBulkBusy(false); }
+  }
+
+  async function bulkMarkUnread() {
+    if (selectedIds.size === 0) return;
+    setBulkBusy(true);
+    const ids = [...selectedIds];
+    try {
+      await Promise.all(ids.map(id => api.patch(`/messages/system/${id}/unread`)));
+      setMessages(prev => prev.map(m => selectedIds.has(m.id) ? { ...m, isRead: false } : m));
+      setSelectedIds(new Set());
+    } catch (err: any) {
+      alert(err.response?.data?.error ?? "Błąd zbiorczego oznaczania");
+    } finally { setBulkBusy(false); }
+  }
+
+  async function bulkDelete() {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Usunąć ${selectedIds.size} wiadomości? Tej operacji nie można cofnąć.`)) return;
+    setBulkBusy(true);
+    const ids = [...selectedIds];
+    try {
+      await Promise.all(ids.map(id => api.delete(`/messages/system/${id}`)));
+      setMessages(prev => prev.filter(m => !selectedIds.has(m.id)));
+      setSelectedIds(new Set());
+    } catch (err: any) {
+      alert(err.response?.data?.error ?? "Błąd zbiorczego usuwania");
+    } finally { setBulkBusy(false); }
+  }
+
+  const allSelected = messages.length > 0 && selectedIds.size === messages.length;
+
   return (
     <Panel>
-      {loading && (
-        <p style={{ color: COLORS.textFaint, fontSize: 13, padding: "20px 0", textAlign: "center" }}>Ładowanie...</p>
+      {messages.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14, padding: "8px 4px", borderBottom: `1px solid ${COLORS.borderSoft}` }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: COLORS.textDim }}>
+            <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} style={{ cursor: "pointer" }} />
+            Zaznacz wszystkie
+          </label>
+          {selectedIds.size > 0 && (
+            <>
+              <span style={{ fontSize: 11, color: COLORS.textFaint }}>{selectedIds.size} zaznaczonych</span>
+<div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
+                {!savedOnly && <button onClick={() => bulkSave(true)} disabled={bulkBusy} style={miniButtonStyle}>Zapisz zaznaczone</button>}
+                {savedOnly  && <button onClick={() => bulkSave(false)} disabled={bulkBusy} style={miniButtonStyle}>Odepnij zapis</button>}
+                <button onClick={bulkMarkRead} disabled={bulkBusy} style={miniButtonStyle}>Oznacz jako przeczytane</button>
+                <button onClick={bulkMarkUnread} disabled={bulkBusy} style={miniButtonStyle}>Oznacz jako nieprzeczytane</button>
+                <button onClick={bulkDelete} disabled={bulkBusy} style={{ ...miniButtonStyle, color: COLORS.red, borderColor: "rgba(244,106,78,0.3)" }}>Usuń zaznaczone</button>
+              </div>
+            </>
+          )}
+        </div>
       )}
-      {error && (
-        <p style={{ color: COLORS.red, fontSize: 13, padding: "20px 0", textAlign: "center" }}>{error}</p>
-      )}
+
+      {loading  && <p style={{ color: COLORS.textFaint, fontSize: 13, padding: "20px 0", textAlign: "center" }}>Ładowanie...</p>}
+      {error    && <p style={{ color: COLORS.red,       fontSize: 13, padding: "20px 0", textAlign: "center" }}>{error}</p>}
       {!loading && !error && messages.length === 0 && (
         <p style={{ color: COLORS.textGhost, fontSize: 13, padding: "20px 0", textAlign: "center", fontStyle: "italic" }}>
-          Brak wiadomości w tej kategorii.
+          {savedOnly ? "Brak zapisanych wiadomości." : "Brak wiadomości."}
         </p>
       )}
 
       {!loading && !error && messages.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {messages.map(msg => {
-            const isOpen = expanded === msg.id;
-            const typeInfo = TYPE_LABELS[msg.type];
+            const isOpen     = expanded === msg.id;
+            const typeInfo   = TYPE_LABELS[msg.type] ?? { label: msg.type, color: COLORS.textFaint };
+            const isSelected = selectedIds.has(msg.id);
             return (
               <div key={msg.id}>
-                <div
-                  onClick={() => toggleExpand(msg.id, msg.isRead)}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 12,
-                    padding: "12px 14px", borderRadius: 10,
-                    border: `1px solid ${COLORS.borderSoft}`,
-                    background: msg.isRead ? COLORS.panelAlt : "rgba(245,196,81,0.06)",
-                    cursor: "pointer", transition: "background 0.15s",
-                  }}
-                >
-                  {!msg.isRead && (
-                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: COLORS.red, flexShrink: 0 }} />
-                  )}
-                  <span style={{
-                    fontSize: 9, padding: "2px 6px", borderRadius: 4, fontWeight: 700,
-                    fontFamily: "Cinzel, serif", letterSpacing: "0.06em",
-                    background: `${typeInfo.color}22`, color: typeInfo.color,
-                    border: `1px solid ${typeInfo.color}44`, flexShrink: 0,
-                  }}>
+                <div onClick={() => toggleExpand(msg.id, msg.isRead)}
+                  style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 10, border: isSelected ? `1px solid ${COLORS.teal}` : `1px solid ${COLORS.borderSoft}`, background: isSelected ? "rgba(89,212,208,0.08)" : msg.isRead ? COLORS.panelAlt : "rgba(245,196,81,0.06)", cursor: "pointer", transition: "background 0.15s" }}>
+                  <input type="checkbox" checked={isSelected} onClick={e => toggleSelect(msg.id, e)} onChange={() => {}} style={{ cursor: "pointer", flexShrink: 0 }} />
+                  {!msg.isRead && <span style={{ width: 8, height: 8, borderRadius: "50%", background: COLORS.red, flexShrink: 0 }} />}
+                  <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 4, fontWeight: 700, fontFamily: "Cinzel, serif", letterSpacing: "0.06em", background: `${typeInfo.color}22`, color: typeInfo.color, border: `1px solid ${typeInfo.color}44`, flexShrink: 0 }}>
                     {typeInfo.label}
                   </span>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{
-                      fontSize: 13, color: COLORS.text, margin: 0, fontWeight: msg.isRead ? 400 : 600,
-                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                    }}>
+                    <p style={{ fontSize: 13, color: COLORS.text, margin: 0, fontWeight: msg.isRead ? 400 : 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {msg.title ?? msg.content}
                     </p>
-                    <p style={{ fontSize: 11, color: COLORS.textFaint, margin: "2px 0 0" }}>
-                      {formatDateTime(msg.createdAt)}
-                    </p>
+                    <p style={{ fontSize: 11, color: COLORS.textFaint, margin: "2px 0 0" }}>{formatDateTime(msg.createdAt)}</p>
                   </div>
                   {msg.isSaved && <span style={{ color: COLORS.gold, fontSize: 13, flexShrink: 0 }}>📌</span>}
-                  <span style={{
-                    color: COLORS.textGhost, fontSize: 11, flexShrink: 0,
-                    transition: "transform 0.15s", display: "inline-block",
-                    transform: isOpen ? "rotate(90deg)" : "rotate(0deg)",
-                  }}>▶</span>
+                  <span style={{ color: COLORS.textGhost, fontSize: 11, flexShrink: 0, transition: "transform 0.15s", display: "inline-block", transform: isOpen ? "rotate(90deg)" : "rotate(0deg)" }}>▶</span>
                 </div>
 
                 {isOpen && (
-                  <div style={{
-                    marginTop: 6, padding: "12px 14px", borderRadius: 10,
-                    background: "rgba(0,0,0,0.15)", border: `1px solid ${COLORS.borderSoft}`,
-                  }}>
-                    <p style={{ fontSize: 13, color: COLORS.textDim, margin: "0 0 12px", lineHeight: 1.5 }}>
-                      {msg.content}
+                  <div style={{ marginTop: 6, padding: "12px 14px", borderRadius: 10, background: "rgba(0,0,0,0.15)", border: `1px solid ${COLORS.borderSoft}` }}>
+                    <p style={{ fontSize: 13, color: COLORS.textDim, margin: "0 0 12px", lineHeight: 1.7 }}>
+                      {renderContent(msg.content, navigate, handleJoinSchool)}
                     </p>
-                    <div style={{ display: "flex", gap: 10 }}>
-                      <button onClick={() => toggleSave(msg.id, msg.isSaved)} style={miniButtonStyle}>
-                        {msg.isSaved ? "Odepnij zapis" : "Zapisz wiadomość"}
-                      </button>
-                      <button onClick={() => deleteMessage(msg.id)} style={miniButtonStyle}>
-                        Usuń
-                      </button>
+<div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
+                      {!msg.isSaved && (
+                        <p style={{ fontSize: 10, color: COLORS.textGhost, margin: 0, fontStyle: "italic" }}>
+                          Niezapisane wiadomości znikają po 30 dniach.
+                        </p>
+                      )}
+<div style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
+                        {msg.isRead ? (
+                          <button onClick={(e) => markUnread(msg.id, e)}
+                            style={{ ...miniButtonStyle, fontSize: 10 }}>
+                            Oznacz jako nieprzeczytane
+                          </button>
+                        ) : (
+                          <button onClick={(e) => { e.stopPropagation(); markRead(msg.id); }}
+                            style={{ ...miniButtonStyle, fontSize: 10 }}>
+                            Oznacz jako przeczytane
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    {!msg.isSaved && (
-                      <p style={{ fontSize: 10, color: COLORS.textGhost, marginTop: 8, marginBottom: 0, fontStyle: "italic" }}>
-                        Niezapisane wiadomości znikają automatycznie po 30 dniach.
-                      </p>
-                    )}
                   </div>
                 )}
               </div>
@@ -305,15 +381,9 @@ function SystemMessagesView({ view }: { view: ViewKey }) {
 
       {!loading && !error && totalPages > 1 && (
         <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 10, marginTop: 16 }}>
-          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} style={pagerButtonStyle(page <= 1)}>
-            ← Poprzednia
-          </button>
-          <span style={{ fontSize: 12, color: COLORS.textDim, minWidth: 90, textAlign: "center" }}>
-            Strona {page} / {totalPages}
-          </span>
-          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages} style={pagerButtonStyle(page >= totalPages)}>
-            Następna →
-          </button>
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} style={pagerButtonStyle(page <= 1)}>← Poprzednia</button>
+          <span style={{ fontSize: 12, color: COLORS.textDim, minWidth: 90, textAlign: "center" }}>Strona {page} / {totalPages}</span>
+          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages} style={pagerButtonStyle(page >= totalPages)}>Następna →</button>
         </div>
       )}
     </Panel>
@@ -321,50 +391,30 @@ function SystemMessagesView({ view }: { view: ViewKey }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// WIDOK: WIADOMOŚCI PRYWATNE (lista wątków + okno konwersacji)
+// WIDOK: MAGICZNE PLOTECZKI
 // ═══════════════════════════════════════════════════════════════════════════
 
-function PrivateMessagesView({
-  initialConversationId,
-  onConversationOpened,
-}: {
+function PrivateMessagesView({ initialConversationId, onConversationOpened }: {
   initialConversationId: number | null;
   onConversationOpened: () => void;
 }) {
   const navigate = useNavigate();
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]     = useState(true);
   const [activeOtherId, setActiveOtherId] = useState<number | null>(null);
 
   const fetchConversations = useCallback(async () => {
     setLoading(true);
-    try {
-      const res = await api.get("/messages/private");
-      setConversations(res.data);
-    } catch {
-      // ciche niepowodzenie listy wątków
-    } finally {
-      setLoading(false);
-    }
+    try { const res = await api.get("/messages/private"); setConversations(res.data); }
+    catch { /* ciche */ } finally { setLoading(false); }
   }, []);
 
   useEffect(() => { fetchConversations(); }, [fetchConversations]);
 
-  // Jeśli przyszliśmy z profilu z parametrem ?conversation=ID, otwórz od razu ten wątek.
-  // initialConversationId to conversationId z linku — ale endpoint wątku przyjmuje ID
-  // DRUGIEGO GRACZA, nie ID konwersacji, więc znajdujemy go po liście (gdy się załaduje)
-  // lub, jeśli wątek jeszcze nie istnieje, traktujemy initialConversationId jako characterId.
   useEffect(() => {
-    if (initialConversationId === null) return;
-    if (loading) return;
+    if (initialConversationId === null || loading) return;
     const existing = conversations.find(c => c.conversationId === initialConversationId);
-    if (existing) {
-      setActiveOtherId(existing.otherCharacter.id);
-    } else {
-      // Brak istniejącego wątku o tym ID konwersacji — prawdopodobnie to ID gracza
-      // przekazane z profilu, z którym nie ma jeszcze żadnej wymiany wiadomości.
-      setActiveOtherId(initialConversationId);
-    }
+    setActiveOtherId(existing ? existing.otherCharacter.id : initialConversationId);
     onConversationOpened();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialConversationId, loading]);
@@ -381,61 +431,33 @@ function PrivateMessagesView({
 
   return (
     <Panel style={{ padding: 0, overflow: "hidden" }}>
-      {loading && (
-        <p style={{ color: COLORS.textFaint, fontSize: 13, padding: "24px 0", textAlign: "center" }}>Ładowanie...</p>
-      )}
+      {loading && <p style={{ color: COLORS.textFaint, fontSize: 13, padding: "24px 0", textAlign: "center" }}>Ładowanie...</p>}
       {!loading && conversations.length === 0 && (
         <p style={{ color: COLORS.textGhost, fontSize: 13, padding: "24px 0", textAlign: "center", fontStyle: "italic" }}>
           Brak rozmów. Odwiedź profil innego gracza, aby wysłać pierwszą wiadomość.
         </p>
       )}
       {!loading && conversations.map((c, i) => (
-        <div
-          key={c.conversationId}
-          onClick={() => setActiveOtherId(c.otherCharacter.id)}
-          style={{
-            display: "flex", alignItems: "center", gap: 12,
-            padding: "14px 16px",
-            borderTop: i === 0 ? "none" : `1px solid ${COLORS.borderSoft}`,
-            cursor: "pointer", transition: "background 0.15s",
-            background: c.unreadCount > 0 ? "rgba(245,196,81,0.05)" : "transparent",
-          }}
+        <div key={c.conversationId} onClick={() => setActiveOtherId(c.otherCharacter.id)}
+          style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderTop: i === 0 ? "none" : `1px solid ${COLORS.borderSoft}`, cursor: "pointer", transition: "background 0.15s", background: c.unreadCount > 0 ? "rgba(245,196,81,0.05)" : "transparent" }}
           onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.03)")}
-          onMouseLeave={e => (e.currentTarget.style.background = c.unreadCount > 0 ? "rgba(245,196,81,0.05)" : "transparent")}
-        >
-          <div style={{
-            width: 38, height: 38, borderRadius: "50%", flexShrink: 0,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 16, fontWeight: 700, color: COLORS.bg,
-            background: "linear-gradient(135deg, #F5C451, #F46A4E)",
-          }}>
+          onMouseLeave={e => (e.currentTarget.style.background = c.unreadCount > 0 ? "rgba(245,196,81,0.05)" : "transparent")}>
+          <div style={{ width: 38, height: 38, borderRadius: "50%", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 700, color: COLORS.bg, background: "linear-gradient(135deg, #F5C451, #F46A4E)" }}>
             {c.otherCharacter.name[0]}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ fontSize: 13, fontWeight: 600, color: COLORS.text }}>{c.otherCharacter.name}</span>
               <span style={{ fontSize: 10, color: COLORS.textFaint }}>poz. {c.otherCharacter.level}</span>
-              {c.unreadCount > 0 && (
-                <span style={{
-                  fontSize: 10, padding: "1px 7px", borderRadius: 10,
-                  background: COLORS.red, color: COLORS.text, fontWeight: 700,
-                }}>
-                  {c.unreadCount}
-                </span>
-              )}
+              {c.unreadCount > 0 && <span style={{ fontSize: 10, padding: "1px 7px", borderRadius: 10, background: COLORS.red, color: COLORS.text, fontWeight: 700 }}>{c.unreadCount}</span>}
             </div>
             {c.lastMessage && (
-              <p style={{
-                fontSize: 12, color: COLORS.textFaint, margin: "2px 0 0",
-                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-              }}>
+              <p style={{ fontSize: 12, color: COLORS.textFaint, margin: "2px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {c.lastMessage.content}
               </p>
             )}
           </div>
-          <span style={{ fontSize: 11, color: COLORS.textGhost, flexShrink: 0 }}>
-            {formatDateTime(c.lastMessageAt)}
-          </span>
+          <span style={{ fontSize: 11, color: COLORS.textGhost, flexShrink: 0 }}>{formatDateTime(c.lastMessageAt)}</span>
         </div>
       ))}
     </Panel>
@@ -447,28 +469,17 @@ function PrivateMessagesView({
 // ═══════════════════════════════════════════════════════════════════════════
 
 interface PrivateMessageRow {
-  id: number;
-  senderId: number;
-  content: string;
-  createdAt: string;
-  isSavedBySender: boolean;
-  isSavedByReceiver: boolean;
+  id: number; senderId: number; content: string; createdAt: string;
 }
 
-function ConversationView({
-  otherCharacterId,
-  onBack,
-  onProfileClick,
-}: {
-  otherCharacterId: number;
-  onBack: () => void;
-  onProfileClick: () => void;
+function ConversationView({ otherCharacterId, onBack, onProfileClick }: {
+  otherCharacterId: number; onBack: () => void; onProfileClick: () => void;
 }) {
   const [messages, setMessages] = useState<PrivateMessageRow[]>([]);
   const [otherName, setOtherName] = useState<string>("");
-  const [loading, setLoading] = useState(true);
-  const [text, setText] = useState("");
-  const [sending, setSending] = useState(false);
+  const [loading, setLoading]   = useState(true);
+  const [text, setText]         = useState("");
+  const [sending, setSending]   = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -478,92 +489,51 @@ function ConversationView({
       setMessages(res.data.messages);
     } catch (err: any) {
       setSendError(err.response?.data?.error ?? "Błąd ładowania wiadomości");
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   }, [otherCharacterId]);
 
-  // Nazwa drugiego gracza — z profilu (publiczny endpoint), żeby działało
-  // też dla zupełnie nowego wątku bez żadnych wiadomości jeszcze.
-  useEffect(() => {
-    api.get(`/profile/${otherCharacterId}`).then(r => setOtherName(r.data.name)).catch(() => {});
-  }, [otherCharacterId]);
-
+  useEffect(() => { api.get(`/profile/${otherCharacterId}`).then(r => setOtherName(r.data.name)).catch(() => {}); }, [otherCharacterId]);
   useEffect(() => { fetchMessages(); }, [fetchMessages]);
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages.length]);
 
   async function handleSend() {
     const trimmed = text.trim();
-    if (trimmed.length === 0) return;
-    setSending(true);
-    setSendError(null);
+    if (!trimmed) return;
+    setSending(true); setSendError(null);
     try {
       await api.post(`/messages/private/${otherCharacterId}`, { content: trimmed });
-      setText("");
-      await fetchMessages();
+      setText(""); await fetchMessages();
     } catch (err: any) {
       setSendError(err.response?.data?.error ?? "Nie udało się wysłać wiadomości");
-    } finally {
-      setSending(false);
-    }
+    } finally { setSending(false); }
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
   }
 
   return (
     <Panel style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column", height: 560 }}>
-      {/* Nagłówek konwersacji */}
-      <div style={{
-        display: "flex", alignItems: "center", gap: 10, padding: "12px 16px",
-        borderBottom: `1px solid ${COLORS.borderSoft}`, flexShrink: 0,
-      }}>
-        <button onClick={onBack} style={{ background: "none", border: "none", color: COLORS.textDim, cursor: "pointer", fontSize: 13, padding: "4px 6px" }}>
-          ←
-        </button>
-        <span
-          onClick={onProfileClick}
-          style={{ fontSize: 14, fontWeight: 700, color: COLORS.gold, cursor: "pointer", fontFamily: "Cinzel, serif" }}
-        >
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderBottom: `1px solid ${COLORS.borderSoft}`, flexShrink: 0 }}>
+        <button onClick={onBack} style={{ background: "none", border: "none", color: COLORS.textDim, cursor: "pointer", fontSize: 13, padding: "4px 6px" }}>←</button>
+        <span onClick={onProfileClick} style={{ fontSize: 14, fontWeight: 700, color: COLORS.gold, cursor: "pointer", fontFamily: "Cinzel, serif" }}>
           {otherName || "..."}
         </span>
-        <button onClick={onProfileClick} style={{ ...miniButtonStyle, marginLeft: "auto" }}>
-          Zobacz profil
-        </button>
+        <button onClick={onProfileClick} style={{ ...miniButtonStyle, marginLeft: "auto" }}>Zobacz profil</button>
       </div>
 
-      {/* Lista wiadomości */}
       <div style={{ flex: 1, overflowY: "auto", padding: 16, display: "flex", flexDirection: "column", gap: 8 }}>
         {loading && <p style={{ color: COLORS.textFaint, fontSize: 13, textAlign: "center" }}>Ładowanie...</p>}
         {!loading && messages.length === 0 && (
-          <p style={{ color: COLORS.textGhost, fontSize: 13, textAlign: "center", fontStyle: "italic", marginTop: 40 }}>
-            Brak wiadomości — napisz pierwszą!
-          </p>
+          <p style={{ color: COLORS.textGhost, fontSize: 13, textAlign: "center", fontStyle: "italic", marginTop: 40 }}>Brak wiadomości — napisz pierwszą!</p>
         )}
         {messages.map(msg => {
-          // Wiadomości "moje" mają senderId == aktualnego gracza, ale nie znamy go tu
-          // bezpośrednio — rozpoznajemy je po fakcie, że NIE pochodzą od otherCharacterId.
           const isMine = msg.senderId !== otherCharacterId;
           return (
             <div key={msg.id} style={{ display: "flex", justifyContent: isMine ? "flex-end" : "flex-start" }}>
-              <div style={{
-                maxWidth: "70%", padding: "8px 12px", borderRadius: 12,
-                background: isMine ? "rgba(89,212,208,0.15)" : COLORS.panelAlt,
-                border: `1px solid ${isMine ? "rgba(89,212,208,0.3)" : COLORS.borderSoft}`,
-              }}>
-                <p style={{ fontSize: 13, color: COLORS.text, margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                  {msg.content}
-                </p>
-                <p style={{ fontSize: 10, color: COLORS.textGhost, margin: "4px 0 0", textAlign: "right" }}>
-                  {formatDateTime(msg.createdAt)}
-                </p>
+              <div style={{ maxWidth: "70%", padding: "8px 12px", borderRadius: 12, background: isMine ? "rgba(89,212,208,0.15)" : COLORS.panelAlt, border: `1px solid ${isMine ? "rgba(89,212,208,0.3)" : COLORS.borderSoft}` }}>
+                <p style={{ fontSize: 13, color: COLORS.text, margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{msg.content}</p>
+                <p style={{ fontSize: 10, color: COLORS.textGhost, margin: "4px 0 0", textAlign: "right" }}>{formatDateTime(msg.createdAt)}</p>
               </div>
             </div>
           );
@@ -571,29 +541,13 @@ function ConversationView({
         <div ref={bottomRef} />
       </div>
 
-      {/* Pole wpisywania */}
       <div style={{ padding: 12, borderTop: `1px solid ${COLORS.borderSoft}`, flexShrink: 0 }}>
         {sendError && <p style={{ fontSize: 11, color: COLORS.red, margin: "0 0 6px" }}>{sendError}</p>}
         <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
-          <textarea
-            value={text}
-            onChange={e => setText(e.target.value.slice(0, 1000))}
-            onKeyDown={handleKeyDown}
-            disabled={sending}
-            placeholder="Napisz wiadomość... (Enter = wyślij, Shift+Enter = nowa linia)"
-            rows={2}
-            style={{
-              flex: 1, resize: "none", boxSizing: "border-box",
-              background: COLORS.panelAlt, border: `1px solid ${COLORS.borderSoft}`,
-              borderRadius: 8, padding: 10, color: COLORS.text, fontSize: 13,
-              fontFamily: "Inter, sans-serif",
-            }}
-          />
-          <button
-            onClick={handleSend}
-            disabled={sending || text.trim().length === 0}
-            style={primaryButtonStyle(sending || text.trim().length === 0)}
-          >
+          <textarea value={text} onChange={e => setText(e.target.value.slice(0, 1000))} onKeyDown={handleKeyDown} disabled={sending}
+            placeholder="Napisz wiadomość... (Enter = wyślij, Shift+Enter = nowa linia)" rows={2}
+            style={{ flex: 1, resize: "none", boxSizing: "border-box", background: COLORS.panelAlt, border: `1px solid ${COLORS.borderSoft}`, borderRadius: 8, padding: 10, color: COLORS.text, fontSize: 13, fontFamily: "Inter, sans-serif" }} />
+          <button onClick={handleSend} disabled={sending || text.trim().length === 0} style={primaryButtonStyle(sending || text.trim().length === 0)}>
             {sending ? "..." : "Wyślij"}
           </button>
         </div>
@@ -606,28 +560,15 @@ function ConversationView({
 // ── STYLE WSPÓLNE ────────────────────────────────────────────────────────────
 
 const miniButtonStyle: React.CSSProperties = {
-  padding: "6px 12px", borderRadius: 6,
-  border: `1px solid ${COLORS.borderSoft}`,
+  padding: "6px 12px", borderRadius: 6, border: `1px solid ${COLORS.borderSoft}`,
   background: "transparent", color: COLORS.textDim,
   fontSize: 11, cursor: "pointer", fontFamily: "Cinzel, serif", fontWeight: 600,
 };
 
 function pagerButtonStyle(disabled: boolean): React.CSSProperties {
-  return {
-    padding: "7px 14px", borderRadius: 6,
-    border: `1px solid ${COLORS.borderSoft}`,
-    background: "transparent",
-    color: disabled ? COLORS.textGhost : COLORS.textDim,
-    fontSize: 12, cursor: disabled ? "not-allowed" : "pointer",
-  };
+  return { padding: "7px 14px", borderRadius: 6, border: `1px solid ${COLORS.borderSoft}`, background: "transparent", color: disabled ? COLORS.textGhost : COLORS.textDim, fontSize: 12, cursor: disabled ? "not-allowed" : "pointer" };
 }
 
 function primaryButtonStyle(disabled: boolean): React.CSSProperties {
-  return {
-    padding: "10px 18px", borderRadius: 8, border: "none",
-    background: disabled ? "rgba(245,196,81,0.3)" : COLORS.gold,
-    color: COLORS.bg, fontSize: 12, fontWeight: 700,
-    fontFamily: "Cinzel, serif", cursor: disabled ? "not-allowed" : "pointer",
-    flexShrink: 0,
-  };
+  return { padding: "10px 18px", borderRadius: 8, border: "none", background: disabled ? "rgba(245,196,81,0.3)" : COLORS.gold, color: COLORS.bg, fontSize: 12, fontWeight: 700, fontFamily: "Cinzel, serif", cursor: disabled ? "not-allowed" : "pointer", flexShrink: 0 };
 }

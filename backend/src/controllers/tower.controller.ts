@@ -4,8 +4,8 @@ import {
   startTowerUpgrade, claimTowerUpgrade,
   startPowerCollectorUpgrade, claimPowerCollectorUpgrade,
   startLibraryUpgrade, claimLibraryUpgrade,
-  startMagicHandsUpgrade, claimMagicHandsUpgrade,
-  startSpyOrbUpgrade, claimSpyOrbUpgrade,
+  startTrophyCabinetUpgrade, claimTrophyCabinetUpgrade,
+  startMagicNotebookUpgrade, claimMagicNotebookUpgrade,
   startAltairUpgrade, claimAltairUpgrade,
   startChaosVaultUpgrade, claimChaosVaultUpgrade,
   startDisintegratorUpgrade, claimDisintegratorUpgrade,
@@ -26,10 +26,10 @@ export const upgradePowerCollector       = (req: Request, res: Response) => hand
 export const claimPowerCollector         = (req: Request, res: Response) => handle(res, () => claimPowerCollectorUpgrade(req.userId!));
 export const upgradeLibrary              = (req: Request, res: Response) => handle(res, () => startLibraryUpgrade(req.userId!));
 export const claimLibrary                = (req: Request, res: Response) => handle(res, () => claimLibraryUpgrade(req.userId!));
-export const upgradeMagicHands           = (req: Request, res: Response) => handle(res, () => startMagicHandsUpgrade(req.userId!));
-export const claimMagicHands             = (req: Request, res: Response) => handle(res, () => claimMagicHandsUpgrade(req.userId!));
-export const upgradeSpyOrb               = (req: Request, res: Response) => handle(res, () => startSpyOrbUpgrade(req.userId!));
-export const claimSpyOrb                 = (req: Request, res: Response) => handle(res, () => claimSpyOrbUpgrade(req.userId!));
+export const upgradeTrophyCabinet           = (req: Request, res: Response) => handle(res, () => startTrophyCabinetUpgrade(req.userId!));
+export const claimTrophyCabinet             = (req: Request, res: Response) => handle(res, () => claimTrophyCabinetUpgrade(req.userId!));
+export const upgradeMagicNotebook        = (req: Request, res: Response) => handle(res, () => startMagicNotebookUpgrade(req.userId!));
+export const claimMagicNotebook          = (req: Request, res: Response) => handle(res, () => claimMagicNotebookUpgrade(req.userId!));
 export const upgradeAltair               = (req: Request, res: Response) => handle(res, () => startAltairUpgrade(req.userId!));
 export const claimAltair                 = (req: Request, res: Response) => handle(res, () => claimAltairUpgrade(req.userId!));
 export const selectAltairElement = (req: Request, res: Response) =>

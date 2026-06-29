@@ -13,6 +13,8 @@ import spellbookRoutes from "./routes/spellbook.routes.js";
 import messagesRoutes from "./routes/messages.routes.js";
 import privateMessagesRoutes from "./routes/private-messages.routes.js";
 import profileRoutes from "./routes/profile.routes.js";
+import magicSchoolRoutes from "./routes/magic-school.routes.js";
+import riftRoutes from "./routes/rift.routes.js";
 
 dotenv.config();
 
@@ -35,6 +37,8 @@ app.use("/api/rankings", rankingRoutes);
 app.use("/api/messages/system", messagesRoutes);
 app.use("/api/messages/private", privateMessagesRoutes);
 app.use("/api/profile", profileRoutes);
+app.use("/api/schools", magicSchoolRoutes);
+app.use("/api/rifts", riftRoutes);
 
 // Health check
 app.get("/api/health", (req, res) => {

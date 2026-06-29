@@ -1,198 +1,119 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 // PVE ENGINE — adapter walki z pomniejszymi bytami
-//
-// Reużywa silnika PvP (simulateBattle) zamiast pisać go od nowa.
-// Tworzy Fighter-a z MinorEntityDef, podłącza go jako sideB.
+// src/services/pve-engine.ts
 // ═══════════════════════════════════════════════════════════════════════════════
 
-import {
-  MinorEntityDef,
-  EntityAttack,
-  EntityStatusAttack,
-} from "../data/minor-entities.js";
-import { AppliedStatus, StatusEffectDef } from "../types/status-types.js";
-import { MinionTargetType } from "./combat.service.js";
+import type { MinorEntityDef, PveAttack } from "../data/minor-entities.js";
+import type { Fighter } from "./combat.service.js";
 
-// ── TYPY WEWNĘTRZNE ──────────────────────────────────────────────────────────
-// Kopiujemy minimalne typy z battle.service żeby nie tworzyć cyklicznych zależności
+// ── WAŻONE LOSOWANIE ATAKU ───────────────────────────────────────────────────
+//
+// Budujemy pulę spellPool przez powielanie ataków wg wagi.
+// PvE entity nie ma blokady globalUsedSpellIds — jej spellPool jest traktowany
+// jako activeSpells (kolejka), która NIGDY nie jest pusta, bo silnik walki
+// w pętli może ją odświeżyć... ale nie. Lepsze podejście: używamy spellPool
+// z wieloma kopiami, a entity ma isPlayer=false, więc silnik nie blokuje
+// ponownego użycia (globalUsedSpellIds dotyczy tylko player spell pool).
+//
+// Ale żeby ten mechanizm działał poprawnie bez modyfikacji silnika — zamiast
+// "puli do wyczerpania" dajemy bardzo dużą pulę (100 kopii wg wag) tak,
+// że w praktyce nigdy się nie wyczerpie w 10 turach.
 
-type SpellPool = "chaotic" | "controlled" | "incantation" | "professional" | "master" | "pve";
+let _attackIdCounter = -1000;
 
-interface BattleSpell {
-  id: number;
-  name: string;
-  damage: number;
-  element: string;
-  spellPool: SpellPool;
-  isDirectional: boolean;
-  statusEffectDefs: StatusEffectDef[];
-  castEffectDefs: never[];
-  special: string | null;
-  reqElementalMagic: number;
-  reqAstralMagic: number;
-  reqBloodMagic: number;
-  summonCount: number;
-  summonHp: number;
-  summonDamage: number;
-  summonElement: string | null;
-  summonInitiative: number;
-  summonTargetType: MinionTargetType | null;
-}
-
-export interface PvEFighter {
-  id: number;
-  name: string;
-  level: number;
-  hp: number;
-  maxHp: number;
-  powerShards: number;
-  resistance: number;
-  initiative: number;
-  power: number;
-  intelligence: number;
-  elementalMagic: number;
-  astralMagic: number;
-  bloodMagic: number;
-  towerLevel: number;
-  activeSpells: BattleSpell[];
-  spellPool: BattleSpell[];
-  minions: never[];
-  appliedStatuses: AppliedStatus[];
-  stunTurnsLeft: number;
-  isPlayer: boolean;
-}
-
-// ── KONWERSJA ATAKU BYTU → BattleSpell ──────────────────────────────────────
-
-let _attackIdCounter = -1; // Ujemne ID żeby nie kolidować z prawdziwymi czarami
-
-function attackToSpell(attack: EntityAttack | EntityStatusAttack): BattleSpell {
-  const id = _attackIdCounter--;
-
-  // Ustal targetType — kierunkowe (target) lub obszarowe (allEnemies)
-  const isDirectional = attack.targetType === "target";
-
-  // Buduj statusEffectDefs jeśli to EntityStatusAttack
-  const statusEffectDefs: StatusEffectDef[] = [];
-  if ("statusEffect" in attack && attack.statusEffect) {
-    const se = attack.statusEffect;
-    statusEffectDefs.push({
-      type: se.type,
-      element: se.element,
-      damage: se.damage,
-      duration: se.duration,
-      stunChance: se.stunChance,
-      stunDuration: se.stunDuration,
-      missChance: se.missChance,
-      value: se.value,
-      healChance: se.healChance,
-      healAmount: se.healAmount,
-      stat: se.stat,
-      statMode: se.statMode,
-      statAmount: se.statAmount,
-      target: se.target as StatusEffectDef["target"],
-      count: undefined,
-    } as StatusEffectDef);
-  }
-
+function attackToSpell(attack: PveAttack): import("../types/spell-types.js").BattleSpell {
   return {
-    id,
+    id: _attackIdCounter--,
     name: attack.name,
+    category: "offensive" as const,
     damage: attack.damage,
     element: attack.element,
-    spellPool: "pve" as SpellPool,
-    isDirectional,
-    statusEffectDefs,
-    castEffectDefs: [],
-    special: attack.description,
+    spellPool: "pve" as const,
+    basicCost: 0,
+    special: attack.actionDesc,
+    endInfo: null,
+    target: attack.target as any,
+    targetCount: attack.targetCount,
+    statusEffects: attack.statusEffects,
     reqElementalMagic: 0,
     reqAstralMagic: 0,
     reqBloodMagic: 0,
     summonCount: 0,
     summonHp: 0,
     summonDamage: 0,
-    summonElement: null,
     summonInitiative: 0,
-    summonTargetType: null as MinionTargetType | null,
+    summonElement: null,
+    summonTargetType: null,
+    minionAttacks: [],
   };
 }
 
-// ── WAŻONE LOSOWANIE ATAKU ───────────────────────────────────────────────────
-
-function pickWeightedAttack(
-  attacks: (EntityAttack | EntityStatusAttack)[]
-): EntityAttack | EntityStatusAttack {
-  const totalWeight = attacks.reduce((sum, a) => sum + a.weight, 0);
-  let roll = Math.random() * totalWeight;
-  for (const attack of attacks) {
-    roll -= attack.weight;
-    if (roll <= 0) return attack;
-  }
-  return attacks[attacks.length - 1]!;
-}
-
-// ── BUDOWANIE FIGHTER-A Z BYTU ───────────────────────────────────────────────
-//
-// UWAGA: Byt ma pulę ataków zamiast "zestawu aktywnych czarów".
-// Każdą turę silnik PvP pobiera pierwszy czar z activeSpells,
-// a gdy ich brak — losuje z spellPool.
-//
-// Strategia: activeSpells = puste (byt zawsze losuje z puli ważonej)
-// spellPool = wszystkie ataki przeliczone na BattleSpell
-//
-// Żeby zachować wagi ataków, przedwypełniamy spellPool
-// proporcjonalnie do wag: atak o wadze 60 będzie 3x częstszy niż o wadze 20.
-// W tym celu duplikujemy wpisy w proporcji do wagi / GCD(wag).
-
-function gcd(a: number, b: number): number {
-  return b === 0 ? a : gcd(b, a % b);
-}
-
-function buildWeightedSpellPool(attacks: (EntityAttack | EntityStatusAttack)[]): BattleSpell[] {
+function buildPveSpellPool(attacks: PveAttack[]): ReturnType<typeof attackToSpell>[] {
   if (attacks.length === 0) return [];
 
+  // Normalizujemy wagi do GCD
+  function gcd(a: number, b: number): number { return b === 0 ? a : gcd(b, a % b); }
   const weights = attacks.map(a => a.weight);
   const g = weights.reduce(gcd);
-  const normalizedWeights = weights.map(w => Math.round(w / g));
+  const normalized = weights.map(w => Math.round(w / g));
 
-  const pool: BattleSpell[] = [];
-  for (let i = 0; i < attacks.length; i++) {
-    const spell = attackToSpell(attacks[i]!);
-    for (let j = 0; j < normalizedWeights[i]!; j++) {
-      // Każda kopia musi mieć unikalny ID (silnik sprawdza usedSpellIds)
-      pool.push({ ...spell, id: _attackIdCounter-- });
+  // Tworzymy 10 pełnych cykli żeby nie wyczerpać puli w 10 turach
+  const CYCLES = 10;
+  const pool: ReturnType<typeof attackToSpell>[] = [];
+
+  for (let cycle = 0; cycle < CYCLES; cycle++) {
+    // Tasujemy kolejność w każdym cyklu dla naturalnej losowości
+    const shuffled = [...attacks]
+      .map((a, i) => ({ attack: a, count: normalized[i]! }))
+      .sort(() => Math.random() - 0.5);
+
+    for (const { attack, count } of shuffled) {
+      for (let j = 0; j < count; j++) {
+        pool.push(attackToSpell(attack));
+      }
     }
   }
+
   return pool;
 }
 
-// ── GŁÓWNA FUNKCJA: buduje PvEFighter z MinorEntityDef ──────────────────────
+// ── BUDOWANIE FIGHTER-A Z BYTU ───────────────────────────────────────────────
 
-export function buildEntityFighter(entity: MinorEntityDef): PvEFighter {
-  _attackIdCounter = -1; // reset dla każdej walki żeby ID nie rosły w nieskończoność
-
-  const spellPool = buildWeightedSpellPool(entity.attacks);
+export function buildEntityFighter(entity: MinorEntityDef): Fighter {
+  const spellPool = buildPveSpellPool(entity.attacks);
 
   return {
-    id: -999,          // Ujemne ID — byt nie jest Character w bazie
+    id: -999,
     name: entity.name,
-    level: 1,           // Byt nie ma poziomu — zawsze 1
+    level: 1,
     hp: entity.hp,
     maxHp: entity.hp,
     powerShards: Infinity,
-    resistance: entity.resistance,
+
+    // Statystyki walki — tylko te których silnik faktycznie używa dla !isPlayer
+    resistance: 0,   // PvE używa własnego systemu odporności per-żywioł
     initiative: entity.initiative,
-    power: entity.power,
-    intelligence: entity.intelligence, 
-    elementalMagic: entity.elementalMagic,
-    astralMagic: entity.astralMagic,
-    bloodMagic: entity.bloodMagic,
-    towerLevel: 1,    // Byt nie ma wieży — zawsze pula "chaotic"
-    activeSpells: [], // Byt nie ma przygotowanych czarów — losuje co turę
+    intelligence: 0, // brak wpływu na cast chance dla !isPlayer
+    power: 0,        // brak wpływu na obrażenia (nowa logika calculatePveDamage)
+    elementalMagic: 0,
+    astralMagic: 0,
+    bloodMagic: 0,
+
+    towerLevel: 1,
+    activeSpells: [],
     spellPool,
     minions: [],
     appliedStatuses: [],
     stunTurnsLeft: 0,
     isPlayer: false,
+    dodgeChance: 0,
+    altairModifiers: {},
+
+    // Pola PvE-specyficzne
+    pveResistances: entity.resistances,
+    pveStatusImmunities: entity.statusImmunities,
+    entityDamageVariance: entity.damageVariance,
+
+    imageKey: entity.imageKey,
   };
 }

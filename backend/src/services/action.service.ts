@@ -3,6 +3,8 @@ import { recordSpellbookEntry } from "./spellbook.service.js";
 import { addExperience } from "./character.service.js";
 import { getOrCreateTutorial, advanceTutorialStep } from "./tutorial/tutorial.service.js";
 import { TUTORIAL_STEPS, TUTORIAL_MESSAGES } from "./tutorial/tutorial.constants.js";
+import { getCharacterSchoolBonuses } from "./magic-school.service.js";
+import { tryTriggerUnstableRift } from "./rift.service.js";
 
 // ── KONFIGURACJA AKCJI ───────────────────────────────
 export const STUDY_SUBCATEGORIES: Record<number, [string, string, string]> = {
@@ -200,8 +202,13 @@ if (isTutorialStudy) {
     await recordSpellbookEntry(character.id, tutorialSpell.id, "study");
     discoveredSpellName = tutorialSpell.name;
   }
-} else if (randomChance(config.spellChance)) {
-  // Normalny przebieg
+} else {
+  // Normalny przebieg — szansa bazowa + bonus szkolny (spell_find)
+  const schoolBonuses = await getCharacterSchoolBonuses(character.id);
+  const spellFindBonus = (schoolBonuses?.spell_find ?? 0) / 100;
+  const effectiveSpellChance = Math.min(config.spellChance + spellFindBonus, 1);
+
+  if (randomChance(effectiveSpellChance)) {
   const discoveredEntries = await prisma.spellbookEntry.findMany({
     where: { characterId: character.id },
     select: { spellId: true },
@@ -216,6 +223,8 @@ if (isTutorialStudy) {
     discoveredSpellName = chosen.name;
   }
 }
+}
+
 
   await prisma.characterAction.update({
     where: { id: action.id },
@@ -270,12 +279,14 @@ if (isTutorialStudy) {
     }
   }
 
+  const riftActionKey = `study_${action.actionLevel}` as import("../data/rifts.js").ActionTrigger;
+  await tryTriggerUnstableRift(character.id, riftActionKey);
   return {
     ...report,
     level: levelResult.level,
     experience: levelResult.experience,
     xpToNextLevel: levelResult.xpToNextLevel,
-    tutorialMessage,  // <-- dodaj do istniejącego returna
+    tutorialMessage,
   };
 }
 

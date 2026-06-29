@@ -135,9 +135,9 @@ export default function PlayerProfile() {
     setBlockBusy(true);
     try {
       if (profile.isBlocked) {
-        await api.delete(`/messages/block/${profile.characterId}`);
+        await api.delete(`/messages/private/block/${profile.characterId}`);
       } else {
-        await api.post(`/messages/block/${profile.characterId}`);
+        await api.post(`/messages/private/block/${profile.characterId}`);
       }
       await fetchProfile();
     } catch (err: any) {

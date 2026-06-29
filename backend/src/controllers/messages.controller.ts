@@ -7,9 +7,10 @@ import {
   setSystemMessageSaved,
   deleteSystemMessage,
   SystemMessageType,
+  markSystemMessageUnread,
 } from "../services/system-messages.service.js";
 
-const VALID_TYPES: SystemMessageType[] = ["random", "levelup", "tutorial"];
+const VALID_TYPES: SystemMessageType[] = ["random", "levelup", "tutorial", "rift"];
 
 async function resolveCharacterId(userId: number): Promise<number> {
   const character = await prisma.character.findUnique({ where: { userId }, select: { id: true } });
@@ -83,6 +84,18 @@ export async function setSystemMessageSavedEndpoint(req: Request, res: Response)
   }
 }
 
+// PATCH /api/messages/system/:id/unread
+export async function markSystemMessageUnreadEndpoint(req: Request, res: Response) {
+  try {
+    const characterId = await resolveCharacterId(req.userId!);
+    const messageId = parseInt(req.params.id as string, 10);
+    const message = await markSystemMessageUnread(characterId, messageId);
+    res.json(message);
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+}
+
 // DELETE /api/messages/system/:id
 export async function deleteSystemMessageEndpoint(req: Request, res: Response) {
   try {
@@ -93,4 +106,5 @@ export async function deleteSystemMessageEndpoint(req: Request, res: Response) {
   } catch (error: any) {
     res.status(400).json({ error: error.message });
   }
+
 }

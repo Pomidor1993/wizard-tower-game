@@ -18,7 +18,7 @@ import HomeTutorial from "./pages/HomeTutorial";
 import Rankings from "./pages/Rankings";
 import Messages from "./pages/Messages";
 import PlayerProfile from "./pages/Playerprofile";
-
+import Rifts from "./pages/Rifts";
 
 export const router = createBrowserRouter([
   { path: "/login",    element: <LoginPage /> },
@@ -45,6 +45,7 @@ export const router = createBrowserRouter([
           { path: "home",        element: <HomeTutorial /> },
           { path: "rankings",    element: <Rankings />},
           { path: "messages",    element: <Messages /> },
+          { path: "rifts",       element: <Rifts /> },
           { path: "profile/:characterId", element: <PlayerProfile /> },
         ],
       },

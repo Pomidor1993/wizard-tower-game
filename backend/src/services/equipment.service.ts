@@ -3,6 +3,9 @@ import { getSpellSlotCount } from "./tower.service.js";
 import { getVisibleChaosVaultItems } from "./chaos_vault.service.js";
 import { getOrCreateTutorial, advanceTutorialStep } from "./tutorial/tutorial.service.js";
 import { TUTORIAL_STEPS, TUTORIAL_MESSAGES } from "./tutorial/tutorial.constants.js";
+import { getCharacterSchoolBonuses } from "./magic-school.service.js";
+import { getRiftTrophyBonuses, applyEquipmentReqReduction } from "./rift-trophy-bonus.service.js";
+import { getUnlockedUtilitySlots } from "./utility-spell.service.js";
 
 // ── HELPER — efektywne statystyki z bonusami ekwipunku ─────────────────────────
 function scaleItem(item: any, tier: number) {
@@ -80,6 +83,62 @@ async function getEffectiveCharacter(userId: number) {
   };
 }
 
+
+export async function getEffectiveCharacterById(characterId: number) {
+  const character = await prisma.character.findUnique({
+    where: { id: characterId },
+    include: {
+      equipment: true,
+      spellSlots: { include: { spell: true }, orderBy: { slotIndex: "asc" } },
+      spells: { include: { spell: true } },
+      tower: { include: { buildings: true } },
+    },
+  });
+  if (!character) throw new Error("Postać nie znaleziona");
+
+  const eq = character.equipment;
+  const equippedOwnedIds = [
+    eq?.robeId, eq?.bootsId, eq?.hatId,
+    eq?.talismanId, eq?.mainHandId, eq?.offHandId, eq?.offHand2Id,
+  ].filter(Boolean) as number[];
+
+  let bonusKnowledge = 0, bonusIntelligence = 0, bonusPower = 0,
+      bonusEndurance = 0, bonusResistance = 0, bonusInitiative = 0,
+      bonusElementalMagic = 0, bonusAstralMagic = 0, bonusBloodMagic = 0;
+
+  if (equippedOwnedIds.length > 0) {
+    const ownedEntries = await prisma.ownedItem.findMany({
+      where: { id: { in: equippedOwnedIds } },
+      include: { item: true },
+    });
+    for (const entry of ownedEntries) {
+      const mul = tierMultiplier(entry.tier ?? 1);
+      const scale = (base: number) => Math.round(base * mul);
+      bonusKnowledge      += scale(entry.item.bonusKnowledge);
+      bonusIntelligence   += scale(entry.item.bonusIntelligence);
+      bonusPower          += scale(entry.item.bonusPower);
+      bonusEndurance      += scale(entry.item.bonusEndurance);
+      bonusResistance     += scale(entry.item.bonusResistance);
+      bonusInitiative     += scale(entry.item.bonusInitiative);
+      bonusElementalMagic += scale(entry.item.bonusElementalMagic ?? 0);
+      bonusAstralMagic    += scale(entry.item.bonusAstralMagic ?? 0);
+      bonusBloodMagic     += scale(entry.item.bonusBloodMagic ?? 0);
+    }
+  }
+
+  return {
+    ...character,
+    knowledge:      character.knowledge      + bonusKnowledge,
+    intelligence:   character.intelligence   + bonusIntelligence,
+    power:          character.power          + bonusPower,
+    endurance:      character.endurance      + bonusEndurance,
+    resistance:     character.resistance     + bonusResistance,
+    initiative:     character.initiative     + bonusInitiative,
+    elementalMagic: character.elementalMagic + bonusElementalMagic,
+    astralMagic:    character.astralMagic    + bonusAstralMagic,
+    bloodMagic:     character.bloodMagic     + bonusBloodMagic,
+  };
+}
 
 // Każdy kolejny tier to +20% od bazowych statystyk (mnożnik: 1 + (tier-1) * 0.2)
 export function tierMultiplier(tier: number): number {
@@ -164,7 +223,10 @@ const entryById = Object.fromEntries(
 );
 
   const libraryLevel = character.tower?.buildings.find(b => b.buildingType === "library")?.level ?? 0;
-  const maxSlots = getSpellSlotCount(libraryLevel);
+  const schoolBonuses = await getCharacterSchoolBonuses(character.id);
+  const extraCombatSlots = schoolBonuses?.spell_slot ?? 0;
+  const extraUtilitySlots = schoolBonuses?.utility_slot ?? 0;
+  const maxSlots = getSpellSlotCount(libraryLevel, extraCombatSlots);
 
   const { capacity, total, visible, hidden } = await getVisibleChaosVaultItems(character.id);
 
@@ -180,6 +242,7 @@ const entryById = Object.fromEntries(
     },
     spellSlots: character.spellSlots,
     maxSlots,
+    maxUtilitySlots: getUnlockedUtilitySlots(libraryLevel, extraUtilitySlots),
     chaosVault: {
       capacity,
       total,
@@ -205,8 +268,26 @@ export async function equipItem(userId: number, ownedItemId: number) {
 
   const item = scaleItem(vaultEntry.ownedItem.item, vaultEntry.ownedItem.tier);
 
-  checkItemRequirements(item, character);
+const trophyBonuses = await getRiftTrophyBonuses(character.id);
+  const reqReductionPct = trophyBonuses.reqReduction.equipment;
 
+  // C9: jeśli gracz ma bonus redukcji wymagań, tworzymy zmodyfikowaną kopię przedmiotu
+  const itemForCheck = reqReductionPct > 0
+    ? {
+        ...item,
+        reqKnowledge:      applyEquipmentReqReduction(item.reqKnowledge,      trophyBonuses),
+        reqIntelligence:   applyEquipmentReqReduction(item.reqIntelligence,   trophyBonuses),
+        reqPower:          applyEquipmentReqReduction(item.reqPower,           trophyBonuses),
+        reqEndurance:      applyEquipmentReqReduction(item.reqEndurance,       trophyBonuses),
+        reqResistance:     applyEquipmentReqReduction(item.reqResistance,      trophyBonuses),
+        reqInitiative:     applyEquipmentReqReduction(item.reqInitiative,      trophyBonuses),
+        reqElementalMagic: applyEquipmentReqReduction(item.reqElementalMagic,  trophyBonuses),
+        reqAstralMagic:    applyEquipmentReqReduction(item.reqAstralMagic,     trophyBonuses),
+        reqBloodMagic:     applyEquipmentReqReduction(item.reqBloodMagic,      trophyBonuses),
+      }
+    : item;
+
+  checkItemRequirements(itemForCheck, character);
   const slotMap: Record<string, string> = {
     robe:       "robeId",
     boots:      "bootsId",
@@ -324,7 +405,9 @@ export async function equipSpell(userId: number, spellId: number, slotIndex: num
 
   const libraryLevel = charTower?.tower?.buildings
     .find(b => b.buildingType === "library")?.level ?? 0;
-  const maxSlots = getSpellSlotCount(libraryLevel);
+  const schoolBonusesForEquip = await getCharacterSchoolBonuses(character.id);
+  const extraSlotsForEquip = schoolBonusesForEquip?.spell_slot ?? 0;
+  const maxSlots = getSpellSlotCount(libraryLevel, extraSlotsForEquip);
   if (maxSlots === 0) throw new Error("Wybuduj Bibliotekę aby aktywować czary bojowe");
   if (slotIndex >= maxSlots) throw new Error(`Biblioteka poziomu ${libraryLevel} daje tylko ${maxSlots} slot(y) aktywnych czarów`);
 
@@ -381,7 +464,9 @@ export async function equipSpellAuto(userId: number, spellId: number) {
     include: { tower: { include: { buildings: true } } },
   });
   const libraryLevel = charTower?.tower?.buildings.find(b => b.buildingType === "library")?.level ?? 0;
-  const maxSlots = getSpellSlotCount(libraryLevel);
+  const schoolBonusesForAuto = await getCharacterSchoolBonuses(character.id);
+  const extraSlotsForAuto = schoolBonusesForAuto?.spell_slot ?? 0;
+  const maxSlots = getSpellSlotCount(libraryLevel, extraSlotsForAuto);
   if (maxSlots === 0) throw new Error("Wybuduj Bibliotekę aby aktywować czary bojowe");
 
   const used = await prisma.characterSpellSlots.findMany({

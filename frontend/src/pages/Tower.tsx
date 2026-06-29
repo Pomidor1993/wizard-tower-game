@@ -382,8 +382,8 @@ export default function TowerView() {
   const { tower, buildings, resources } = data;
   const pc = buildings.power_collector;
   const lb = buildings.library;
-  const mh = buildings.magic_hands;
-  const so = buildings.spy_orb;
+  const mh = buildings.trophy_cabinet;
+  const so = buildings.magic_notebook;
   const al = buildings.Altair;
   const cv = buildings.chaos_vault;
   const di = buildings.disintegrator;
@@ -392,8 +392,8 @@ export default function TowerView() {
     tower:          make("/tower/upgrade/start",         "/tower/upgrade/claim"),
     powerCollector: make("/tower/power-collector/start", "/tower/power-collector/claim"),
     library:        make("/tower/library/start",         "/tower/library/claim"),
-    magicHands:     make("/tower/magic-hands/start",     "/tower/magic-hands/claim"),
-    spyOrb:         make("/tower/spy-orb/start",         "/tower/spy-orb/claim"),
+    trophyCabinet:  make("/tower/trophy-cabinet/start",  "/tower/trophy-cabinet/claim"),
+    magicNotebook:  make("/tower/magic-notebook/start",  "/tower/magic-notebook/claim"),
     altair:         make("/tower/altair/start",          "/tower/altair/claim"),
     chaosVault:     make("/tower/chaos-vault/start",     "/tower/chaos-vault/claim"),
     disintegrator:  make("/tower/disintegrator/start",   "/tower/disintegrator/claim"),
@@ -524,24 +524,24 @@ export default function TowerView() {
         />
 
         <BuildingCard
-          title="Sztuczne ręce"
-          icon="🦾"
-          description="Prosta ruchoma konstrukcja, która powtarza odpowiednie ruchy, wytwarzając przy tym małe, lśniące grudki złota."
-          effectLabel="Jeszcze nie wiadomo"
+          title="Gablota trofeów"
+          icon="X"
+          description="Umożliwia obejrzenie trofeów oraz wybranie aktywnego bonusu."
+          effectLabel="+1 aktywny bonus z trofeów"
           data={mh}
-          onStart={acts.magicHands.start}
-          onClaim={acts.magicHands.claim}
+          onStart={acts.trophyCabinet.start}
+          onClaim={acts.trophyCabinet.claim}
           currentShards={resources.powerShards}
         />
 
         <BuildingCard
-          title="Kula szpiegula"
-          icon="🔮"
-          description="Interesuje Cię, co się dzieje w magicznym świecie? Wystarczy spojrzeć."
-          effectLabel="Umożliwia wykonanie akcji Podglądanie"
+          title="Magiczny Notes"
+          icon="X"
+          description="Ten prosty, acz genialny magiczny wynalazek służy do notowania wszystkiego, czego uda Ci się o magii dowiedzieć!"
+          effectLabel="Umożliwia dostęp przeglądania poznanych przedmiotów, przeciwników, szczelin, krain itd."
           data={so}
-          onStart={acts.spyOrb.start}
-          onClaim={acts.spyOrb.claim}
+          onStart={acts.magicNotebook.start}
+          onClaim={acts.magicNotebook.claim}
           currentShards={resources.powerShards}
 
         />
