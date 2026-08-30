@@ -20,6 +20,8 @@ import {
 } from "./rift-trophy-bonus.service.js";
 import type { AggregatedRiftTrophyBonuses } from "../types/rift-trophy-types.js";
 import { getEffectiveCharacterById } from "./equipment.service.js";
+import { createReport } from "./report.service.js";
+import { PVE_LOSS_OR_DRAFT_SUMMARY_MESSAGE, PVP_DRAFT_SUMMARY_MESSAGE } from "../data/shared-messages.js";
 
 const DAILY_ACTION_LIMIT = 10;
 const DAILY_BATTLE_LIMIT = DAILY_ACTION_LIMIT;
@@ -195,7 +197,7 @@ interface TurnEvent {
   description: string;
 }
 
-interface TurnLog {
+export interface TurnLog {
   turn: number;
   events: TurnEvent[];
   sideAFighterHps: { name: string; hp: number }[];
@@ -1372,8 +1374,8 @@ if (endedByLimit) {
   winnerId = null;
   const isPveBattle = !fightersB.some(f => f.isPlayer);
   summary = isPveBattle
-    ? `Dziwna ta magia.. Niby taka potężna, a jednak nie mogłeś z jej pomocą pokonać swojego przeciwnika. Ale nie kłopocz się, na pewno następnym razem wrócisz silniejszy!`
-    : `Wyczerpani bojem, postanowiliście zgodnie zaprzestać walki — dokończycie ją kiedy indziej.`;
+    ? PVE_LOSS_OR_DRAFT_SUMMARY_MESSAGE
+    : PVP_DRAFT_SUMMARY_MESSAGE;
 } else if (aAlive && !bAlive) {
     winnerId = state.sideA.fighters[0]!.id;
     summary  = `${state.sideA.fighters[0]!.name} wygrywa po ${turn} turach!`;
@@ -1498,18 +1500,22 @@ export async function challengePlayer(attackerUserId: number, defenderCharacterI
     ];
   }
 
-  const fullMetadata = {
-    ...result.metadata,
-    attackerUserId,
-    attackerId:    attackerChar.id,
-    attackerName:  attackerChar.name,
-    defenderId:    defenderChar.id,
-    defenderName:  defenderChar.name,
-    duelExperience,
-    draw:          result.winnerId === null,
-    allParticipants: buildParticipants(),
-    shardsSpent: { attacker: attackerShardsSpent, defender: defenderShardsSpent },
-  };
+const fullMetadata = {
+  ...result.metadata,
+  attackerUserId,
+  attackerId:    attackerChar.id,
+  attackerName:  attackerChar.name,
+  attackerAvatarIndex: attackerChar.avatarIndex ?? 0,
+  defenderId:    defenderChar.id,
+  defenderName:  defenderChar.name,
+  defenderAvatarIndex: defenderChar.avatarIndex ?? 0,
+  sideAFighterMaxHp: attackerFighter.maxHp,
+  sideBFighterMaxHp: defenderFighter.maxHp,
+  duelExperience,
+  draw:          result.winnerId === null,
+  allParticipants: buildParticipants(),
+  shardsSpent: { attacker: attackerShardsSpent, defender: defenderShardsSpent },
+};
 
   const isDraw = result.winnerId === null;
 
@@ -1524,6 +1530,29 @@ export async function challengePlayer(attackerUserId: number, defenderCharacterI
       prestigeGain: attackerWon ? prestigeGain : 0,
     },
   });
+
+  const duelPayloadBase = {
+  metadata: fullMetadata,
+  log: result.log,
+  summary: result.summary,
+  attackerWon,
+  draw: isDraw,
+};
+
+await Promise.all([
+  createReport(attackerChar.id, "duel", {
+    ...duelPayloadBase,
+    prestigeGain: attackerWon ? prestigeGain : 0,
+    viewerIsAttacker: true,
+    viewerCharacterId: attackerChar.id,
+  }),
+  createReport(defenderChar.id, "duel", {
+    ...duelPayloadBase,
+    prestigeGain: 0, // defender nie dostaje prestiżu w obecnym modelu
+    viewerIsAttacker: false,
+    viewerCharacterId: defenderChar.id,
+  }),
+]);
 
   await Promise.all([
     prisma.character.update({
@@ -1575,10 +1604,11 @@ export async function getBattleHistory(userId: number) {
     },
   });
 
-  return battles.map(b => {
+return battles.map(b => {
     let metadata: any = {};
     try { metadata = JSON.parse(b.metadata ?? "{}"); } catch { metadata = {}; }
     const isDraw = metadata.draw === true;
+    const attackerWon = !isDraw && b.winnerId === metadata.attackerId; // NOWE
     return {
       id:            b.id,
       attacker:      b.attacker.name,
@@ -1588,6 +1618,7 @@ export async function getBattleHistory(userId: number) {
       prestigeGain:  b.prestigeGain,
       foughtAt:      b.foughtAt,
       youWon:        !isDraw && b.winnerId === character.id,
+      attackerWon,                                       
       isDraw,
       myCharacterId: character.id,
       log:           JSON.parse(b.log),

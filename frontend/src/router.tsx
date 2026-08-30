@@ -19,6 +19,9 @@ import Rankings from "./pages/Rankings";
 import Messages from "./pages/Messages";
 import PlayerProfile from "./pages/Playerprofile";
 import Rifts from "./pages/Rifts";
+import MagicNotebook from "./pages/MagicNotebook";
+import ReportPage from "./pages/ReportPage";
+
 
 export const router = createBrowserRouter([
   { path: "/login",    element: <LoginPage /> },
@@ -47,6 +50,8 @@ export const router = createBrowserRouter([
           { path: "messages",    element: <Messages /> },
           { path: "rifts",       element: <Rifts /> },
           { path: "profile/:characterId", element: <PlayerProfile /> },
+          { path: "notes",    element: <MagicNotebook />},
+          { path: "reports",     element: <ReportPage />}
         ],
       },
     ],

@@ -3,7 +3,7 @@ import {
   startStudyAction,
   claimStudyAction,
   getActiveActions,
-} from "../services/action.service.js";
+} from "../services/study.service.js";
 import { startExploration, claimExploration } from "../services/exploration.service.js";
 
 

@@ -46,3 +46,23 @@ export const previewDisintegratorEndpoint = (req: Request, res: Response) =>
   handle(res, () => previewDisintegrate(req.userId!, req.body.targets, req.body.currency));
 export const confirmDisintegratorEndpoint = (req: Request, res: Response) =>
   handle(res, () => confirmDisintegrate(req.userId!, req.body.targets, req.body.currency));
+
+export const previewDisintegratorBatchEndpoint = (req: Request, res: Response) =>
+  handle(res, async () => {
+    const { targets } = req.body;
+
+    if (!targets || !Array.isArray(targets) || targets.length === 0) {
+      throw new Error("Przekaż listę ID przedmiotów");
+    }
+
+    // Wywołanie równoległe dla obu walut – to samo co preview, tylko dwa razy
+    const [shardsPreview, prestigePreview] = await Promise.all([
+      previewDisintegrate(req.userId!, targets, "shards"),
+      previewDisintegrate(req.userId!, targets, "prestige"),
+    ]);
+
+    return {
+      shards: shardsPreview.totalReward,
+      prestige: prestigePreview.totalReward,
+    };
+  });

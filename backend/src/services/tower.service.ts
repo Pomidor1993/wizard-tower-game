@@ -5,8 +5,8 @@ import { getRiftTrophyBonuses, applyTowerReqReduction } from "./rift-trophy-bonu
 
 // ── KONFIGURACJA BUDYNKÓW ────────────────────────────
 
-const TOWER_BASE_REQ = { knowledge: 5, intelligence: 5 };
-const TOWER_BASE_PRESTIGE_REQ = 10;
+const TOWER_BASE_REQ = { knowledge: 1, intelligence: 1 };
+const TOWER_BASE_PRESTIGE_REQ = 1;
 const TOWER_PRESTIGE_SCALE = 1.4;
 const TOWER_BASE_DURATION_SECONDS = 180;
 
@@ -49,14 +49,15 @@ const BUILDING_CONFIG: Record<string, BuildingConfig> = {
 },
   // ── NOTATNIK - śledzenie świata z perspektywy gracza ──────────────
   magic_notebook: {
-    requiredTowerLevel: 10,
-    maxLevel: 1,
-    baseCostShards: 200,
-    baseReqKnowledge: 20,
-    baseReqIntelligence: 15,
-    baseReqPower: 25,
+    requiredTowerLevel: 1,
+    maxLevel: 5,
+    towerLevelPerUpgrade: [10, 15, 20, 25, 30],
+    baseCostShards: 20,
+    baseReqKnowledge: 2,
+    baseReqIntelligence: 1,
+    baseReqPower: 2,
     baseDurationSeconds: 600,
-    scaleMultiplier: 1.3,
+    scaleMultiplier: 1.4,
   },
   // ── ALTAIR — wzmocnienia żywiołowe (patrz sekcja niżej) ──
   Altair: {

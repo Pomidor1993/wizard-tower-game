@@ -10,6 +10,7 @@
 import prisma from "../lib/prisma.js";
 import { parseUtilityDescriptions } from "../types/utility-types.js";
 import { getRiftTrophyBonuses, hasGuaranteedHit } from "./rift-trophy-bonus.service.js";
+import { createReport } from "./report.service.js";
 
 // ── Stałe ────────────────────────────────────────────────────────────────────
 
@@ -78,7 +79,9 @@ export interface TournamentResult {
 interface TournamentMetadata {
   challengerId: number;
   challengerName: string;
+  challengerAvatarIndex: number;
   defenderId: number;
+  defenderAvatarIndex: number;
   defenderName: string;
   challengerTotal: number;
   defenderTotal: number;
@@ -386,15 +389,18 @@ export async function challengeMagicTournament(
     defenderPrestige = 4;
   }
 
-  const metadata: TournamentMetadata = {
-    challengerId:   challengerChar.id,
-    challengerName: challengerChar.name,
-    defenderId:     defenderChar.id,
-    defenderName:   defenderChar.name,
-    challengerTotal,
-    defenderTotal,
-    winnerId,
-  };
+// w challengeMagicTournament, przy budowaniu metadata:
+const metadata: TournamentMetadata = {
+  challengerId:   challengerChar.id,
+  challengerName: challengerChar.name,
+  challengerAvatarIndex: challengerChar.avatarIndex ?? 0,
+  defenderId:     defenderChar.id,
+  defenderName:   defenderChar.name,
+  defenderAvatarIndex: defenderChar.avatarIndex ?? 0,
+  challengerTotal,
+  defenderTotal,
+  winnerId,
+};
 
   // Zapis do bazy
   const tournament = await prisma.magicTournament.create({
@@ -434,6 +440,32 @@ export async function challengeMagicTournament(
           : { tournamentLosses: { increment: 1 } }),
     },
   });
+
+  const tournamentPayloadBase = {
+  metadata,
+  rounds,
+  summary,
+  challengerTotal,
+  defenderTotal,
+  challengerWon,
+  defenderWon,
+  draw,
+};
+
+await Promise.all([
+  createReport(challengerChar.id, "tournament", {
+    ...tournamentPayloadBase,
+    prestigeGain: challengerPrestige,
+    viewerIsChallenger: true,
+    viewerCharacterId: challengerChar.id,
+  }),
+  createReport(defenderChar.id, "tournament", {
+    ...tournamentPayloadBase,
+    prestigeGain: defenderPrestige,
+    viewerIsChallenger: false,
+    viewerCharacterId: defenderChar.id,
+  }),
+]);
 
   return {
     tournamentId: tournament.id,

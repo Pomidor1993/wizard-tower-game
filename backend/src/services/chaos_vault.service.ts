@@ -80,7 +80,7 @@ export async function getVisibleChaosVaultItems(characterId: number) {
   const allEntries = await prisma.chaosVaultItem.findMany({
     where: { ownedItem: { characterId } },
     include: { ownedItem: { include: { item: true } } },
-    orderBy: { addedAt: "desc" },
+    orderBy: { addedAt: "asc" },
   });
 
   return {

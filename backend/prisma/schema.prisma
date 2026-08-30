@@ -28,6 +28,7 @@ model Character {
   userId    Int      @unique
   user      User     @relation(fields: [userId], references: [id])
   name      String
+  avatarIndex   Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   level      Int @default(1)
@@ -116,6 +117,8 @@ model Character {
   unstableRift        UnstableRift?
   riftTriggerProgress RiftTriggerProgress[]
   riftWorldHistory    RiftWorldHistory[]
+  rankingSnapshots RankingSnapshot[]
+  gameReports GameReport[]
 
 
 }
@@ -287,6 +290,8 @@ model Item {
   baseReqs      String   @default("{}")     // JSON: bazowe wymagania przed skalowaniem tierem
   baseBonus     String   @default("{}")     // JSON: bazowe bonusy przed skalowaniem tierem
   locationTypes String   @default("[]")     // JSON: ["A"] | ["A","B"] | ["A","B","C"] itd.
+  notebookDescription String @default("")
+
 }
 
 model OwnedItem {
@@ -420,6 +425,8 @@ model PveEncounter {
   summary           String                 // Np. "Powietrzny Błąd wygrywa po 3 turach!"
  
   foughtAt          DateTime  @default(now())
+  source      String?   @default("exploration")
+  studyLevel  Int?
  
   @@index([characterId])
   @@index([characterId, playerWon])
@@ -889,4 +896,29 @@ model RiftWorldHistory {
   visitedAt   DateTime  @default(now())
 
   @@index([characterId, riftKey])
+}
+
+model RankingSnapshot {
+  id          Int      @id @default(autoincrement())
+  characterId Int
+  character   Character @relation(fields: [characterId], references: [id])
+  category    String    // "level" | "prestige" | "builders" | "warriors" | "showoffs" | "collectors"
+  bestRank    Int       // najlepsza (najniższa) osiągnięta pozycja
+  achievedAt  DateTime  @default(now())  // kiedy ta pozycja została osiągnięta
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([characterId, category])
+  @@index([characterId])
+}
+
+model GameReport {
+  id          Int       @id @default(autoincrement())
+  characterId Int
+  character   Character @relation(fields: [characterId], references: [id])
+  type        String    // study | exploration | duel | tournament | rift_unstable | rift_stable
+  payload     String    // JSON
+  isRead      Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+
+  @@index([characterId, createdAt])
 }

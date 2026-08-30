@@ -114,7 +114,7 @@ export const EXPLORATION_ENTITIES: ExplorationEntityDef[] = [
     id: "mud_slime",
     name: "Błotny Szlam",
     entityType: "exploration",
-    imageKey: "mud_slime.png",
+    imageKey: "mud_exploration.jpg",
     hp: 25,
     initiative: 3,
     resistances: { earth: 3 },
@@ -140,10 +140,10 @@ export const EXPLORATION_ENTITIES: ExplorationEntityDef[] = [
   },
 
   {
-    id: "rock_sprite",
-    name: "Skalny Duszek",
+    id: "chochlik_1",
+    name: "Chochlik",
     entityType: "exploration",
-    imageKey: "rock_sprite.png",
+    imageKey: "chochlik_study.jpg",
     hp: 30,
     initiative: 5,
     resistances: { earth: 5 },
@@ -169,10 +169,10 @@ export const EXPLORATION_ENTITIES: ExplorationEntityDef[] = [
   },
 
   {
-    id: "forest_rat",
-    name: "Leśny Szczur",
+    id: "mad_rat",
+    name: "Opętany Szczur",
     entityType: "exploration",
-    imageKey: "forest_rat.png",
+    imageKey: "rat_exploration.jpg",
     hp: 20,
     initiative: 10,
     resistances: {},
@@ -192,8 +192,8 @@ export const EXPLORATION_ENTITIES: ExplorationEntityDef[] = [
     reward: {
       runicShards: 2,
       description: "Szczur miał przy sobie zaskakująco cenne okruchy.",
-      defeatFlavorText: "Leśny Szczur ucieka z piskiem w krzaki.",
-      victoryFlavorText: "Zęby Leśnego Szczura okazały się zaskakująco ostre...",
+      defeatFlavorText: "Opętany Szczur ucieka z piskiem w krzaki.",
+      victoryFlavorText: "Zęby Opętanego Szczura okazały się zaskakująco ostre...",
     },
   },
 
@@ -203,7 +203,7 @@ export const EXPLORATION_ENTITIES: ExplorationEntityDef[] = [
     id: "fire_imp",
     name: "Ognisty Imp",
     entityType: "exploration",
-    imageKey: "fire_imp.png",
+    imageKey: "imp_study.jpg",
     hp: 40,
     initiative: 8,
     resistances: { fire: 5 },
@@ -249,59 +249,10 @@ export const EXPLORATION_ENTITIES: ExplorationEntityDef[] = [
   },
 
   {
-    id: "air_wisp",
-    name: "Powietrzny Błąd",
-    entityType: "exploration",
-    imageKey: "air_wisp.png",
-    hp: 30,
-    initiative: 18,
-    resistances: { air: 4 },
-    statusImmunities: { stun: 0.75 },
-    damageVariance: 25,
-    attacks: [
-      {
-        name: "Podmuch",
-        damage: 4,
-        element: "air",
-        target: "randomEnemy",
-        actionDesc: "{attacker} uderza {target} podmuchem zadając {damage} obrażeń.",
-        statusEffects: [],
-        weight: 60,
-      },
-      {
-        name: "Porywisty wiatr",
-        damage: 2,
-        element: "air",
-        target: "allEnemies",
-        actionDesc: "{attacker} wzniecza porywisty wiatr uderzający we wszystkich!",
-        statusEffects: [
-          {
-            type: "damage_on_move",
-            element: "air",
-            damage: 2,
-            statusChance: 40,
-            target: "allEnemies",
-            duration: 2,
-            tickInfo: "Wiatr utrudnia ruch {target} zadając {damage} obrażeń.",
-            endInfo: "Wiatr ustaje.",
-          },
-        ],
-        weight: 40,
-      },
-    ],
-    reward: {
-      runicShards: 4,
-      description: "Powietrzny Błąd zostawia po sobie skondensowane kryształy energii.",
-      defeatFlavorText: "Powietrzny Błąd rozprasza się w podmuch wiatru.",
-      victoryFlavorText: "Powietrzny Błąd otoczył Cię warem i wyrwał z walki...",
-    },
-  },
-
-  {
     id: "swamp_toad",
-    name: "Bagienne Ropucha",
+    name: "Szalonooka Ropucha",
     entityType: "exploration",
-    imageKey: "swamp_toad.png",
+    imageKey: "toad_exploration.jpg",
     hp: 45,
     initiative: 4,
     resistances: { death: 5, water: 3 },
@@ -344,7 +295,7 @@ export const EXPLORATION_ENTITIES: ExplorationEntityDef[] = [
     id: "ice_elemental",
     name: "Lodowy Elementalny",
     entityType: "exploration",
-    imageKey: "ice_elemental.png",
+    imageKey: "elemental_study.jpg",
     hp: 60,
     initiative: 7,
     resistances: { water: 10, earth: 5 },
@@ -397,10 +348,10 @@ export const EXPLORATION_ENTITIES: ExplorationEntityDef[] = [
   },
 
   {
-    id: "shadow_wolf",
-    name: "Cień Wilka",
+    id: "1wolf1",
+    name: "Zły Wilk",
     entityType: "exploration",
-    imageKey: "shadow_wolf.png",
+    imageKey: "wolf_exploration.jpg",
     hp: 55,
     initiative: 15,
     resistances: { chaos: 5 },
@@ -439,9 +390,9 @@ export const EXPLORATION_ENTITIES: ExplorationEntityDef[] = [
     ],
     reward: {
       runicShards: 8,
-      description: "Mroczna sierść Cienia Wilka zawiera pulsującą energię runiczną.",
-      defeatFlavorText: "Cień Wilka rozpływa się w ciemności z cichym wycem.",
-      victoryFlavorText: "Cień Wilka rozszarpał Cię zanim zdążyłeś zareagować...",
+      description: "Mroczna sierść Złego Wilka zawiera pulsującą energię runiczną.",
+      defeatFlavorText: "Zły Wilk rozpływa się w ciemności z cichym wycem.",
+      victoryFlavorText: "Zły Wilk rozszarpał Cię zanim zdążyłeś zareagować...",
     },
   },
 
@@ -451,7 +402,7 @@ export const EXPLORATION_ENTITIES: ExplorationEntityDef[] = [
     id: "chaos_golem",
     name: "Golem Chaosu",
     entityType: "exploration",
-    imageKey: "chaos_golem.png",
+    imageKey: "chaos_golem.jpg",
     hp: 90,
     initiative: 4,
     resistances: { chaos: 8, earth: 8 },
@@ -489,7 +440,7 @@ export const EXPLORATION_ENTITIES: ExplorationEntityDef[] = [
     id: "blood_witch",
     name: "Wiedźma Krwi",
     entityType: "exploration",
-    imageKey: "blood_witch.png",
+    imageKey: "blood_witch.jpg",
     hp: 70,
     initiative: 12,
     resistances: { death: 8 },
@@ -557,7 +508,7 @@ export const EXPLORATION_ENTITIES: ExplorationEntityDef[] = [
     id: "storm_drake",
     name: "Burzowy Drakon",
     entityType: "exploration",
-    imageKey: "storm_drake.png",
+    imageKey: "storm_drake.jpg",
     hp: 120,
     initiative: 14,
     resistances: { fire: 5, air: 10 },
@@ -626,7 +577,7 @@ export const EXPLORATION_ENTITIES: ExplorationEntityDef[] = [
     id: "ancient_lich",
     name: "Starożytny Lisz",
     entityType: "exploration",
-    imageKey: "ancient_lich.png",
+    imageKey: "ancient_lich.jpg",
     hp: 100,
     initiative: 10,
     resistances: { death: 10, chaos: 5 },
@@ -716,7 +667,7 @@ export const RIFT_ENTITIES: RiftEntityDef[] = [
     name: "Harcerz",
     entityType: "rift",
     riftWorldKey: "stokrotka",
-    imageKey: "petal_guardian.png",
+    imageKey: "petal_guardian.jpg",
     hp: 50,
     initiative: 8,
     resistances: { earth: 5 },
@@ -761,7 +712,7 @@ export const RIFT_ENTITIES: RiftEntityDef[] = [
     name: "Hobbitański Łobuz",
     entityType: "rift",
     riftWorldKey: "hobbiton",
-    imageKey: "hobbit_ruffian.png",
+    imageKey: "hobbit_green_rift.jpg",
     hp: 45,
     initiative: 12,
     resistances: {},
@@ -796,7 +747,7 @@ export const RIFT_ENTITIES: RiftEntityDef[] = [
     name: "Szmaragdowy Strażnik",
     entityType: "rift",
     riftWorldKey: "szmaragdowe_miasto",
-    imageKey: "emerald_sentinel.png",
+    imageKey: "emerald_sentinel.jpg",
     hp: 70,
     initiative: 6,
     resistances: { earth: 12 },
@@ -849,6 +800,95 @@ export const RIFT_ENTITIES: RiftEntityDef[] = [
     ],
   },
 
+  {
+    id: "rift_green_cowardly_lion",
+    name: "Człowiek-Lew",
+    entityType: "rift",
+    riftWorldKey: "szmaragdowe_miasto",
+    imageKey: "emerald_sentinel.jpg",
+    hp: 70,
+    initiative: 6,
+    resistances: { earth: 12 },
+    statusImmunities: { stun: 0.5 },
+    damageVariance: 15,
+    attacks: [
+      {
+        name: "Szmaragdowy cios",
+        damage: 10,
+        element: "earth",
+        target: "randomEnemy",
+        actionDesc: "{attacker} uderza {target} szmaragdową pięścią zadając {damage} obrażeń.",
+        statusEffects: [],
+        weight: 50,
+      },
+      {
+        name: "Tarcza szmaragdu",
+        damage: 0,
+        element: "earth",
+        target: "self",
+        actionDesc: "{attacker} okrywa się szmaragdową tarczą.",
+        statusEffects: [
+          {
+            type: "resist",
+            element: "earth",
+            value: 50,
+            target: "self",
+            duration: 2,
+          },
+        ],
+        weight: 30,
+      },
+      {
+        name: "Szmaragdowy promień",
+        damage: 12,
+        element: "earth",
+        target: "allEnemies",
+        actionDesc: "{attacker} wysyła szmaragdowy promień we wszystkich!",
+        statusEffects: [
+          {
+            type: "vulnerable",
+            element: "earth",
+            value: 20,
+            target: "allEnemies",
+            duration: 3,
+          },
+        ],
+        weight: 20,
+      },
+    ],
+  },
+    {
+    id: "rift_green_jeweler",
+    name: "Kupiec",
+    entityType: "rift",
+    riftWorldKey: "szmaragdowe_miasto",
+    imageKey: "hobbit_green_rift.jpg",
+    hp: 45,
+    initiative: 12,
+    resistances: {},
+    statusImmunities: {},
+    damageVariance: 25,
+    attacks: [
+      {
+        name: "Ukradkowy cios",
+        damage: 8,
+        element: "none",
+        target: "randomEnemy",
+        actionDesc: "{attacker} atakuje {target} z zaskoczenia zadając {damage} obrażeń.",
+        statusEffects: [],
+        weight: 70,
+      },
+      {
+        name: "Rzut kamieniem",
+        damage: 5,
+        element: "earth",
+        target: "randomEnemy",
+        actionDesc: "{attacker} ciśnie kamieniem w {target} zadając {damage} obrażeń.",
+        statusEffects: [],
+        weight: 30,
+      },
+    ],
+  },
   // ── Rust Wasteland ────────────────────────────────────────────────────────
 
   {
@@ -856,7 +896,7 @@ export const RIFT_ENTITIES: RiftEntityDef[] = [
     name: "Zbieracz Rdzy",
     entityType: "rift",
     riftWorldKey: "rust_wasteland",
-    imageKey: "rust_scavenger.png",
+    imageKey: "rust_scavenger.jpg",
     hp: 65,
     initiative: 10,
     resistances: { chaos: 5 },
@@ -907,7 +947,7 @@ export const RIFT_ENTITIES: RiftEntityDef[] = [
     name: "Kolos Rdzy",
     entityType: "rift",
     riftWorldKey: "rust_wasteland",
-    imageKey: "rust_colossus.png",
+    imageKey: "rust_colossus.jpg",
     hp: 130,
     initiative: 3,
     resistances: { earth: 15, none: 5 },
@@ -945,6 +985,168 @@ export const RIFT_ENTITIES: RiftEntityDef[] = [
     ],
   },
 ];
+
+
+// src/data/minor-entities.ts – dodaj na samym dole, przed eksportami
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PRZECIWNICY STUDIÓW (przypadkowe przywołania)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export const STUDY_ENTITIES: ExplorationEntityDef[] = [
+  {
+    id: "study_imp_fire",
+    name: "Ognisty Imp (przypadkowo przywołany)",
+    entityType: "exploration", // używamy tego samego typu dla uproszczenia, ale źródło będziemy rozróżniać w logice
+    imageKey: "imp_study.jpg",
+    hp: 20,
+    initiative: 8,
+    resistances: { fire: 3 },
+    statusImmunities: {},
+    damageVariance: 15,
+    attacks: [
+      {
+        name: "Ognisty pazur",
+        damage: 4,
+        element: "fire",
+        target: "randomEnemy",
+        actionDesc: "{attacker} rani {target} ognistym pazurem zadając {damage} obrażeń.",
+        statusEffects: [],
+        weight: 80,
+      },
+      {
+        name: "Podpalenie",
+        damage: 0,
+        element: "fire",
+        target: "randomEnemy",
+        actionDesc: "{attacker} próbuje podpalić {target}!",
+        statusEffects: [
+          {
+            type: "dot",
+            element: "fire",
+            damage: 2,
+            statusChance: 50,
+            target: "randomEnemy",
+            duration: 2,
+            tickInfo: "{target} płonie i otrzymuje {damage} obrażeń.",
+            endInfo: "Płomienie na {target} gasną.",
+          },
+        ],
+        weight: 20,
+      },
+    ],
+    reward: {
+      runicShards: 2,
+      description: "Imp pozostawia po sobie kilka iskier runicznych.",
+      defeatFlavorText: "Imp znika w kłębie dymu z wrzaskiem.",
+      victoryFlavorText: "Ognisty Imp atakuje Cię z zaskoczenia, ale udaje Ci się odeprzeć atak.",
+    },
+  },
+  {
+    id: "study_air_wisp",
+    name: "Powietrzny Błąd (przypadkowo przywołany)",
+    entityType: "exploration",
+    imageKey: "air_wisp.jpg",
+    hp: 18,
+    initiative: 16,
+    resistances: { air: 2 },
+    statusImmunities: {},
+    damageVariance: 20,
+    attacks: [
+      {
+        name: "Podmuch",
+        damage: 3,
+        element: "air",
+        target: "randomEnemy",
+        actionDesc: "{attacker} uderza {target} podmuchem zadając {damage} obrażeń.",
+        statusEffects: [],
+        weight: 70,
+      },
+      {
+        name: "Zamieszanie",
+        damage: 1,
+        element: "air",
+        target: "randomEnemy",
+        actionDesc: "{attacker} próbuje zdezorientować {target}!",
+        statusEffects: [
+          {
+            type: "stun",
+            statusChance: 30,
+            target: "randomEnemy",
+            duration: 1,
+            tickInfo: "{target} jest ogłuszony – traci akcję!",
+            failTickInfo: "{target} utrzymuje koncentrację.",
+            endInfo: "{target} odzyskuje przytomność.",
+          },
+        ],
+        weight: 30,
+      },
+    ],
+    reward: {
+      runicShards: 2,
+      description: "Błąd pozostawia po sobie wirującą energię.",
+      defeatFlavorText: "Powietrzny Błąd rozpływa się w powietrzu.",
+      victoryFlavorText: "Błąd atakuje Cię wichurą, ale udaje Ci się go rozproszyć.",
+    },
+  },
+  {
+    id: "study_shadow_rat",
+    name: "Cieniowy Szczur (przypadkowo przywołany)",
+    entityType: "exploration",
+    imageKey: "forest_rat.jpg",
+    hp: 16,
+    initiative: 12,
+    resistances: { chaos: 2 },
+    statusImmunities: {},
+    damageVariance: 15,
+    attacks: [
+      {
+        name: "Ugryzienie z cienia",
+        damage: 4,
+        element: "chaos",
+        target: "randomEnemy",
+        actionDesc: "{attacker} atakuje {target} z cienia zadając {damage} obrażeń.",
+        statusEffects: [],
+        weight: 80,
+      },
+      {
+        name: "Mroczne ukąszenie",
+        damage: 2,
+        element: "chaos",
+        target: "randomEnemy",
+        actionDesc: "{attacker} zatapia zęby w {target}!",
+        statusEffects: [
+          {
+            type: "dot",
+            element: "chaos",
+            damage: 1,
+            statusChance: 40,
+            target: "randomEnemy",
+            duration: 2,
+            tickInfo: "{target} odczuwa mroczne pulsowanie, tracąc {damage} HP.",
+            endInfo: "Mroczna energia ustępuje.",
+          },
+        ],
+        weight: 20,
+      },
+    ],
+    reward: {
+      runicShards: 2,
+      description: "Szczur zostawia po sobie ciemny ślad.",
+      defeatFlavorText: "Cieniowy Szczur rozpływa się w mroku.",
+      victoryFlavorText: "Szczur atakuje z zaskoczenia, ale udaje Ci się go odstraszyć.",
+    },
+  },
+  // Możesz dodać więcej bytów dla wyższych poziomów, na razie zostawiam te trzy dla poziomu 1.
+];
+
+// Funkcja pobierająca byty dla danego poziomu studiów
+export function getStudyEntitiesForLevel(level: number): ExplorationEntityDef[] {
+  // Na razie dla każdego poziomu zwracamy wszystkie, ale możesz zróżnicować:
+  // np. poziom 1 -> pierwsze 2, poziom 2 -> wszystkie itp.
+  // Dla uproszczenia zwracamy wszystkie, a szansa spotkania i tak jest niska.
+  return STUDY_ENTITIES;
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // EKSPORT

@@ -24,6 +24,7 @@ export async function getMyCharacter(req: Request, res: Response) {
   res.json({
     ...character,
     xpToNextLevel: calculateXpForNextLevel(character.level),
+      avatarIndex: character.avatarIndex ?? 0,
   });
 }
 

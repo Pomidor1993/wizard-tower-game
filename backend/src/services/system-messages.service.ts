@@ -16,7 +16,7 @@ import { RANDOM_MESSAGES, getRandomMessageByKey } from "../data/random-messages.
 const RETENTION_DAYS = 30;
 const DAILY_ROLL_CHANCE = 0.08; // 8% — środek widełek 5-10% ustalonych w specyfikacji
 
-export type SystemMessageType = "random" | "levelup" | "tutorial" | "school" | "rift";
+export type SystemMessageType = "random" | "levelup" | "tutorial" | "school" | "rift" | "study";
 
 // ── LAZY CLEANUP ──────────────────────────────────────────────────
 // Usuwa niezapisane wiadomości systemowe starsze niż 30 dni dla danej postaci.
@@ -150,7 +150,12 @@ export async function createSystemMessage(
       content: data.content,
     },
   });
+
+  
 }
+
+
+
 
 // ── POBIERANIE LISTY WIADOMOŚCI (z filtrowaniem) ──────────────────
 export interface GetSystemMessagesOptions {

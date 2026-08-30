@@ -1,5 +1,5 @@
 import prisma from "../lib/prisma.js";
-import { calculateRegenActions } from "./action.service.js";
+import { calculateRegenActions } from "./study.service.js";
 import {
   getExplorationEntitiesForLevel,
   type ExplorationEntityDef,
@@ -15,8 +15,13 @@ import { getUtilityBonuses, resolveRandomBonus } from "./utility-spell.service.j
 import { getCharacterSchoolBonuses, getExplorationLevelUnlock } from "./magic-school.service.js";
 import { getRiftTrophyBonuses, applyItemTierBonus } from "./rift-trophy-bonus.service.js";
 import { tryTriggerUnstableRift } from "./rift.service.js";
-
-// ── KONFIGURACJA ──────────────────────────────────────────────────────────────
+import { createReport } from "./report.service.js";
+import {
+  EXPLORATION_FAIL_MESSAGES,
+  EXPLORATION_SUCCESS_MESSAGES,
+  buildExplorationEncounterIntro,
+} from "../data/shared-messages.js";
+// ── KONFIGURACJA ─────────────────────────────────────────────────────────────
 
 const EXPLORATION_CONFIG = [
   { level: 1, durationSeconds: 5,   minPoints: 40, maxPoints: 60,  itemChance: 0.90 },
@@ -26,7 +31,6 @@ const EXPLORATION_CONFIG = [
   { level: 5, durationSeconds: 600, minPoints: 70, maxPoints: 90,  itemChance: 0.70 },
 ];
 
-/** Bazowa szansa na spotkanie z bytem na każdym poziomie eksploracji */
 const ENCOUNTER_BASE_CHANCE: Record<number, number> = {
   1: 0.90,
   2: 0.35,
@@ -84,11 +88,15 @@ interface EncounterResult {
   fought: boolean;
   entityId: string | null;
   entityName: string | null;
+  entityImageKey: string | null;
   entity: ExplorationEntityDef | null;
   playerWon: boolean;
   runicShardsEarned: number;
   battleLog: object[] | null;
+  metadata: any | null;
   summary: string | null;
+  playerMaxHp: number;
+  entityMaxHp: number;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -151,12 +159,12 @@ export async function startExploration(userId: number, level: number, location: 
   const [action] = await prisma.$transaction([
     prisma.characterAction.create({
       data: {
-        characterId:      character.id,
-        actionType:       "exploration",
-        actionLevel:      level,
-        actionSubcategory: ["A", "B", "C"].indexOf(location) + 1,
+        characterId:         character.id,
+        actionType:          "exploration",
+        actionLevel:         level,
+        actionSubcategory:   ["A", "B", "C"].indexOf(location) + 1,
         explorationLocation: location,
-        status:           "in_progress",
+        status:              "in_progress",
         finishesAt,
       },
     }),
@@ -170,10 +178,10 @@ export async function startExploration(userId: number, level: number, location: 
   ]);
 
   return {
-    actionId:        action.id,
+    actionId:         action.id,
     level,
     location,
-    locationName:    loc.name,
+    locationName:     loc.name,
     finishesAt,
     actionsRemaining: newActions - 1,
   };
@@ -219,50 +227,45 @@ async function resolveTutorialEncounter(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// ODEBRANIE WYNIKU EKSPLORACJI
+// GŁÓWNA LOGIKA PRZETWARZANIA — wywoływana auto lub przez claim
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export async function claimExploration(userId: number, actionId: number) {
-  const character = await prisma.character.findUnique({
-    where:   { userId },
-    include: { tower: { include: { buildings: true } } },
+export async function processExplorationCompletion(actionId: number): Promise<void> {
+  // Wczytaj akcję razem z postacią i jej budynkami
+  const action = await prisma.characterAction.findUnique({
+    where: { id: actionId },
+    include: {
+      character: {
+        include: { tower: { include: { buildings: true } } },
+      },
+    },
   });
-  if (!character) throw new Error("Postać nie znaleziona");
 
-  const action = await prisma.characterAction.findFirst({
-    where: { id: actionId, characterId: character.id },
-  });
-  if (!action)                                                      throw new Error("Akcja nie znaleziona");
-  if (action.status === "claimed")                                  throw new Error("Akcja już odebrana");
-  if (action.status === "in_progress" && new Date() < action.finishesAt)
-    throw new Error("Akcja jeszcze nie zakończona");
+  // Jeśli nie istnieje lub już przetworzona — nic nie rób
+  if (!action || action.status === "claimed") return;
 
-  const config           = EXPLORATION_CONFIG[action.actionLevel - 1]!;
+  const character = action.character;
+  const config    = EXPLORATION_CONFIG[action.actionLevel - 1]!;
+
+// ── XP i awans ───────────────────────────────────────────────────────────
   const skillPointsEarned = randomInt(config.minPoints, config.maxPoints);
-  const levelResult      = await addExperience(character.id, skillPointsEarned);
+  const levelResult       = await addExperience(character.id, skillPointsEarned);
 
-  const messages: string[] = [];
-  messages.push(`Eksploracja zakończona! Zdobyłeś ${skillPointsEarned} punktów doświadczenia.`);
-  if (levelResult.levelsGained > 0) {
-    messages.push(
-      `Awans! Twoja postać osiągnęła poziom ${levelResult.level} ` +
-      `i zdobyła ${levelResult.skillPointsGained} pkt rozwoju.`
-    );
-  }
+  let droppedItem:     DroppedItemResult | null = null;
+  let encounterResult: EncounterResult   | null = null;
+  let narrative = "";
 
-  let droppedItem:    DroppedItemResult | null = null;
-  let encounterResult: EncounterResult  | null = null;
-  let tutorialMessage: string           | null = null;
+  const subIdx = (action.actionSubcategory ?? 1) - 1;
+  const level  = action.actionLevel;
 
   const tutorial = await getOrCreateTutorial(character.id);
 
-  // ── SAMOUCZEK ────────────────────────────────────────────────────────────
+  // ── SAMOUCZEK ─────────────────────────────────────────────────────────────
   if (tutorial.step === TUTORIAL_STEPS.INTRO) {
-    const { summary, droppedItem: tutorialDrop } = await resolveTutorialEncounter(character.id);
+    const { summary: tutorialSummary, droppedItem: tutorialDrop } = await resolveTutorialEncounter(character.id);
 
-    messages.push(summary);
+    narrative = tutorialSummary;
     if (tutorialDrop) droppedItem = tutorialDrop;
-    tutorialMessage = TUTORIAL_MESSAGES.STUDY_UNLOCKED;
 
     await advanceTutorialStep(character.id, TUTORIAL_STEPS.INTRO, TUTORIAL_STEPS.EXPLORATION_DONE);
 
@@ -270,11 +273,15 @@ export async function claimExploration(userId: number, actionId: number) {
       fought:            true,
       entityId:          "tutorial",
       entityName:        "tutorial_encounter",
+      entityImageKey:    null,
       entity:            null,
       playerWon:         true,
       runicShardsEarned: 0,
       battleLog:         [],
-      summary,
+      metadata:          null,
+      summary:           tutorialSummary,
+      playerMaxHp:       100,
+      entityMaxHp:       100,
     };
 
   // ── NORMALNY PRZEBIEG ─────────────────────────────────────────────────────
@@ -285,8 +292,10 @@ export async function claimExploration(userId: number, actionId: number) {
     const trophyBonuses = await getRiftTrophyBonuses(character.id);
 
     // ── Przedmiot ─────────────────────────────────────────────────────────
-    const schoolItemBonus    = schoolBonuses?.item_find ?? 0;
-    const effectiveItemChance = config.itemChance + bonuses.bonusItemFindChance / 100 + schoolItemBonus / 100;
+    const schoolItemBonus     = schoolBonuses?.item_find ?? 0;
+    const effectiveItemChance = config.itemChance
+      + bonuses.bonusItemFindChance / 100
+      + schoolItemBonus / 100;
 
     if (randomChance(effectiveItemChance)) {
       const rarity    = pickItemRarity(action.actionLevel);
@@ -295,18 +304,13 @@ export async function claimExploration(userId: number, actionId: number) {
       const [minTier, maxTier] = locConfig?.tierRange ?? [1, 3];
 
       let pool = await prisma.item.findMany({ where: { rarity } });
-
-      // Filtr lokacji
       pool = pool.filter(item => {
         try {
           const types: string[] = JSON.parse(item.locationTypes);
           return types.length === 0 || types.includes(locLetter);
         } catch { return true; }
       });
-
-      // Fallback 1: bez filtra lokacji
       if (pool.length === 0) pool = await prisma.item.findMany({ where: { rarity } });
-      // Fallback 2: bez żadnych filtrów
       if (pool.length === 0) pool = await prisma.item.findMany();
 
       if (pool.length > 0) {
@@ -328,14 +332,13 @@ export async function claimExploration(userId: number, actionId: number) {
           message:          result.message,
           overCapacity:     result.overCapacity,
         };
-        messages.push(result.message);
       }
     }
 
     // ── Spotkanie ─────────────────────────────────────────────────────────
-    const encounterPool  = getExplorationEntitiesForLevel(action.actionLevel);
-    const baseChance     = ENCOUNTER_BASE_CHANCE[action.actionLevel] ?? 0.4;
-    const baseEncounter  = encounterPool.length > 0 && Math.random() < baseChance;
+    const encounterPool = getExplorationEntitiesForLevel(action.actionLevel);
+    const baseChance    = ENCOUNTER_BASE_CHANCE[action.actionLevel] ?? 0.4;
+    const baseEncounter = encounterPool.length > 0 && Math.random() < baseChance;
 
     const shouldEncounter = (() => {
       if (baseEncounter && bonuses.avoidEncounterChance > 0) {
@@ -354,52 +357,67 @@ export async function claimExploration(userId: number, actionId: number) {
         bonuses.avoidHitChance,
         bonuses.alwaysFirstInPve
       );
+    }
 
-      if (encounterResult.fought) {
-        if (encounterResult.playerWon) {
-          messages.push(
-            `Podczas eksploracji napotkałeś: ${encounterResult.entityName}! ` +
-            `Po krótkiej, ale zaciekłej walce — pokonałeś go! ` +
-            `${encounterResult.entity?.reward.description ?? ""} ` +
-            `(+${encounterResult.runicShardsEarned} okruchów kamienia runicznego)`
-          );
-        } else {
-          messages.push(
-            `Podczas eksploracji napotkałeś: ${encounterResult.entityName}! ` +
-            `Walczyłeś dzielnie, ale tym razem wróg wziął górę. ` +
-            `${encounterResult.entity?.reward.victoryFlavorText ?? ""}`
-          );
-        }
-      }
+    // ── Narracja: spotkanie ma priorytet nad flavor tekstem znalezienia przedmiotu ──
+    if (encounterResult?.fought) {
+      narrative = buildExplorationEncounterIntro(encounterResult.entityName!);
+    } else {
+      const pool = droppedItem
+        ? EXPLORATION_SUCCESS_MESSAGES[level]?.[subIdx]
+        : EXPLORATION_FAIL_MESSAGES[level]?.[subIdx];
+      narrative = Array.isArray(pool) && pool.length > 0
+        ? pool[Math.floor(Math.random() * pool.length)]!
+        : "Eksploracja dobiegła końca.";
     }
   }
 
-  // ── ZAPIS ─────────────────────────────────────────────────────────────────
+  // ── Okruchy runiczne ──────────────────────────────────────────────────────
   const runicShardsEarned = encounterResult?.runicShardsEarned ?? 0;
+
+  const locationName = getLocation(
+    action.actionLevel,
+    (action.explorationLocation ?? "A") as LocationLetter
+  )?.name ?? `Poziom ${action.actionLevel}`;
+
+  const reportObj = {
+    viewerCharacterId: character.id,
+    avatarIndex:       character.avatarIndex ?? 0,
+    locationName,
+    actionLevel:        action.actionLevel,
+    narrative,
+    encounter: encounterResult
+      ? {
+          entityName:        encounterResult.entityName,
+          entityImageKey:    encounterResult.entityImageKey,
+          playerMaxHp:       encounterResult.playerMaxHp,
+          entityMaxHp:       encounterResult.entityMaxHp,
+          playerWon:         encounterResult.playerWon,
+          log:               encounterResult.battleLog,
+          metadata:          encounterResult.metadata,
+        }
+      : null,
+    summary: {
+      xpEarned: skillPointsEarned,
+      item: droppedItem
+        ? { name: droppedItem.name, rarity: droppedItem.rarity, message: droppedItem.message }
+        : null,
+      encounterOutcome: encounterResult?.fought ? (encounterResult.playerWon ? "won" : "lost") : null,
+      entityName: encounterResult?.fought ? encounterResult.entityName : null,
+      runicShardsEarned,
+      levelUp: levelResult.levelsGained > 0
+        ? { newLevel: levelResult.level, skillPointsGained: levelResult.skillPointsGained }
+        : null,
+    },
+  };
 
   await prisma.$transaction([
     prisma.characterAction.update({
       where: { id: action.id },
       data: {
-        status:          "claimed",
+        status:           "claimed",
         skillPointsEarned,
-        report: JSON.stringify({
-          skillPointsEarned,
-          messages,
-          droppedItem,
-          tutorialMessage,
-          encounter: encounterResult
-            ? {
-                fought:            encounterResult.fought,
-                entityId:          encounterResult.entityId,
-                entityName:        encounterResult.entityName,
-                playerWon:         encounterResult.playerWon,
-                runicShardsEarned: encounterResult.runicShardsEarned,
-                battleLog:         encounterResult.battleLog,
-                summary:           encounterResult.summary,
-              }
-            : null,
-        }),
+        report:            JSON.stringify(reportObj),
       },
     }),
     prisma.character.update({
@@ -408,34 +426,32 @@ export async function claimExploration(userId: number, actionId: number) {
     }),
   ]);
 
+  await createReport(character.id, "exploration", reportObj, action.finishesAt);
+
   const riftActionKey = `exploration_${action.actionLevel}` as import("../data/rifts.js").ActionTrigger;
   await tryTriggerUnstableRift(character.id, riftActionKey);
+}
 
-  return {
-    messages,
-    experienceEarned:   skillPointsEarned,
-    level:              levelResult.level,
-    experience:         levelResult.experience,
-    xpToNextLevel:      levelResult.xpToNextLevel,
-    levelsGained:       levelResult.levelsGained,
-    skillPointsGained:  levelResult.skillPointsGained,
-    droppedItem,
-    tutorialMessage,
-    encounter: encounterResult
-      ? {
-          fought:            encounterResult.fought,
-          entityName:        encounterResult.entityName,
-          entityDescription: encounterResult.entity?.imageKey ?? null,
-          playerWon:         encounterResult.playerWon,
-          runicShardsEarned: encounterResult.runicShardsEarned,
-          battleLog:         encounterResult.battleLog,
-          summary:           encounterResult.summary,
-          flavorText:        encounterResult.playerWon
-            ? encounterResult.entity?.reward.defeatFlavorText ?? null
-            : encounterResult.entity?.reward.victoryFlavorText ?? null,
-        }
-      : null,
-  };
+// ═══════════════════════════════════════════════════════════════════════════════
+// CLAIM — cienka warstwa wywołana gdy gracz kliknie "Odbierz" w UI
+// (dla zgodności wstecznej, w praktyce processExplorationCompletion
+//  jest już wywołane przez auto-process w getActiveActions)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export async function claimExploration(userId: number, actionId: number) {
+  const character = await prisma.character.findUnique({ where: { userId } });
+  if (!character) throw new Error("Postać nie znaleziona");
+
+  const action = await prisma.characterAction.findFirst({
+    where: { id: actionId, characterId: character.id },
+  });
+  if (!action)                                                      throw new Error("Akcja nie znaleziona");
+  if (action.status === "claimed")                                  return { alreadyProcessed: true };
+  if (action.status === "in_progress" && new Date() < action.finishesAt)
+    throw new Error("Akcja jeszcze nie zakończona");
+
+  await processExplorationCompletion(actionId);
+  return { alreadyProcessed: false };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -453,23 +469,23 @@ async function resolveEncounter(
 
   const entity = pool[Math.floor(Math.random() * pool.length)] as ExplorationEntityDef;
 
-  const playerFighter       = await buildFighter(characterId);
-  const initialPowerShards  = playerFighter.powerShards;
+  const playerFighter      = await buildFighter(characterId);
+  const initialPowerShards = playerFighter.powerShards;
 
-  // avoidHitChance z czarów użytkowych dodajemy do dodgeChance fightera
   if (avoidHitChance > 0) {
     playerFighter.dodgeChance = Math.min(playerFighter.dodgeChance + avoidHitChance, 20);
   }
-
   if (alwaysFirst) {
     playerFighter.initiative = 9999;
   }
 
   const entityFighter = buildEntityFighter(entity);
+  const playerMaxHp   = playerFighter.maxHp;
+  const entityMaxHp   = (entityFighter as any).hp as number;
   const battleResult  = simulateBattle([playerFighter], [entityFighter as unknown as Fighter]);
 
-  const playerWon          = battleResult.winnerId === playerFighter.id;
-  const runicShardsEarned  = playerWon ? entity.reward.runicShards : 0;
+  const playerWon         = battleResult.winnerId === playerFighter.id;
+  const runicShardsEarned = playerWon ? entity.reward.runicShards : 0;
 
   const shardsSpent = initialPowerShards - playerFighter.powerShards;
   if (shardsSpent > 0) {
@@ -496,11 +512,15 @@ async function resolveEncounter(
     fought:            true,
     entityId:          entity.id,
     entityName:        entity.name,
+    entityImageKey:    entity.imageKey ?? null,
     entity,
     playerWon,
     runicShardsEarned,
     battleLog:         battleResult.log,
+    metadata:          battleResult.metadata,
     summary:           battleResult.summary,
+    playerMaxHp,
+    entityMaxHp,
   };
 }
 
@@ -509,11 +529,15 @@ function noEncounter(): EncounterResult {
     fought:            false,
     entityId:          null,
     entityName:        null,
+    entityImageKey:    null,
     entity:            null,
     playerWon:         false,
     runicShardsEarned: 0,
     battleLog:         null,
+    metadata:          null,
     summary:           null,
+    playerMaxHp:       0,
+    entityMaxHp:       0,
   };
 }
 

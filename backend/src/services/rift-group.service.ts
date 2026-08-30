@@ -11,6 +11,7 @@ import { buildEntityFighter } from "./pve-engine.js";
 import { addItemToChaosVaultWithMessage } from "./chaos_vault.service.js";
 import { addExperience } from "./character.service.js";
 import { getRiftTrophyBonuses } from "./rift-trophy-bonus.service.js";
+import { createReport } from "./report.service.js";
 
 function randomInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -345,6 +346,23 @@ const entityDef = ENTITY_MAP.get(entityId);
       summary: battleResult.summary,
     });
 
+
+        for (const pid of participantIds) {
+      await prisma.pveEncounter.create({
+        data: {
+          characterId: pid,
+          locationLevel: 0,
+          entityId,
+          entityName: entityDef.name,
+          playerWon: partyWon,
+          runicShardsEarned: 0,
+          battleLog: JSON.stringify(battleResult.log),
+          summary: battleResult.summary,
+          source: "rift",
+        },
+      });
+    }
+    
     if (!partyWon) {
       allWon = false;
       break; // porażka na dowolnym etapie = koniec
@@ -433,6 +451,24 @@ const entityDef = ENTITY_MAP.get(entityId);
     where: { id: party.id },
     data: { status: "completed", finishedAt: new Date() },
   });
+
+  const riftDef2 = getRiftByKey(party.riftKey as RiftColor);
+for (const [i, pid] of participantIds.entries()) {
+  const personalResult = (results as any[])[i];
+  const char = await prisma.character.findUnique({ where: { id: pid }, select: { avatarIndex: true } });
+  await createReport(pid, "rift_stable", {
+    viewerCharacterId: pid,
+    avatarIndex: char?.avatarIndex ?? 0,
+    riftKey: party.riftKey,
+    riftName: riftDef2?.name ?? party.riftKey,
+    worldKey,
+    worldName: worldDef.name,
+    success: allWon,
+    battleLogs,
+    personalResult,
+    partyResults: results,
+  });
+}
 
   return {
     runId: run.id,

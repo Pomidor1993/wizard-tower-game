@@ -13,6 +13,7 @@ import { addItemToChaosVaultWithMessage } from "./chaos_vault.service.js";
 import { addExperience } from "./character.service.js";
 import { createSystemMessage } from "./system-messages.service.js";
 import { getRiftTrophyBonuses } from "./rift-trophy-bonus.service.js";
+import { createReport } from "./report.service.js";
 
 // ── HELPERY ──────────────────────────────────────────────────────
 
@@ -386,17 +387,18 @@ const updatedRun = await prisma.riftRun.findUnique({
       };
     }
 
-    case "fight": {
-      // Wybierz przeciwnika
+ case "fight": {
       const entityId = effect.entityPool
         ? pickEntityFromPool(effect.entityPool)
         : effect.entityId!;
 
-const entityDef = ENTITY_MAP.get(entityId);
+      const entityDef = ENTITY_MAP.get(entityId);
       if (!entityDef) throw new Error(`Brak definicji przeciwnika: ${entityId}`);
 
       const playerFighter = await buildFighter(character.id);
+      const playerMaxHp = playerFighter.maxHp;
       const entityFighter = buildEntityFighter(entityDef);
+      const entityMaxHp = (entityFighter as any).hp as number;
       const battleResult = simulateBattle([playerFighter], [entityFighter as unknown as Fighter]);
 
       const playerWon = battleResult.winnerId === playerFighter.id;
@@ -409,24 +411,41 @@ const entityDef = ENTITY_MAP.get(entityId);
           choiceKey,
           fightOccurred: true,
           fightWon: playerWon,
-          fightLog: JSON.stringify(battleResult.log),
+          fightLog: JSON.stringify({
+            entityName: entityDef.name,
+            entityImageKey: entityDef.imageKey,
+            playerMaxHp,
+            entityMaxHp,
+            log: battleResult.log,
+            metadata: battleResult.metadata,
+          }),
         },
       });
 
-      // Modyfikator XP za walkę
+      await prisma.pveEncounter.create({
+        data: {
+          characterId: character.id,
+          locationLevel: 0,
+          entityId,
+          entityName: entityDef.name,
+          playerWon,
+          runicShardsEarned: 0,
+          battleLog: JSON.stringify(battleResult.log),
+          summary: battleResult.summary,
+          source: "rift",
+        },
+      });
+
       const xpMod = playerWon ? 30 : -30;
       await prisma.riftRun.update({
         where: { id: run.id },
         data: { xpModifier: { increment: xpMod } },
       });
 
-const updatedRun = await prisma.riftRun.findUnique({
-  where: { id: run.id },
-  include: {
-    steps: { orderBy: { stepIndex: "asc" } },
-    rift: true,
-  },
-});
+      const updatedRun = await prisma.riftRun.findUnique({
+        where: { id: run.id },
+        include: { steps: { orderBy: { stepIndex: "asc" } }, rift: true },
+      });
       const nextEffect = playerWon ? effect.onWin! : effect.onLose!;
 
       return {
@@ -440,8 +459,7 @@ const updatedRun = await prisma.riftRun.findUnique({
       };
     }
 
-    case "end": {
-      // Losowy modyfikator końcowy ±10%
+case "end": {
       const finalRandomMod = randomInt(-10, 10);
 
       const currentRun = await prisma.riftRun.findUnique({ where: { id: run.id } });
@@ -459,7 +477,6 @@ const updatedRun = await prisma.riftRun.findUnique({
       let trophyEarned: { key: string; name: string } | null = null;
       let itemEarned: object | null = null;
 
-      // Prestiż za walkę
       if (reward.prestige) {
         prestigeEarned = riftDef.basePrestigeGain;
         await prisma.character.update({
@@ -468,7 +485,6 @@ const updatedRun = await prisma.riftRun.findUnique({
         });
       }
 
-      // Utrata prestiżu
       if (reward.prestigeLoss) {
         prestigeLost = randomInt(riftDef.prestigeLossMin, riftDef.prestigeLossMax);
         await prisma.character.update({
@@ -477,12 +493,10 @@ const updatedRun = await prisma.riftRun.findUnique({
         });
       }
 
-      // Trofeum
       if (reward.trophy) {
         trophyEarned = await awardTrophy(character.id, reward.trophy, run.rift.riftKey, run.worldKey);
       }
 
-      // Przedmiot
       if (reward.item) {
         const { rarity, tierMin, tierMax } = reward.item;
         const pool = await prisma.item.findMany({ where: { rarity } });
@@ -502,10 +516,8 @@ const updatedRun = await prisma.riftRun.findUnique({
         }
       }
 
-      // XP
       const levelResult = await addExperience(character.id, finalXp);
 
-      // Zamknij run i szczelinę
       await prisma.riftRunStep.create({
         data: {
           runId: run.id,
@@ -517,12 +529,7 @@ const updatedRun = await prisma.riftRun.findUnique({
 
       await prisma.riftRun.update({
         where: { id: run.id },
-        data: {
-          status: "completed",
-          xpEarned: finalXp,
-          prestigeEarned,
-          finishedAt: new Date(),
-        },
+        data: { status: "completed", xpEarned: finalXp, prestigeEarned, finishedAt: new Date() },
       });
 
       await prisma.unstableRift.update({
@@ -530,15 +537,59 @@ const updatedRun = await prisma.riftRun.findUnique({
         data: { status: "completed", finishedAt: new Date() },
       });
 
+      // ── Zbierz wszystkie walki z tego przebiegu, w kolejności wystąpienia ──
+      const fightSteps = await prisma.riftRunStep.findMany({
+        where: { runId: run.id, fightOccurred: true },
+        orderBy: { stepIndex: "asc" },
+      });
+      const encounters = fightSteps.map(step => {
+        const parsed = step.fightLog ? JSON.parse(step.fightLog) : {};
+        return {
+          entityName: parsed.entityName ?? "Nieznany przeciwnik",
+          entityImageKey: parsed.entityImageKey ?? null,
+          playerWon: step.fightWon ?? false,
+          playerMaxHp: parsed.playerMaxHp ?? 100,
+          entityMaxHp: parsed.entityMaxHp ?? 100,
+          log: parsed.log ?? [],
+          metadata: parsed.metadata ?? null,
+        };
+      });
+
+      // ── Wstęp raportu — opis węzła startowego krainy ──
+      const startNode = getNode(worldDef, worldDef.startNodeKey);
+      const narrative = startNode?.description ?? "";
+
+      const riftDef2 = getRiftByKey(run.rift.riftKey as RiftColor);
+
+      await createReport(character.id, "rift_unstable", {
+        viewerCharacterId: character.id,
+        avatarIndex: character.avatarIndex ?? 0,
+        riftKey: run.rift.riftKey,
+        riftName: riftDef2?.name ?? run.rift.riftKey,
+        worldKey: run.worldKey,
+        worldName: worldDef.name,
+        narrative,
+        encounters,
+        summary: {
+          xpEarned: finalXp,
+          xpModifier: totalXpMod,
+          outcomeDescription: effect.description ?? null,
+          prestigeEarned,
+          prestigeLost,
+          trophy: trophyEarned,
+          item: itemEarned,
+          levelUp: levelResult.levelsGained > 0
+            ? { newLevel: levelResult.level, skillPointsGained: levelResult.skillPointsGained }
+            : null,
+        },
+      });
+
       return {
         type: "end",
         description: effect.description ?? "Wyprawa zakończona.",
         xpEarned: finalXp,
         xpModifier: totalXpMod,
-        levelResult: {
-          level: levelResult.level,
-          levelsGained: levelResult.levelsGained,
-        },
+        levelResult: { level: levelResult.level, levelsGained: levelResult.levelsGained },
         prestigeEarned,
         prestigeLost,
         trophy: trophyEarned,

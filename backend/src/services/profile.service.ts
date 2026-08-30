@@ -20,6 +20,7 @@ export interface PlayerProfile {
   lastSeenAt: Date | null; // "Ostatnio widziany: ..." — null jeśli brak danych (np. konto sprzed migracji)
   titles: string[];        // placeholder — mechanika tytułów jeszcze nie istnieje
   portraitUrl: string | null; // placeholder — mechanika grafik postaci jeszcze nie istnieje
+  avatarIndex: number;
   isSelf: boolean;
   isBlocked: boolean; // czy PYTAJĄCY zablokował tego gracza
 }
@@ -47,9 +48,22 @@ export async function getPlayerProfile(viewerCharacterId: number, targetCharacte
     towerLevel: target.tower?.level ?? null,
     registeredAt: target.user.createdAt,
     lastSeenAt: target.user.lastLoginAt,
-    titles: [], // TODO: podłączyć gdy powstanie mechanika tytułów
-    portraitUrl: null, // TODO: podłączyć gdy powstanie mechanika grafik postaci
+    titles: [],
+    portraitUrl: null,
+    avatarIndex: target.avatarIndex ?? 1, // <-- NOWE
     isSelf: viewerCharacterId === targetCharacterId,
     isBlocked: blockEntry !== null,
   };
+}
+
+export async function updateAvatar(characterId: number, newAvatarIndex: number): Promise<void> {
+  const MAX_AVATAR = 20;
+  if (newAvatarIndex < 0 || newAvatarIndex > MAX_AVATAR) {
+    throw new Error(`Nieprawidłowy numer awatara (dozwolone 0–${MAX_AVATAR})`);
+  }
+
+  await prisma.character.update({
+    where: { id: characterId },
+    data: { avatarIndex: newAvatarIndex },
+  });
 }

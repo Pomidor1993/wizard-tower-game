@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/client";
 import { useCharacter } from "../contexts/CharacterContext";
+import { DuelReport } from "../components/DuelReport";
+import { TournamentReport } from "../components/TournamentReport";
 
 // ── PALETA 
 const COLORS = {
@@ -148,7 +150,7 @@ function SectionTitle({ children, style = {} }: { children: React.ReactNode; sty
   );
 }
 
-function ColorLegend() {
+export function ColorLegend() {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 16, fontSize: 11, color: COLORS.textFaint, marginBottom: 8, flexWrap: "wrap" }}>
       <span style={{ fontFamily: "Cinzel, serif", color: COLORS.textFaint, textTransform: "uppercase", letterSpacing: "0.06em" }}>
@@ -181,7 +183,7 @@ interface TurnLogViewProps {
   isFreshResult?: boolean;
 }
 
-function TurnLogView({ turn, metadata, myCharacterId, isFreshResult = false }: TurnLogViewProps) {
+export function TurnLogView({ turn, metadata, myCharacterId, isFreshResult = false }: TurnLogViewProps) {
   const hpHeader = isFreshResult
     ? `HP Atakującego: ${turn.sideAFighterHps?.[0]?.hp ?? "?"} • HP Obrońcy: ${turn.sideBFighterHps?.[0]?.hp ?? "?"}`
     : `HP Atakującego: ${turn.attackerHp ?? turn.sideAFighterHps?.[0]?.hp ?? "?"} • HP Obrońcy: ${turn.defenderHp ?? turn.sideBFighterHps?.[0]?.hp ?? "?"}`;
@@ -215,7 +217,7 @@ function TurnLogView({ turn, metadata, myCharacterId, isFreshResult = false }: T
 // KOMPONENT: log jednej rundy turnieju magicznego
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function TournamentRoundView({
+export function TournamentRoundView({
   round, challengerName, defenderName, mySide,
 }: {
   round: any;
@@ -354,9 +356,6 @@ export default function CombatPanel() {
 
   if (loading) return <p style={{ fontSize: 13, color: COLORS.textFaint }}>Ładowanie...</p>;
 
-  const myEntry = ranking.find(r => r.isMe);
-  const myTier  = getLevelTier(myEntry?.level ?? 1);
-
   return (
     <div>
       <h1 style={{ fontFamily: "Cinzel, serif", color: COLORS.gold, fontSize: 22, marginBottom: 24, letterSpacing: "0.06em" }}>
@@ -366,197 +365,27 @@ export default function CombatPanel() {
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
 
         {/* Wynik pojedynku */}
-        {duelResult && (
-          <Panel style={{
-            background: duelResult.draw
-              ? "rgba(245,196,81,0.05)"
-              : duelResult.attackerWon
-              ? "rgba(89,212,208,0.06)"
-              : "rgba(244,106,78,0.06)",
-            border: `1px solid ${
-              duelResult.draw
-                ? "rgba(245,196,81,0.25)"
-                : duelResult.attackerWon
-                ? "rgba(89,212,208,0.25)"
-                : "rgba(244,106,78,0.25)"
-            }`,
-          }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
-              <p style={{
-                fontFamily: "Cinzel, serif", fontWeight: 700, fontSize: 14,
-                color: duelResult.draw ? COLORS.gold : duelResult.attackerWon ? COLORS.teal : COLORS.red,
-                margin: 0, letterSpacing: "0.04em",
-              }}>
-                {duelResult.draw ? "🤝 Remis" : duelResult.attackerWon ? "⚔️ Zwycięstwo!" : "💀 Porażka"}
-              </p>
-              <button
-                onClick={() => setDuelResult(null)}
-                style={{ background: "none", border: "none", color: COLORS.textGhost, fontSize: 18, lineHeight: 1, cursor: "pointer", padding: 0 }}
-                onMouseEnter={e => (e.currentTarget.style.color = COLORS.red)}
-                onMouseLeave={e => (e.currentTarget.style.color = COLORS.textGhost)}
-              >×</button>
-            </div>
-            <p style={{ fontSize: 13, color: COLORS.textDim, marginTop: 0, marginBottom: 10 }}>{duelResult.summary}</p>
-            {!duelResult.draw && duelResult.attackerWon && (
-              <p style={{ fontSize: 13, fontWeight: 700, color: COLORS.gold, marginTop: 0, marginBottom: 10 }}>
-                +{duelResult.prestigeGain} prestiżu
-              </p>
-            )}
-
-            {duelResult.log?.length > 0 && (
-              <div style={{ marginTop: 12 }}>
-                <ColorLegend />
-                <div style={{
-                  maxHeight: 288, overflowY: "auto",
-                  display: "flex", flexDirection: "column", gap: 12,
-                  background: COLORS.bg, borderRadius: 8, padding: 12,
-                  border: `1px solid ${COLORS.borderSoft}`,
-                }}>
-                  {duelResult.log.map((turn: any) => (
-                    <TurnLogView
-                      key={turn.turn}
-                      turn={turn}
-                      metadata={duelResult.metadata}
-                      myCharacterId={myCharacterId}
-                      isFreshResult
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-          </Panel>
-        )}
+{duelResult && (
+  <Panel>
+    <div style={{ display: "flex", justifyContent: "flex-end" }}>
+      <button onClick={() => setDuelResult(null)} style={{ background: "none", border: "none", color: COLORS.textGhost, fontSize: 18, cursor: "pointer" }}>×</button>
+    </div>
+    <DuelReport result={duelResult} viewerCharacterId={myCharacterId!} />
+  </Panel>
+)}
 
         {/* Wynik turnieju magicznego */}
-        {tournamentResult && (
-          <Panel style={{
-            background: "rgba(167,139,250,0.06)",
-            border: "1px solid rgba(167,139,250,0.25)",
-          }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
-              <p style={{
-                fontFamily: "Cinzel, serif", fontWeight: 700, fontSize: 14,
-                color: COLORS.purple, margin: 0, letterSpacing: "0.04em",
-              }}>
-                {tournamentResult.draw
-                  ? "🤝 Remis turniejowy"
-                  : tournamentResult.challengerWon
-                  ? "🏆 Triumf w turnieju!"
-                  : "🎭 Porażka w turnieju"}
-              </p>
-              <button
-                onClick={() => setTournamentResult(null)}
-                style={{ background: "none", border: "none", color: COLORS.textGhost, fontSize: 18, lineHeight: 1, cursor: "pointer", padding: 0 }}
-                onMouseEnter={e => (e.currentTarget.style.color = COLORS.red)}
-                onMouseLeave={e => (e.currentTarget.style.color = COLORS.textGhost)}
-              >×</button>
-            </div>
-            <p style={{ fontSize: 13, color: COLORS.textDim, marginTop: 0, marginBottom: 6 }}>{tournamentResult.summary}</p>
-            <p style={{ fontSize: 12, color: COLORS.textFaint, marginBottom: 12 }}>
-              Wynik:{" "}
-              <span style={{ color: COLORS.purple, fontWeight: 700 }}>
-                {tournamentResult.challengerTotal} : {tournamentResult.defenderTotal}
-              </span>
-            </p>
-            {tournamentResult.prestigeGain > 0 && (
-              <p style={{ fontSize: 13, fontWeight: 700, color: COLORS.gold, marginBottom: 12 }}>
-                +{tournamentResult.prestigeGain} prestiżu
-              </p>
-            )}
-            {tournamentResult.rounds?.length > 0 && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                {tournamentResult.rounds.map((round: any) => (
-                  <TournamentRoundView
-                    key={round.round}
-                    round={round}
-                    challengerName={tournamentResult.metadata?.challengerName ?? "Ty"}
-                    defenderName={tournamentResult.metadata?.defenderName ?? "Przeciwnik"}
-                    mySide="challenger"
-                  />
-                ))}
-              </div>
-            )}
-          </Panel>
-        )}
+{tournamentResult && (
+  <Panel>
+    <div style={{ display: "flex", justifyContent: "flex-end" }}>
+      <button onClick={() => setTournamentResult(null)} style={{ background: "none", border: "none", color: COLORS.textGhost, fontSize: 18, cursor: "pointer" }}>×</button>
+    </div>
+    <TournamentReport result={tournamentResult} viewerCharacterId={myCharacterId!} />
+  </Panel>
+)}
 
         {/* Arena */}
         <Panel style={{ padding: 0, overflow: "hidden" }}>
-          <div style={{ position: "relative", height: 200 }}>
-            <div style={{
-              position: "absolute", inset: 0,
-              background: "rgba(0,0,0,0.2)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}>
-              <p style={{ fontSize: 13, color: COLORS.textGhost, margin: 0 }}>Grafika areny — tło z czarodziejami po bokach</p>
-            </div>
-
-            {/* Mój avatar — wg poziomu */}
-            <div style={{ position: "absolute", left: 24, top: "50%", transform: "translateY(-50%)", textAlign: "center" }}>
-              <div style={{
-                width: 64, height: 64, borderRadius: "50%",
-                background: myTier.bg, border: `2px solid ${myTier.color}`,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 26, marginBottom: 6,
-              }}>
-                {myTier.label}
-              </div>
-              <p style={{ fontSize: 11, fontWeight: 600, color: COLORS.textDim, margin: 0 }}>
-                Ty {myEntry ? `• poz. ${myEntry.level}` : ""}
-              </p>
-            </div>
-
-            {/* Avatar przeciwnika — wg poziomu */}
-            <div style={{ position: "absolute", right: 24, top: "50%", transform: "translateY(-50%)", textAlign: "center" }}>
-              {selected ? (() => {
-                const tier = getLevelTier(selected.level);
-                return (
-                  <>
-                    <div style={{
-                      width: 64, height: 64, borderRadius: "50%",
-                      background: tier.bg, border: `2px solid ${COLORS.red}`,
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: 26, marginBottom: 6, transition: "all 0.2s",
-                    }}>
-                      {tier.label}
-                    </div>
-                    <p style={{ fontSize: 11, fontWeight: 600, color: COLORS.textDim, margin: 0 }}>
-                      {selected.name} • poz. {selected.level}
-                    </p>
-                    <button
-                      onClick={(e) => visitProfile(selected.characterId, e)}
-                      style={{
-                        marginTop: 4, padding: "3px 10px", borderRadius: 6,
-                        border: `1px solid ${COLORS.borderSoft}`, background: "rgba(0,0,0,0.25)",
-                        color: COLORS.textDim, fontSize: 10, cursor: "pointer",
-                        fontFamily: "Cinzel, serif", fontWeight: 600,
-                      }}
-                    >
-                      Odwiedź profil
-                    </button>
-                  </>
-                );
-              })() : (
-                <>
-                  <div style={{
-                    width: 64, height: 64, borderRadius: "50%",
-                    background: "rgba(0,0,0,0.25)", border: `2px solid ${COLORS.borderSoft}`,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 24, fontWeight: 700, color: COLORS.textGhost, marginBottom: 6,
-                    fontFamily: "Cinzel, serif",
-                  }}>
-                    ?
-                  </div>
-                  <p style={{ fontSize: 11, fontWeight: 600, color: COLORS.textDim, margin: 0 }}>Przeciwnik</p>
-                </>
-              )}
-            </div>
-
-            <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <span style={{ fontFamily: "Cinzel, serif", fontSize: 24, fontWeight: 700, color: COLORS.textGhost, letterSpacing: "0.08em" }}>
-                VS
-              </span>
-            </div>
-          </div>
 
           {/* Ranking */}
           <div style={{ borderTop: `1px solid ${COLORS.borderSoft}` }}>
@@ -872,6 +701,18 @@ function HistoryPanel({ myCharacterId }: { myCharacterId: number | null }) {
                       ))}
                     </div>
                   )}
+{isOpen && isDuel && (
+  <DuelReport
+    result={{ ...entry, draw: entry.isDraw }} // attackerWon already on entry now
+    viewerCharacterId={entry.myCharacterId ?? myCharacterId!}
+  />
+)}
+{isOpen && !isDuel && (
+  <TournamentReport
+    result={{ ...entry, draw: entry.draw }}
+    viewerCharacterId={entry.myCharacterId ?? myCharacterId!}
+  />
+)}
                 </div>
               )}
             </div>

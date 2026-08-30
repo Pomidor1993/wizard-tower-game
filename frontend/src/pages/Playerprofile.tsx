@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import api from "../api/client";
 import { useCharacter } from "../contexts/CharacterContext";
 
-// ── PALETA — spójna z resztą aplikacji ──────────────────────────────────────
+// ── PALETA ──────────────────────────────────────────────────────────────────────
 const COLORS = {
   bg:        "#161d38",
   panel:     "#372b5d",
@@ -20,6 +20,12 @@ const COLORS = {
   textGhost: "rgba(247,240,221,0.2)",
 };
 
+// ── STAŁE AWATARÓW ──────────────────────────────────────────────────────────
+const AVATAR_COUNT = 20;
+const AVATAR_BASE_PATH = "/src/assets/playericons/playericon";
+const AVATAR_EXT = ".jpg";
+
+// ── TYPY ────────────────────────────────────────────────────────────────────
 interface PlayerProfile {
   characterId: number;
   name: string;
@@ -30,10 +36,12 @@ interface PlayerProfile {
   lastSeenAt: string | null;
   titles: string[];
   portraitUrl: string | null;
+  avatarIndex: number;
   isSelf: boolean;
   isBlocked: boolean;
 }
 
+// ── KOMPONENTY POMOCNICZE ──────────────────────────────────────────────────
 function Panel({ children, style = {} }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
     <div style={{
@@ -44,6 +52,15 @@ function Panel({ children, style = {} }: { children: React.ReactNode; style?: Re
       ...style,
     }}>
       {children}
+    </div>
+  );
+}
+
+function Stat({ label, value, color }: { label: string; value: string | number; color: string }) {
+  return (
+    <div style={{ textAlign: "center" }}>
+      <p style={{ fontSize: 22, fontWeight: 700, color, margin: 0 }}>{value}</p>
+      <p style={{ fontSize: 10, color: COLORS.textFaint, margin: 0, textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</p>
     </div>
   );
 }
@@ -70,6 +87,136 @@ function formatLastSeen(value: string | null): string {
   return date.toLocaleDateString("pl-PL", { day: "numeric", month: "long", year: "numeric" });
 }
 
+// ── MODAL WYBORU AWATARA ──────────────────────────────────────────────────
+function AvatarPickerModal({
+  currentIndex,
+  onSelect,
+  onClose,
+}: {
+  currentIndex: number;
+  onSelect: (index: number) => void;
+  onClose: () => void;
+}) {
+  // Zamykanie po kliknięciu poza modal
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleEsc);
+    return () => document.removeEventListener("keydown", handleEsc);
+  }, [onClose]);
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: "rgba(0,0,0,0.7)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1000,
+        backdropFilter: "blur(4px)",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: COLORS.panel,
+          borderRadius: 16,
+          padding: 24,
+          maxWidth: 500,
+          width: "90%",
+          maxHeight: "80vh",
+          overflowY: "auto",
+          border: `1px solid ${COLORS.border}`,
+          boxShadow: "0 20px 60px rgba(0,0,0,0.6)",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <p style={{ fontFamily: "Cinzel, serif", fontSize: 16, color: COLORS.gold, margin: 0, letterSpacing: "0.06em" }}>
+            Wybierz awatar
+          </p>
+          <button
+            onClick={onClose}
+            style={{
+              background: "none",
+              border: "none",
+              color: COLORS.textDim,
+              fontSize: 20,
+              cursor: "pointer",
+              padding: "0 8px",
+            }}
+          >
+            ✕
+          </button>
+        </div>
+
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "center" }}>
+          {Array.from({ length: AVATAR_COUNT + 1 }, (_, i) => i).map((num) => (
+            <button
+              key={num}
+              onClick={() => {
+                onSelect(num);
+                onClose();
+              }}
+              style={{
+                width: 64,
+                height: 64,
+                borderRadius: 12,
+                border: `3px solid ${currentIndex === num ? COLORS.gold : COLORS.borderSoft}`,
+                padding: 4,
+                background: "transparent",
+                cursor: "pointer",
+                transition: "all 0.15s",
+                overflow: "hidden",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+              onMouseEnter={(e) => {
+                if (currentIndex !== num) {
+                  e.currentTarget.style.borderColor = COLORS.textDim;
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (currentIndex !== num) {
+                  e.currentTarget.style.borderColor = COLORS.borderSoft;
+                }
+              }}
+            >
+              <img
+                src={`${AVATAR_BASE_PATH}${num}${AVATAR_EXT}`}
+                alt={`Avatar ${num}`}
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                  borderRadius: 8,
+                }}
+                onError={(e) => {
+                  // Jeśli obrazek się nie ładuje – ukryj i pokaż czarne tło
+                  e.currentTarget.style.display = "none";
+                  const parent = e.currentTarget.parentElement;
+                  if (parent) {
+                    parent.style.background = "#000";
+                    // Bez żadnych znaków
+                  }
+                }}
+              />
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── GŁÓWNY KOMPONENT ───────────────────────────────────────────────────────
 export default function PlayerProfile() {
   const { characterId } = useParams<{ characterId: string }>();
   const navigate = useNavigate();
@@ -78,8 +225,9 @@ export default function PlayerProfile() {
   const [profile, setProfile] = useState<PlayerProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
 
-  // Stan wysyłki wiadomości bezpośrednio z profilu
+  // Stan wiadomości
   const [messageText, setMessageText] = useState("");
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
@@ -88,7 +236,6 @@ export default function PlayerProfile() {
   // Stan blokowania
   const [blockBusy, setBlockBusy] = useState(false);
 
-  // "me" to specjalny alias rozwiązywany na ID własnej postaci (z CharacterContext)
   const targetId = characterId === "me" ? myCharacter?.id : characterId;
 
   const fetchProfile = useCallback(async () => {
@@ -107,13 +254,13 @@ export default function PlayerProfile() {
 
   useEffect(() => { fetchProfile(); }, [fetchProfile]);
 
-  // Reset formularza wiadomości przy zmianie profilu
   useEffect(() => {
     setMessageText("");
     setSendError(null);
     setSendSuccess(false);
   }, [targetId]);
 
+  // ── WYSYŁANIE WIADOMOŚCI ──────────────────────────────────────────────
   async function handleSendMessage() {
     if (!profile || messageText.trim().length === 0) return;
     setSending(true);
@@ -130,6 +277,7 @@ export default function PlayerProfile() {
     }
   }
 
+  // ── BLOKOWANIE ──────────────────────────────────────────────────────────
   async function handleToggleBlock() {
     if (!profile) return;
     setBlockBusy(true);
@@ -146,6 +294,19 @@ export default function PlayerProfile() {
       setBlockBusy(false);
     }
   }
+
+  // ── ZMIANA AWATARA ──────────────────────────────────────────────────────
+  async function handleChangeAvatar(newIndex: number) {
+    if (!profile || newIndex === profile.avatarIndex) return;
+    try {
+      await api.patch("/profile/avatar", { avatarIndex: newIndex });
+      setProfile((prev) => (prev ? { ...prev, avatarIndex: newIndex } : null));
+    } catch (err: any) {
+      alert(err.response?.data?.error ?? "Błąd zmiany awatara");
+    }
+  }
+
+  // ── RENDER ──────────────────────────────────────────────────────────────
 
   if (!targetId) {
     return <p style={{ fontSize: 13, color: COLORS.textFaint }}>Ładowanie...</p>;
@@ -167,31 +328,69 @@ export default function PlayerProfile() {
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
-        <h1 style={{ fontFamily: "Cinzel, serif", color: COLORS.gold, fontSize: 22, margin: 0, letterSpacing: "0.06em" }}>
-          {profile.isSelf ? "Twój profil" : "Profil gracza"}
-        </h1>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <h1 style={{ fontFamily: "Cinzel, serif", color: COLORS.gold, fontSize: 22, margin: 0, letterSpacing: "0.06em" }}>
+            {profile.isSelf ? "Twój profil" : "Profil gracza"}
+          </h1>
+          {profile.isSelf && (
+            <button
+              onClick={() => setShowAvatarPicker(true)}
+              style={{
+                padding: "6px 14px",
+                borderRadius: 6,
+                border: `1px solid ${COLORS.gold}`,
+                background: "transparent",
+                color: COLORS.gold,
+                fontSize: 11,
+                fontFamily: "Cinzel, serif",
+                cursor: "pointer",
+                transition: "all 0.15s",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(245,196,81,0.12)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+            >
+              Edytuj profil
+            </button>
+          )}
+        </div>
         <button onClick={() => navigate(-1)} style={backButtonStyle}>← Wróć</button>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 20, alignItems: "start" }}>
 
-        {/* ── G: PLACEHOLDER NA GRAFIKĘ POSTACI ── */}
-        <Panel style={{ minHeight: 320, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12 }}>
-          {profile.portraitUrl ? (
-            <img src={profile.portraitUrl} alt={profile.name} style={{ width: "100%", borderRadius: 8 }} />
-          ) : (
-            <>
-              <div style={{ fontSize: 64 }}>🧙</div>
-              <p style={{ fontSize: 11, color: COLORS.textGhost, fontStyle: "italic", textAlign: "center", margin: 0 }}>
-                Wizualizacja postaci<br />— wkrótce —
-              </p>
-            </>
-          )}
+        {/* ── LEWA KOLUMNA: AWATAR ── */}
+        <Panel style={{ minHeight: 320, display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+          <div style={{ width: "100%", maxWidth: 200, aspectRatio: "1/1", overflow: "hidden", borderRadius: 8, border: `2px solid ${COLORS.border}` }}>
+            <img
+              src={`${AVATAR_BASE_PATH}${profile.avatarIndex}${AVATAR_EXT}`}
+              alt={profile.name}
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+              }}
+              onError={(e) => {
+                // Jeśli obrazek się nie ładuje – czarne tło z numerem
+                e.currentTarget.style.display = "none";
+                const parent = e.currentTarget.parentElement;
+                if (parent) {
+                  parent.style.background = "#000";
+                  parent.style.display = "flex";
+                  parent.style.alignItems = "center";
+                  parent.style.justifyContent = "center";
+                  parent.textContent = profile.avatarIndex.toString();
+                  parent.style.color = "#fff";
+                  parent.style.fontSize = "24px";
+                  parent.style.fontWeight = "bold";
+                }
+              }}
+            />
+          </div>
         </Panel>
 
+        {/* ── PRAWA KOLUMNA: DANE ── */}
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
-          {/* ── A: NICK + podstawowe dane ── */}
           <Panel>
             <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
               <span style={{ fontFamily: "Cinzel, serif", fontSize: 22, fontWeight: 700, color: COLORS.gold }}>
@@ -208,14 +407,12 @@ export default function PlayerProfile() {
               )}
             </div>
 
-            {/* C, D, E: poziom / prestiż / wieża */}
             <div style={{ display: "flex", gap: 24, flexWrap: "wrap", marginBottom: 14 }}>
               <Stat label="Poziom" value={profile.level} color={COLORS.teal} />
               <Stat label="Prestiż" value={profile.prestige} color={COLORS.gold} />
               <Stat label="Poziom wieży" value={profile.towerLevel ?? "—"} color={COLORS.purple} />
             </div>
 
-            {/* B: daty */}
             <div style={{ display: "flex", flexDirection: "column", gap: 4, paddingTop: 12, borderTop: `1px solid ${COLORS.borderSoft}` }}>
               <p style={{ fontSize: 12, color: COLORS.textDim, margin: 0 }}>
                 Stał się magiem dnia: <span style={{ color: COLORS.text, fontWeight: 600 }}>{formatDate(profile.registeredAt)}</span>
@@ -226,7 +423,7 @@ export default function PlayerProfile() {
             </div>
           </Panel>
 
-          {/* ── F: TYTUŁY (placeholder) ── */}
+          {/* TYTUŁY */}
           <Panel>
             <p style={{ fontFamily: "Cinzel, serif", fontSize: 13, color: COLORS.gold, marginBottom: 12, letterSpacing: "0.06em" }}>
               TYTUŁY
@@ -250,7 +447,7 @@ export default function PlayerProfile() {
             )}
           </Panel>
 
-          {/* ── Akcje: wiadomość + blokowanie (tylko dla cudzych profili) ── */}
+          {/* WIADOMOŚCI I BLOKOWANIE */}
           {!profile.isSelf && (
             <Panel>
               <p style={{ fontFamily: "Cinzel, serif", fontSize: 13, color: COLORS.gold, marginBottom: 12, letterSpacing: "0.06em" }}>
@@ -315,19 +512,20 @@ export default function PlayerProfile() {
           )}
         </div>
       </div>
+
+      {/* ── MODAL WYBORU AWATARA ── */}
+      {showAvatarPicker && (
+        <AvatarPickerModal
+          currentIndex={profile.avatarIndex}
+          onSelect={handleChangeAvatar}
+          onClose={() => setShowAvatarPicker(false)}
+        />
+      )}
     </div>
   );
 }
 
-function Stat({ label, value, color }: { label: string; value: string | number; color: string }) {
-  return (
-    <div style={{ textAlign: "center" }}>
-      <p style={{ fontSize: 22, fontWeight: 700, color, margin: 0 }}>{value}</p>
-      <p style={{ fontSize: 10, color: COLORS.textFaint, margin: 0, textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</p>
-    </div>
-  );
-}
-
+// ── STYLE ──────────────────────────────────────────────────────────────────
 const backButtonStyle: React.CSSProperties = {
   padding: "8px 16px", borderRadius: 8,
   border: `1px solid ${COLORS.borderSoft}`,

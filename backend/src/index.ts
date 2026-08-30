@@ -15,6 +15,8 @@ import privateMessagesRoutes from "./routes/private-messages.routes.js";
 import profileRoutes from "./routes/profile.routes.js";
 import magicSchoolRoutes from "./routes/magic-school.routes.js";
 import riftRoutes from "./routes/rift.routes.js";
+import notebookRouter from "./routes/notebook.routes.js";
+import reportRoutes from "./routes/report.routes.js"
 
 dotenv.config();
 
@@ -39,6 +41,8 @@ app.use("/api/messages/private", privateMessagesRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/schools", magicSchoolRoutes);
 app.use("/api/rifts", riftRoutes);
+app.use("/api/notebook", notebookRouter);
+app.use("/api/reports", reportRoutes);
 
 // Health check
 app.get("/api/health", (req, res) => {

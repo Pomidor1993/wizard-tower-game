@@ -88,6 +88,7 @@ export interface RiftWorldDef {
   name: string;              // wyświetlana nazwa
   startNodeKey: string;      // klucz węzła startowego
   nodes: RiftNode[];
+  notebookDescription: string;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -99,6 +100,7 @@ const STOKROTKA: RiftWorldDef = {
   riftKey: "green",
   name: "Stokrotka",
   startNodeKey: "start",
+  notebookDescription: "Pachnąca polana",
   nodes: [
 
     {
@@ -227,6 +229,7 @@ const HOBBITON: RiftWorldDef = {
   riftKey: "green",
   name: "Hobbiton",
   startNodeKey: "start",
+  notebookDescription: "Sielankowa wioska z domkami wbudowanymi w pagórkach",
   nodes: [
 
     {
@@ -494,6 +497,7 @@ const SZMARAGDOWE_MIASTO: RiftWorldDef = {
   riftKey: "green",
   name: "Szmaragdowe Miasto",
   startNodeKey: "start",
+  notebookDescription: "Kompletnie zielone miasto, w którym wszyscy noszą zielone okulary.",
   nodes: [
 
     {
@@ -646,7 +650,7 @@ const SZMARAGDOWE_MIASTO: RiftWorldDef = {
           label: "Spróbuj uspokoić Człowieka-Lwa.",
           effect: {
             type: "test",
-            testChance: 0.4,
+            testChance: 0.2,
             onSuccess: {
               type: "end",
               description: "Udaje Ci się przekonać go, że nie zamierzasz nikogo zjadać. Człowiek-Lew zawstydzony przeprasza za całe zamieszanie i w ramach przeprosin wręcza Ci swój Medal Odwagi. Nie bardzo wiedząc, co powinieneś zrobić dalej, po prostu opuszczasz pałac i wracasz do Zielonej Szczeliny.",
@@ -826,6 +830,7 @@ const RUST_WASTELAND: RiftWorldDef = {
   riftKey: "white",
   name: "Rdzewiejące Pustkowie",
   startNodeKey: "start",
+  notebookDescription: "Świat pełen śmieci, złomu i rdzy.",
   nodes: [
 
     {

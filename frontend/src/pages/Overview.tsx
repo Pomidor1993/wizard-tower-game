@@ -14,6 +14,10 @@ const STAT_LABELS: Record<string, string> = {
   bloodMagic:     "Magia Krwi",
 };
 
+// ── STAŁE AWATARÓW ──────────────────────────────────────────────────────────
+const AVATAR_BASE_PATH = "/src/assets/playericons/playericon";
+const AVATAR_EXT = ".jpg";
+
 function Panel({ children, style = {} }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
     <div style={{
@@ -34,21 +38,24 @@ export default function Overview() {
   const [spellSlots, setSpellSlots] = useState<any[]>([]);
   const [productionPerHour, setProductionPerHour] = useState<number | null>(null);
 
-useEffect(() => {
-  api.get("/character/effective-stats").then(r => setEffectiveStats(r.data)).catch(() => {});
-  api.get("/equipment").then(r => setSpellSlots(r.data.spellSlots ?? [])).catch(() => {});
-  api.get("/tower").then(r => {
-    setProductionPerHour(r.data.resources?.productionPerHour ?? null);
-  }).catch(() => {});
-}, [character?.level, character?.powerShards]);
+  useEffect(() => {
+    api.get("/character/effective-stats").then(r => setEffectiveStats(r.data)).catch(() => {});
+    api.get("/equipment").then(r => setSpellSlots(r.data.spellSlots ?? [])).catch(() => {});
+    api.get("/tower").then(r => {
+      setProductionPerHour(r.data.resources?.productionPerHour ?? null);
+    }).catch(() => {});
+  }, [character?.level, character?.powerShards]);
 
   if (!character) return null;
 
-  
   const xpPct = Math.min(100, Math.round(character.experience / character.xpToNextLevel * 100));
 
   const base = effectiveStats?.base ?? {};
   const eff  = effectiveStats?.effective ?? {};
+
+  // ── AWATAR ──
+  const avatarIndex = character.avatarIndex ?? 0;
+  const avatarSrc = `${AVATAR_BASE_PATH}${avatarIndex}${AVATAR_EXT}`;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -56,14 +63,34 @@ useEffect(() => {
       {/* ── PASEK POSTACI ── */}
       <Panel style={{ padding: "16px 20px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
-          {/* Avatar */}
+          {/* Avatar – obrazek zamiast inicjału */}
           <div style={{
             width: 52, height: 52, borderRadius: "50%",
-            background: "linear-gradient(135deg, #F5C451, #F46A4E)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 22, fontWeight: 700, color: "#161d38", flexShrink: 0,
+            overflow: "hidden",
+            border: `2px solid rgba(245,196,81,0.3)`,
+            flexShrink: 0,
+            background: "#000",
           }}>
-            {character.name[0]}
+            <img
+              src={avatarSrc}
+              alt={character.name}
+              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              onError={(e) => {
+                // Jeśli obrazek się nie ładuje – pokaż inicjał
+                e.currentTarget.style.display = "none";
+                const parent = e.currentTarget.parentElement;
+                if (parent) {
+                  parent.style.background = "linear-gradient(135deg, #F5C451, #F46A4E)";
+                  parent.style.display = "flex";
+                  parent.style.alignItems = "center";
+                  parent.style.justifyContent = "center";
+                  parent.textContent = character.name[0];
+                  parent.style.fontSize = "22px";
+                  parent.style.fontWeight = "700";
+                  parent.style.color = "#161d38";
+                }
+              }}
+            />
           </div>
 
           <div style={{ flex: 1, minWidth: 200 }}>
@@ -96,33 +123,60 @@ useEffect(() => {
           </div>
 
           {/* Zasoby */}
-<div style={{ display: "flex", gap: 16, flexShrink: 0 }}>
-  <div style={{ textAlign: "center" }}>
-    <p style={{ fontSize: 20, fontWeight: 700, color: "#F5C451", margin: 0 }}>{character.powerShards}</p>
-<p style={{ fontSize: 10, color: "rgba(247,240,221,0.4)", margin: 0 }}>
-  okruchów mocy · +{productionPerHour ?? "?"}/godz.
-</p>
-  </div>
-  <div style={{ textAlign: "center" }}>
-    <p style={{ fontSize: 20, fontWeight: 700, color: "#59D4D0", margin: 0 }}>{character.runicStoneShards}</p>
-    <p style={{ fontSize: 10, color: "rgba(247,240,221,0.4)", margin: 0 }}>okruchów runicznych</p>
-  </div>
-</div>
+          <div style={{ display: "flex", gap: 16, flexShrink: 0 }}>
+            <div style={{ textAlign: "center" }}>
+              <p style={{ fontSize: 20, fontWeight: 700, color: "#F5C451", margin: 0 }}>{character.powerShards}</p>
+              <p style={{ fontSize: 10, color: "rgba(247,240,221,0.4)", margin: 0 }}>
+                okruchów mocy · +{productionPerHour ?? "?"}/godz.
+              </p>
+            </div>
+            <div style={{ textAlign: "center" }}>
+              <p style={{ fontSize: 20, fontWeight: 700, color: "#59D4D0", margin: 0 }}>{character.runicStoneShards}</p>
+              <p style={{ fontSize: 10, color: "rgba(247,240,221,0.4)", margin: 0 }}>okruchów runicznych</p>
+            </div>
+          </div>
         </div>
       </Panel>
 
       {/* ── GŁÓWNA SIATKA ── */}
       <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 20, alignItems: "start" }}>
 
-        {/* Wizualizacja postaci */}
+        {/* Wizualizacja postaci – teraz wyświetlamy awatar */}
         <Panel style={{ minHeight: 380, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12 }}>
-          <div style={{ fontSize: 64 }}>🧙</div>
+          <div style={{
+            width: "100%",
+            maxWidth: 200,
+            aspectRatio: "1/1",
+            borderRadius: 12,
+            overflow: "hidden",
+            border: `2px solid rgba(245,196,81,0.15)`,
+            background: "#000",
+          }}>
+            <img
+              src={avatarSrc}
+              alt={character.name}
+              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              onError={(e) => {
+                // Jeśli obrazek się nie ładuje – pokaż emoji lub inicjał
+                e.currentTarget.style.display = "none";
+                const parent = e.currentTarget.parentElement;
+                if (parent) {
+                  parent.style.background = "#2a1f44";
+                  parent.style.display = "flex";
+                  parent.style.alignItems = "center";
+                  parent.style.justifyContent = "center";
+                  parent.textContent = "🧙";
+                  parent.style.fontSize = "64px";
+                }
+              }}
+            />
+          </div>
           <p style={{ fontSize: 11, color: "rgba(247,240,221,0.25)", fontStyle: "italic", textAlign: "center", margin: 0 }}>
-            Wizualizacja postaci<br />— wkrótce —
+            Twój awatar
           </p>
         </Panel>
 
-        {/* Statystyki i inne */}
+        {/* Reszta (statystyki, czary, bonusy) – bez zmian */}
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
           {/* Statystyki */}
@@ -138,7 +192,7 @@ useEffect(() => {
                 return (
                   <div key={key} style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", borderBottom: "1px solid rgba(247,240,221,0.06)" }}>
                     <span style={{ fontSize: 12, color: "rgba(247,240,221,0.55)" }}>{label}</span>
-<span style={{
+                    <span style={{
                       fontSize: 12, fontWeight: 600,
                       color: bonus > 0 ? "#59D4D0" : "#F7F0DD",
                     }}>
@@ -181,12 +235,10 @@ useEffect(() => {
             <p style={{ fontFamily: "Cinzel, serif", fontSize: 13, color: "#F5C451", marginBottom: 12, letterSpacing: "0.06em" }}>
               BONUSY KLASY
             </p>
-            {  (
-              <p style={{ fontSize: 12, color: "rgba(247,240,221,0.5)", fontStyle: "italic" }}>
-                Moje magiczne JA: <span style={{ color: "#59D4D0", fontStyle: "normal" }}>{}</span>
-                {" — "}szczegółowe bonusy wkrótce
-              </p>
-            )}
+            <p style={{ fontSize: 12, color: "rgba(247,240,221,0.5)", fontStyle: "italic" }}>
+              Moje magiczne JA: <span style={{ color: "#59D4D0", fontStyle: "normal" }}>—</span>
+              {" — "}szczegółowe bonusy wkrótce
+            </p>
           </Panel>
 
         </div>

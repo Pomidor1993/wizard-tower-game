@@ -77,6 +77,12 @@ const RARITY_CONFIG: Record<string, { label: string; color: string; bg: string }
   unique:   { label: "Unikalny",   color: "#fbbf24", bg: "rgba(251,191,36,0.18)"  },
 };
 
+function getTierColor(tier: number): string {
+  if (tier <= 3) return "#c47b37"; // brązowy
+  if (tier <= 7) return "#c0c0c0"; // srebrny
+  return "#ffd700";               // złoty
+}
+
 const SLOT_CONFIG: Record<string, { label: string; icon: string }> = {
   hat:        { label: "Okrycia głowy", icon: "🎩" },
   robe:       { label: "Szaty",         icon: "👘" },
@@ -95,9 +101,7 @@ const BODY_SLOTS: { key: keyof EquippedSlots; label: string; icon: string; top: 
   { key: "boots",    label: "Buty",       icon: "👢", top: "78%", left: "50%" },
 ];
 
-const RARITY_VALUE: Record<string, number> = {
-  common: 10, uncommon: 25, rare: 50, unique: 100,
-};
+
 
 const ALL_SLOTS = Object.keys(SLOT_CONFIG);
 const ALL_TIERS = Array.from({ length: 10 }, (_, i) => i + 1); // 1–10, zakres stały
@@ -306,7 +310,7 @@ function ItemPopup({
 
 <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
   <Tag>{SLOT_CONFIG[item.slot]?.label ?? item.slot}</Tag>
-  {(entry.tier ?? 1) > 1 && <Tag color="#e5e900">Tier {entry.tier}</Tag>}
+  <Tag color={getTierColor(entry.tier ?? 1)}>Tier {entry.tier ?? 1}</Tag>
   {item.element && <Tag color="#59D4D0">{item.element}</Tag>}
 </div>
 
@@ -537,21 +541,19 @@ function ItemCard({
           onClick={e => e.stopPropagation()}
           style={{ accentColor: "#F5C451", width: 13, height: 13, flexShrink: 0, cursor: "pointer" }}
         />
-        <span
-          onClick={() => onOpenDetail(entry)}
-          style={{
-            fontSize: 11.5, fontWeight: 600, color: "#F7F0DD", lineHeight: 1.2,
-            flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-            cursor: "pointer", textDecoration: "underline", textDecorationColor: "rgba(247,240,221,0.2)",
-          }}
-        >
-          {item.name}
-          {(entry.tier ?? 1) > 1 && (
-  <span style={{ fontSize: 9, color: "#e7aa00", flexShrink: 0, fontWeight: 700 }}>
-    T{entry.tier}
+<span
+  onClick={() => onOpenDetail(entry)}
+  style={{
+    fontSize: 11.5, fontWeight: 600, color: "#F7F0DD", lineHeight: 1.2,
+    flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+    cursor: "pointer", textDecoration: "underline", textDecorationColor: "rgba(247,240,221,0.2)",
+  }}
+>
+  {item.name}
+  <span style={{ fontSize: 9, color: getTierColor(entry.tier ?? 1), flexShrink: 0, fontWeight: 700 }}>
+    T{entry.tier ?? 1}
   </span>
-)}
-        </span>
+</span>
         
         {isEquipped && <span style={{ fontSize: 9, color: "#59D4D0", flexShrink: 0 }}>●</span>}
         {!meetsReqs && !isEquipped && <span style={{ fontSize: 9, color: "#F46A4E", flexShrink: 0 }}>✕</span>}
@@ -704,6 +706,9 @@ export default function ChaosVault() {
 
 const [checkedIds, setCheckedIds]       = useState<Set<number>>(new Set());
   const [disintPreview, setDisintPreview] = useState<{ items: any[]; totalReward: number; currency: "shards" | "prestige" } | null>(null);
+  const [previewShards, setPreviewShards] = useState(0);
+  const [previewPrestige, setPreviewPrestige] = useState(0);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const [disintLoading, setDisintLoading] = useState(false);
   const [disintegratorLevel, setDisintegratorLevel] = useState(0);
 
@@ -711,7 +716,30 @@ const [checkedIds, setCheckedIds]       = useState<Set<number>>(new Set());
   const [savePresetModal, setSavePresetModal] = useState(false);
   const [applyConfirm, setApplyConfirm] = useState<EquipmentPreset | null>(null);
 
-  // tiers: pusty Set = brak filtra (pokaż wszystkie) — tak samo jak rarity/slot === "all"
+useEffect(() => {
+  if (checkedIds.size === 0) {
+    setPreviewShards(0);
+    setPreviewPrestige(0);
+    return;
+  }
+
+  const timeoutId = setTimeout(async () => {
+    setPreviewLoading(true);
+    try {
+      const ids = [...checkedIds];
+      const res = await api.post("/tower/disintegrator/preview-batch", { targets: ids });
+      setPreviewShards(res.data.shards);
+      setPreviewPrestige(res.data.prestige);
+    } catch (err) {
+      console.error("Błąd pobierania podglądu dezintegratora", err);
+    } finally {
+      setPreviewLoading(false);
+    }
+  }, 300);
+
+  return () => clearTimeout(timeoutId);
+}, [checkedIds]);
+
   const [filters, setFilters] = useState({
     rarity: "all",
     slot:   "all",
@@ -867,23 +895,6 @@ async function handleDisintegratePreview(currency: "shards" | "prestige") {
 
   const equipCheck = equipped ? canEquipSelected(checkedIds, allItems, equipped) : { canEquip: false, reason: "Ładowanie..." };
 
-const RARITY_VALUE_PRESTIGE: Record<string, number> = {
-  common: 1, uncommon: 5, rare: 10, unique: 30,
-};
-
-function tierRewardMultiplier(tier: number): number {
-  return 1 + (tier - 1) * 0.1;
-}
-
-const checkedItems = allItems.filter(e => checkedIds.has(e.chaosVaultItemId));
-const checkedShardsPreview = checkedItems.reduce(
-  (sum, e) => sum + Math.floor((RARITY_VALUE[e.item.rarity] ?? 10) * tierRewardMultiplier(e.tier ?? 1)),
-  0
-);
-const checkedPrestigePreview = checkedItems.reduce(
-  (sum, e) => sum + Math.floor((RARITY_VALUE_PRESTIGE[e.item.rarity] ?? 1) * tierRewardMultiplier(e.tier ?? 1)),
-  0
-);
 
   if (loading) return <p style={{ color: "rgba(247,240,221,0.4)" }}>Ładowanie...</p>;
 
@@ -1170,48 +1181,47 @@ const checkedPrestigePreview = checkedItems.reduce(
                 </p>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  <button
-                    onClick={() => handleDisintegratePreview("shards")}
-                    disabled={checkedIds.size === 0 || disintLoading}
-                    style={{
-                      width: "100%", padding: "10px 0", borderRadius: 8, border: "none",
-                      fontSize: 12, fontWeight: 700, fontFamily: "Cinzel, serif",
-                      cursor: (checkedIds.size === 0 || disintLoading) ? "not-allowed" : "pointer",
-                      background: (checkedIds.size === 0 || disintLoading)
-                        ? "rgba(244,106,78,0.1)" : "rgba(244,106,78,0.85)",
-                      color: (checkedIds.size === 0 || disintLoading)
-                        ? "rgba(247,240,221,0.3)" : "#fff",
-                      transition: "all 0.2s",
-                    }}
-                  >
-                    {disintLoading
-                      ? "Obliczam..."
-                      : checkedIds.size > 0
-                      ? `Zniszcz za okruchy (${checkedIds.size}) — +${checkedShardsPreview} ✦`
-                      : "Zniszcz za okruchy mocy"}
-                  </button>
+<button
+  onClick={() => handleDisintegratePreview("shards")}
+  disabled={checkedIds.size === 0 || disintLoading || previewLoading}
+  style={{
+    width: "100%", padding: "10px 0", borderRadius: 8, border: "none",
+    fontSize: 12, fontWeight: 700, fontFamily: "Cinzel, serif",
+    cursor: (checkedIds.size === 0 || disintLoading || previewLoading) ? "not-allowed" : "pointer",
+    background: (checkedIds.size === 0 || disintLoading || previewLoading)
+      ? "rgba(244,106,78,0.1)" : "rgba(244,106,78,0.85)",
+    color: (checkedIds.size === 0 || disintLoading || previewLoading)
+      ? "rgba(247,240,221,0.3)" : "#fff",
+    transition: "all 0.2s",
+  }}
+>
+  {previewLoading
+    ? "Obliczam..."
+    : checkedIds.size > 0
+    ? `Zniszcz za okruchy (${checkedIds.size}) — +${previewShards} ✦`
+    : "Zniszcz za okruchy mocy"}
+</button>
 
-                  <button
-                    onClick={() => handleDisintegratePreview("prestige")}
-                    disabled={checkedIds.size === 0 || disintLoading}
-                    style={{
-                      width: "100%", padding: "10px 0", borderRadius: 8,
-                      border: `1px solid ${(checkedIds.size === 0 || disintLoading) ? "rgba(245,196,81,0.15)" : "rgba(245,196,81,0.4)"}`,
-                      fontSize: 12, fontWeight: 700, fontFamily: "Cinzel, serif",
-                      cursor: (checkedIds.size === 0 || disintLoading) ? "not-allowed" : "pointer",
-                      background: (checkedIds.size === 0 || disintLoading)
-                        ? "rgba(245,196,81,0.05)" : "rgba(245,196,81,0.12)",
-                      color: (checkedIds.size === 0 || disintLoading)
-                        ? "rgba(247,240,221,0.3)" : "#F5C451",
-                      transition: "all 0.2s",
-                    }}
-                  >
-                    {disintLoading
-                      ? "Obliczam..."
-                      : checkedIds.size > 0
-                      ? `Zniszcz za prestiż (${checkedIds.size}) — +${checkedPrestigePreview} ♛`
-                      : "Zniszcz za prestiż"}
-                  </button>
+<button
+  onClick={() => handleDisintegratePreview("prestige")}
+  disabled={checkedIds.size === 0 || disintLoading || previewLoading}
+  style={{
+    width: "100%", padding: "10px 0", borderRadius: 8,
+    border: `1px solid ${(checkedIds.size === 0 || disintLoading || previewLoading) ? "rgba(245,196,81,0.15)" : "rgba(245,196,81,0.4)"}`,
+    fontSize: 12, fontWeight: 700, fontFamily: "Cinzel, serif",
+    cursor: (checkedIds.size === 0 || disintLoading || previewLoading) ? "not-allowed" : "pointer",
+    background: (checkedIds.size === 0 || disintLoading || previewLoading)
+      ? "rgba(245,196,81,0.05)" : "rgba(245,196,81,0.12)",
+    color: (checkedIds.size === 0 || disintLoading || previewLoading)
+      ? "rgba(247,240,221,0.3)" : "#F5C451",
+  }}
+>
+  {previewLoading
+    ? "Obliczam..."
+    : checkedIds.size > 0
+    ? `Zniszcz za prestiż (${checkedIds.size}) — +${previewPrestige} ♛`
+    : "Zniszcz za prestiż"}
+</button>
                 </div>
               )}
             </div>

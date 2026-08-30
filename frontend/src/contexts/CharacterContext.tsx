@@ -20,6 +20,7 @@ export interface CharacterData {
   elementalMagic: number;
   astralMagic: number;
   bloodMagic: number;
+  avatarIndex: number;
   tower?: { level: number };
 }
 

@@ -1,6 +1,11 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import api from "../api/client";
+import { DuelReport } from "../components/DuelReport";
+import { TournamentReport } from "../components/TournamentReport";
+import { StudyReport } from "../components/StudyReport";
+import { ExplorationReport } from "../components/ExplorationReport";
+import { RiftReport } from "../components/RiftReport";
 
 const COLORS = {
   bg:        "#161d38",
@@ -18,18 +23,18 @@ const COLORS = {
   textGhost: "rgba(247,240,221,0.2)",
 };
 
-type ViewKey = "all" | "saved" | "private";
+type ViewKey = "all" | "saved" | "private" | "reports";
 
 const VIEWS: { key: ViewKey; label: string; icon: string }[] = [
   { key: "all",     label: "Ogólne",             icon: "✦" },
+  { key: "reports", label: "Raporty",            icon: "📋" },
   { key: "private", label: "Magiczne ploteczki", icon: "✉" },
-  { key: "saved",   label: "Zapisane",            icon: "📌" },
+  { key: "saved",   label: "Zapisane",           icon: "📌" },
 ];
 
 interface SystemMessage {
   id: number;
-  // pkt 4: dodano "school" jako typ wiadomości
-  type: "random" | "levelup" | "tutorial" | "school" | "rift";
+  type: "random" | "levelup" | "tutorial" | "school" | "rift" | "study";
   title: string | null;
   content: string;
   isRead: boolean;
@@ -64,7 +69,172 @@ const TYPE_LABELS: Record<string, { label: string; color: string }> = {
   levelup:  { label: "Poziom",  color: COLORS.gold },
   tutorial: { label: "Tutorial", color: COLORS.teal },
   school:   { label: "Szkoła",  color: "#4ade80" },
+  study:    { label: "Studia",  color: "#e09a01" },
 };
+
+const REPORT_TYPE_LABELS: Record<string, { label: string; color: string }> = {
+  study:         { label: "Studia",       color: "#e09a01" },
+  exploration:   { label: "Eksploracja",  color: "#59D4D0" },
+  duel:          { label: "Pojedynek",    color: "#F46A4E" },
+  tournament:    { label: "Turniej",      color: "#A78BFA" },
+  rift_unstable: { label: "Szczelina",   color: "#F5C451" },
+  rift_stable:   { label: "Sz. Stabilna",color: "#4ade80" },
+};
+
+function renderReportContent(type: string, payload: any, viewerCharacterId: number) {
+  switch (type) {
+    case "duel":        return <DuelReport result={payload} viewerCharacterId={viewerCharacterId} />;
+    case "tournament":  return <TournamentReport result={payload} viewerCharacterId={viewerCharacterId} />;
+    case "study":       return <StudyReport payload={payload} viewerCharacterId={viewerCharacterId} />;
+    case "exploration": return <ExplorationReport payload={payload} viewerCharacterId={viewerCharacterId} />;
+    case "rift_unstable":        return <RiftReport payload={payload} viewerCharacterId={viewerCharacterId} />;
+    default: return <p style={{ fontSize: 12, color: COLORS.textFaint }}>Brak podglądu dla tego typu raportu.</p>;
+  }
+}
+
+function ReportsView() {
+  const [reports, setReports] = useState<any[]>([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState<number | null>(null);
+  const [expandedPayload, setExpandedPayload] = useState<any>(null);
+  const [expandedType, setExpandedType] = useState<string>("");
+  const [viewerCharacterId, setViewerCharacterId] = useState<number | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  const fetchReports = useCallback(async (p: number) => {
+    setLoading(true);
+    try {
+      const res = await api.get("/reports", { params: { page: p, pageSize: 20 } });
+      setReports(res.data.reports);
+      setTotalPages(res.data.totalPages);
+      if (res.data.reports[0]?.payload?.viewerCharacterId) {
+        setViewerCharacterId(res.data.reports[0].payload.viewerCharacterId);
+      }
+    } catch { /* ciche */ } finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { fetchReports(page); }, [page, fetchReports]);
+
+  async function toggleExpand(report: any) {
+    if (expanded === report.id) { setExpanded(null); return; }
+
+    // Fetch full payload on expand
+    try {
+      const res = await api.get(`/reports/${report.id}`);
+      setExpandedPayload(res.data.payload);
+      setExpandedType(res.data.type);
+      setViewerCharacterId(res.data.viewerCharacterId);
+      setExpanded(report.id);
+      // Mark as read in local list
+      setReports(prev => prev.map(r => r.id === report.id ? { ...r, isRead: true } : r));
+    } catch { /* ciche */ }
+  }
+
+  function copyLink(reportId: number) {
+    const url = `${window.location.origin}/reports/${reportId}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    });
+  }
+
+  return (
+    <Panel>
+      {loading && <p style={{ color: COLORS.textFaint, fontSize: 13, textAlign: "center", padding: "20px 0" }}>Ładowanie...</p>}
+      {!loading && reports.length === 0 && (
+        <p style={{ color: COLORS.textGhost, fontSize: 13, textAlign: "center", padding: "20px 0", fontStyle: "italic" }}>
+          Brak raportów. Rozpocznij akcję, aby zobaczyć wyniki tutaj.
+        </p>
+      )}
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {reports.map(report => {
+          const isOpen = expanded === report.id;
+          const typeInfo = REPORT_TYPE_LABELS[report.type] ?? { label: report.type, color: COLORS.textFaint };
+
+          return (
+            <div key={report.id}>
+              <div
+                onClick={() => toggleExpand(report)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 12,
+                  padding: "12px 14px", borderRadius: 10,
+                  border: `1px solid ${COLORS.borderSoft}`,
+                  background: report.isRead ? COLORS.panelAlt : "rgba(245,196,81,0.06)",
+                  cursor: "pointer", transition: "background 0.15s",
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.03)")}
+                onMouseLeave={e => (e.currentTarget.style.background = report.isRead ? COLORS.panelAlt : "rgba(245,196,81,0.06)")}
+              >
+                {!report.isRead && (
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: COLORS.red, flexShrink: 0 }} />
+                )}
+                <span style={{
+                  fontSize: 9, padding: "2px 6px", borderRadius: 4, fontWeight: 700,
+                  fontFamily: "Cinzel, serif", letterSpacing: "0.06em", flexShrink: 0,
+                  background: `${typeInfo.color}22`, color: typeInfo.color,
+                  border: `1px solid ${typeInfo.color}44`,
+                }}>
+                  {typeInfo.label}
+                </span>
+<div style={{ flex: 1, minWidth: 0 }}>
+  <p style={{
+    fontSize: 13, color: COLORS.text, margin: 0,
+    fontWeight: report.isRead ? 400 : 600,
+    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+  }}>
+    {report.preview}
+  </p>
+</div>
+<span style={{ fontSize: 11, color: COLORS.textFaint, flexShrink: 0 }}>
+  {formatDateTime(report.createdAt)}
+</span>
+<span style={{
+  color: COLORS.textGhost, fontSize: 11, flexShrink: 0,
+  display: "inline-block", transition: "transform 0.15s",
+  transform: isOpen ? "rotate(90deg)" : "rotate(0deg)",
+}}>▶</span>
+              </div>
+
+              {isOpen && expandedPayload && (
+                <div style={{
+                  marginTop: 6, padding: "16px 14px", borderRadius: 10,
+                  background: "rgba(0,0,0,0.15)", border: `1px solid ${COLORS.borderSoft}`,
+                }}>
+                  {renderReportContent(expandedType, expandedPayload, viewerCharacterId ?? 0)}
+
+                  <div style={{ marginTop: 16, paddingTop: 12, borderTop: `1px solid ${COLORS.borderSoft}`, display: "flex", justifyContent: "flex-end" }}>
+                    <button
+                      onClick={() => copyLink(report.id)}
+                      style={{
+                        padding: "6px 14px", borderRadius: 6,
+                        border: `1px solid ${COLORS.borderSoft}`, background: "transparent",
+                        color: linkCopied ? COLORS.teal : COLORS.textFaint,
+                        fontSize: 11, cursor: "pointer", fontFamily: "Cinzel, serif",
+                      }}
+                    >
+                      {linkCopied ? "✓ Skopiowano link" : "🔗 Wygeneruj link zewnętrzny"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {!loading && totalPages > 1 && (
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 10, marginTop: 16 }}>
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} style={pagerButtonStyle(page <= 1)}>← Poprzednia</button>
+          <span style={{ fontSize: 12, color: COLORS.textDim }}>{page} / {totalPages}</span>
+          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages} style={pagerButtonStyle(page >= totalPages)}>Następna →</button>
+        </div>
+      )}
+    </Panel>
+  );
+}
 
 // ── PARSER LINKÓW W TREŚCI WIADOMOŚCI ────────────────────────────────────────
 // [PROFIL:id:nazwa]  → klikalny nick → /profile/:id
@@ -112,16 +282,19 @@ function renderContent(
 export default function Messages() {
   const [searchParams, setSearchParams] = useSearchParams();
   const conversationParam = searchParams.get("conversation");
+  const tabParam = searchParams.get("tab");
 
-  const [view, setView] = useState<ViewKey>(conversationParam ? "private" : "all");
+  // Ustaw widok na podstawie parametrów URL
+  const initialView: ViewKey = tabParam === "reports" ? "reports" : conversationParam ? "private" : "all";
+  const [view, setView] = useState<ViewKey>(initialView);
   const [openConversationId, setOpenConversationId] = useState<number | null>(
-    conversationParam ? parseInt(conversationParam, 10) : null
+    conversationParam && !tabParam ? parseInt(conversationParam, 10) : null
   );
 
   function selectView(key: ViewKey) {
     setView(key);
     if (key !== "private") setOpenConversationId(null);
-    setSearchParams({});
+    setSearchParams({}); // czyści parametry po zmianie zakładki
   }
 
   return (
@@ -144,7 +317,10 @@ export default function Messages() {
         </div>
       </Panel>
 
-      {view === "private" ? (
+      {/* WARUNEK RENDEROWANIA – dodano obsługę "reports" */}
+      {view === "reports" ? (
+        <ReportsView />
+      ) : view === "private" ? (
         <PrivateMessagesView initialConversationId={openConversationId} onConversationOpened={() => setSearchParams({})} />
       ) : (
         <SystemMessagesView savedOnly={view === "saved"} />

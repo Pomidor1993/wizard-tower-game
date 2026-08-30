@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import prisma from "../lib/prisma.js";
 import { getPlayerProfile } from "../services/profile.service.js";
+import { updateAvatar } from "../services/profile.service.js";
 
 async function resolveCharacterId(userId: number): Promise<number> {
   const character = await prisma.character.findUnique({ where: { userId }, select: { id: true } });
@@ -24,4 +25,20 @@ export async function getPlayerProfileEndpoint(req: Request, res: Response) {
   } catch (error: any) {
     res.status(404).json({ error: error.message });
   }
+}
+
+export async function updateAvatarEndpoint(req: Request, res: Response) {
+  const userId = req.userId; // zakładam, że req.user jest ustawiany przez auth middleware
+  if (!userId) return res.status(401).json({ error: "Nie zalogowany" });
+
+  const character = await prisma.character.findUnique({ where: { userId } });
+  if (!character) return res.status(404).json({ error: "Postać nie znaleziona" });
+
+  const { avatarIndex } = req.body;
+  if (typeof avatarIndex !== "number" || avatarIndex < 0 || avatarIndex > 20) {
+    return res.status(400).json({ error: "Nieprawidłowy numer awatara (0–20)" });
+  }
+
+  await updateAvatar(character.id, avatarIndex);
+  res.json({ success: true, avatarIndex });
 }

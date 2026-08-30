@@ -9,7 +9,7 @@ import {
   upgradeMagicNotebook, claimMagicNotebook,
   upgradeAltair, claimAltair,
   upgradeDisintegrator, claimDisintegrator,
-  previewDisintegratorEndpoint, confirmDisintegratorEndpoint,  
+  previewDisintegratorEndpoint, confirmDisintegratorEndpoint, previewDisintegratorBatchEndpoint 
 } from "../controllers/tower.controller.js";
 
 const router = Router();
@@ -35,6 +35,7 @@ router.post("/disintegrator/start",   requireAuth, upgradeDisintegrator);
 router.post("/disintegrator/claim",   requireAuth, claimDisintegrator);
 router.post("/disintegrator/preview", requireAuth, previewDisintegratorEndpoint);
 router.post("/disintegrator/confirm", requireAuth, confirmDisintegratorEndpoint);
+router.post("/disintegrator/preview-batch", requireAuth, previewDisintegratorBatchEndpoint);
 
 
 export default router;
